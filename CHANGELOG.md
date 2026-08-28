@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### A2 hardening — coverage gap-close
+- Tests added: naive-datetime input round-trips as UTC-aware; DLQ entry survives Application delete with `application_id` set to NULL (verifies `ON DELETE SET NULL`); `update_application` extracted_jd flow through JSON serializer; `connect()` creates missing parent directories.
+- ADR-002 documents single-writer-only limit and naive-datetime contract.
+
 ### A2 — Storage layer
 - pydantic domain models: Application, Contact, Interaction, DLQEntry (+ FetchStatus / ContactRole / InteractionType / FailureMode / Resolution enums).
 - SQLite schema for all four tables with foreign keys, cascade-delete on Application → Contact/Interaction, set-null on Contact deletion, indices on hot query paths.

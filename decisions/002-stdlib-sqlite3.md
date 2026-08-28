@@ -25,3 +25,8 @@ Use Python's stdlib `sqlite3` module directly. Hand-written SQL in `jscc/storage
 - Cost: every entity needs a hand-written row-to-model helper. Acceptable at this scale; watch for it as friction if the model grows large.
 - Cost: no compile-time protection against typos in column names. Test coverage on CRUD is the mitigation (`tests/test_storage.py`).
 - Revisit if: (a) we add a real remote deployment, (b) a second writer joins the picture, or (c) the CRUD surface triples.
+
+## Explicit non-goals / known limits
+
+- **Single-writer only.** SQLite serializes writes; concurrent writers block. This is fine — JSCC is a personal, interactive, single-machine tool. A hosted variant would need to switch backends.
+- **Naive-datetime input is treated as UTC.** Callers passing a naive `datetime` will get a UTC-aware value back on read. Documented and covered by `test_naive_datetime_input_stored_and_read_as_utc`.

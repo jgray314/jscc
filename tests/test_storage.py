@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -215,3 +215,70 @@ def test_resolve_to_unresolved_rejected(conn: sqlite3.Connection) -> None:
     create_dlq_entry(conn, entry)
     with pytest.raises(ValueError, match="cannot resolve to 'unresolved'"):
         resolve_dlq_entry(conn, entry.id, Resolution.unresolved)
+
+
+def test_naive_datetime_input_stored_and_read_as_utc(conn: sqlite3.Connection) -> None:
+    """Callers may pass a naive datetime; storage treats it as UTC and reads back UTC-aware.
+
+    Documents the naive-in / aware-out contract so callers relying on either behavior fail
+    loudly if it changes.
+    """
+    app = _sample_app()
+    create_application(conn, app)
+    naive = datetime(2026, 8, 15, 12, 0, 0)
+    interaction = Interaction(
+        application_id=app.id,
+        type=InteractionType.screen,
+        occurred_at=naive,
+    )
+    create_interaction(conn, interaction)
+    loaded = list_interactions(conn, app.id)[0]
+    assert loaded.occurred_at.tzinfo is not None
+    assert loaded.occurred_at.utcoffset() == timedelta(0)
+    assert loaded.occurred_at.replace(tzinfo=None) == naive
+
+
+def test_dlq_entry_survives_application_delete_with_null_fk(conn: sqlite3.Connection) -> None:
+    """DLQ entries tied to an Application must not be cascade-deleted; FK is SET NULL."""
+    app = _sample_app()
+    create_application(conn, app)
+    entry = DLQEntry(
+        application_id=app.id,
+        source_url="https://timeout.example/job/7",
+        failure_mode=FailureMode.timeout,
+    )
+    create_dlq_entry(conn, entry)
+    conn.execute("DELETE FROM applications WHERE id = ?", (app.id,))
+    conn.commit()
+    remaining = list_dlq_entries(conn, unresolved_only=False)
+    assert len(remaining) == 1
+    assert remaining[0].id == entry.id
+    assert remaining[0].application_id is None
+
+
+def test_update_extracted_jd_via_update_path(conn: sqlite3.Connection) -> None:
+    """The update path serializes extracted_jd through the JSON boundary."""
+    app = _sample_app(extracted_jd={"level": "L5", "stack": ["python"]})
+    create_application(conn, app)
+    replacement = {"level": "L7", "stack": ["python", "go"], "responsibilities": ["own X"]}
+    update_application(conn, app.id, extracted_jd=replacement)
+    loaded = get_application(conn, app.id)
+    assert loaded is not None
+    assert loaded.extracted_jd == replacement
+
+    update_application(conn, app.id, extracted_jd=None)
+    cleared = get_application(conn, app.id)
+    assert cleared is not None
+    assert cleared.extracted_jd is None
+
+
+def test_connect_creates_missing_parent_dirs(tmp_path: Path) -> None:
+    nested = tmp_path / "a" / "b" / "c" / "test.db"
+    assert not nested.parent.exists()
+    c = connect(nested)
+    try:
+        init_db(c)
+        assert nested.parent.exists()
+        assert nested.exists()
+    finally:
+        c.close()
