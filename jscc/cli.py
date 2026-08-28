@@ -7,10 +7,13 @@ import click
 from pydantic import ValidationError
 
 from .config import LoadError, load_profile, load_stages
+from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import connect, init_db, schema_version
 
 DEFAULT_CONFIG_DIR = Path("config")
-DEFAULT_DB_PATH = Path("data/dev.db")
+# D7 M7-aligned: default to synthetic. A4.5 will formalize a two-instance
+# selector; until then, plain synthetic is the only supported target.
+DEFAULT_DB_PATH = Path("data/synthetic.db")
 
 
 @click.group()
@@ -65,6 +68,45 @@ def db_init(db_path: Path) -> None:
         init_db(conn)
         version = schema_version(conn)
     click.echo(f"initialized {db_path} at schema version {version}")
+
+
+@cli.command("seed")
+@click.option(
+    "--synthetic",
+    "mode",
+    flag_value="synthetic",
+    default="synthetic",
+    help="Load the synthetic fixture. Currently the only supported mode.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DB_PATH,
+    show_default=True,
+    help="SQLite file to seed.",
+)
+@click.option(
+    "--random-seed",
+    type=int,
+    default=DEFAULT_SEED,
+    show_default=True,
+    help="Deterministic RNG seed for the fixture.",
+)
+@click.option(
+    "--no-reset",
+    is_flag=True,
+    default=False,
+    help="Append to existing data instead of clearing tables first.",
+)
+def seed(mode: str, db_path: Path, random_seed: int, no_reset: bool) -> None:
+    """Populate the DB with a synthetic fixture (25 applications + contacts + interactions + DLQ)."""
+    if mode != "synthetic":  # defensive; click enforces value
+        raise click.UsageError(f"unsupported seed mode: {mode}")
+    with connect(db_path) as conn:
+        init_db(conn)
+        counts = seed_synthetic(conn, reset=not no_reset, random_seed=random_seed)
+    summary = ", ".join(f"{k}={v}" for k, v in counts.items())
+    click.echo(f"seeded {db_path}: {summary}")
 
 
 def main() -> None:
