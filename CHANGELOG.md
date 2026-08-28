@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### A2 — Storage layer
+- pydantic domain models: Application, Contact, Interaction, DLQEntry (+ FetchStatus / ContactRole / InteractionType / FailureMode / Resolution enums).
+- SQLite schema for all four tables with foreign keys, cascade-delete on Application → Contact/Interaction, set-null on Contact deletion, indices on hot query paths.
+- CRUD: `create_*`, `get_*`, `list_*` for each entity; `update_application` with field-whitelist and auto-touched `updated_at`; DLQ lifecycle via `create_dlq_entry` + `resolve_dlq_entry`.
+- New CLI: `python -m jscc db init` (idempotent).
+- Schema versioning via `PRAGMA user_version`.
+- 14 additional pytest cases (24 total), including cascade-delete behavior, JSON roundtrip on `extracted_jd`, FK enforcement, DLQ lifecycle.
+- ADR-002 documents stdlib `sqlite3` over SQLAlchemy/SQLModel with rejected alternatives.
+
 ### A1 — Repo scaffold + config loader
 - Bootstrapped `jscc` Python package under the portfolio repo.
 - Added pydantic-based config models for `stages.yaml` and `profile.yaml`.
