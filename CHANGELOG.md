@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### A4 — Staleness detector + funnel counts
+- `jscc/report.py`: pure functions `funnel_counts()` and `detect_stale()` over `list[Application]` + `StagesConfig`. `StaleAlert` model with `overdue_by_days`. `format_report()` renders a text summary.
+- Staleness reference timestamp is `last_interaction_at` when set, else `created_at` (covers identified-stage apps with no interactions).
+- Alerts sorted most-overdue-first; unknown stages skipped; naive datetimes handled per ADR-002 contract.
+- New CLI: `python -m jscc report` — funnel by configured stage order (zero counts included), then stale list.
+- 12 new pytest cases (50 total): funnel with zeros / unknown stage; stale detection over/under/at-threshold; ordering; `created_at` fallback; unknown-stage skip; high-threshold-excludes-closed; naive-datetime handling; format-report structure; empty case; end-to-end against seeded fixture.
+
 ### A3 hardening — timeline coherence + contact wiring + JD variety
 - Interaction chains are now anchored on `applied_at` and stepped forward with realistic gaps, producing chronologically-ordered timelines.
 - `Application.last_interaction_at` now equals the chain-end timestamp (previously drifted).

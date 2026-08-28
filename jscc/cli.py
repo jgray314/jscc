@@ -7,8 +7,9 @@ import click
 from pydantic import ValidationError
 
 from .config import LoadError, load_profile, load_stages
+from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
-from .storage import connect, init_db, schema_version
+from .storage import connect, init_db, list_applications, schema_version
 
 DEFAULT_CONFIG_DIR = Path("config")
 # D7 M7-aligned: default to synthetic. A4.5 will formalize a two-instance
@@ -107,6 +108,31 @@ def seed(mode: str, db_path: Path, random_seed: int, no_reset: bool) -> None:
         counts = seed_synthetic(conn, reset=not no_reset, random_seed=random_seed)
     summary = ", ".join(f"{k}={v}" for k, v in counts.items())
     click.echo(f"seeded {db_path}: {summary}")
+
+
+@cli.command("report")
+@click.option(
+    "--db-path",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DB_PATH,
+    show_default=True,
+    help="SQLite file to read from.",
+)
+@click.option(
+    "--config-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_CONFIG_DIR,
+    show_default=True,
+    help="Directory containing stages.yaml.",
+)
+def report(db_path: Path, config_dir: Path) -> None:
+    """Print pipeline funnel counts and stale-alert list."""
+    stages_cfg = load_stages(config_dir / "stages.yaml")
+    with connect(db_path) as conn:
+        apps = list_applications(conn)
+    counts = funnel_counts(apps, stages_cfg)
+    alerts = detect_stale(apps, stages_cfg)
+    click.echo(format_report(counts, alerts, stages_cfg))
 
 
 def main() -> None:
