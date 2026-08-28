@@ -1,0 +1,16 @@
+# Sample profile — public and generic. Real profile lives in profile.private.yaml (gitignored, lands in A4.5).
+display_name: "Sample Candidate"
+role_focus:
+  - "engineering manager"
+  - "senior staff engineer"
+level_target: "L6-L7 equivalent"
+experience_years: 12
+comp_target:
+  min_usd: 300000
+  max_usd: 500000
+must_haves:
+  - "remote or hybrid"
+  - "modern tooling and CI"
+deal_breakers:
+  - "on-call rotations >1 week/month"
+style_samples: []

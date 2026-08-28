@@ -1,0 +1,22 @@
+# Pipeline stages, in order. Configurable so different searches can use different pipelines.
+stages:
+  - identified
+  - applied
+  - recruiter_screen
+  - hm_screen
+  - technical_loop
+  - onsite
+  - offer
+  - closed
+
+# Days past last_interaction_at before an application is flagged stale.
+# Keys must exactly match the stages list above.
+staleness_thresholds_days:
+  identified: 7
+  applied: 14
+  recruiter_screen: 7
+  hm_screen: 7
+  technical_loop: 10
+  onsite: 10
+  offer: 30
+  closed: 999

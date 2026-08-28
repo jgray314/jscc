@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# uv
+uv.lock
+
+# JSCC data safety (D7 M1/M2 land in Slice A4.5 — these are the placeholder patterns)
+data/*.db
+!data/synthetic.db
+*.private.*
+profile.private.yaml
+contacts.private.*
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
