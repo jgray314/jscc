@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .mode import Mode, resolve_db_path
 from .models import (
     Application,
     Contact,
@@ -16,7 +17,12 @@ from .models import (
     _now,
 )
 
-DB_SCHEMA_VERSION = 1
+
+class ModeMismatchError(RuntimeError):
+    """A DB stamped with one mode is being opened under a different mode."""
+
+
+DB_SCHEMA_VERSION = 2
 
 SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS applications (
@@ -79,7 +85,14 @@ CREATE TABLE IF NOT EXISTS dlq_entries (
 );
 
 CREATE INDEX IF NOT EXISTS ix_dlq_resolution ON dlq_entries(resolution);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
+
+_MODE_META_KEY = "mode"
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
@@ -99,6 +112,54 @@ def init_db(conn: sqlite3.Connection) -> None:
 def schema_version(conn: sqlite3.Connection) -> int:
     row = conn.execute("PRAGMA user_version").fetchone()
     return int(row[0]) if row else 0
+
+
+def read_mode_marker(conn: sqlite3.Connection) -> Mode | None:
+    """Return the stamped mode for a DB, or None if not yet stamped / no meta table."""
+    try:
+        row = conn.execute(
+            "SELECT value FROM meta WHERE key = ?", (_MODE_META_KEY,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if row is None:
+        return None
+    return Mode(row["value"])
+
+
+def write_mode_marker(conn: sqlite3.Connection, mode: Mode) -> None:
+    """Stamp the DB with a mode marker. Overwrites any existing value."""
+    conn.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+        (_MODE_META_KEY, mode.value),
+    )
+    conn.commit()
+
+
+def open_for_mode(
+    mode: Mode,
+    data_dir: Path | None = None,
+) -> sqlite3.Connection:
+    """Open (and initialize on first use) the DB corresponding to `mode`.
+
+    On first open the DB is stamped with `mode`. On subsequent opens the
+    stamp is verified — a mismatch raises `ModeMismatchError` and the
+    connection is closed. This is the structural mode-crossing block that
+    D7 M1 requires.
+    """
+    path = resolve_db_path(mode, data_dir)
+    conn = connect(path)
+    init_db(conn)  # idempotent; ensures `meta` table exists
+    stamped = read_mode_marker(conn)
+    if stamped is None:
+        write_mode_marker(conn, mode)
+    elif stamped is not mode:
+        conn.close()
+        raise ModeMismatchError(
+            f"database at {path} was stamped as {stamped.value!r}; "
+            f"refusing to open under mode {mode.value!r} (JSCC_DATA)."
+        )
+    return conn
 
 
 # ---- serialization helpers ----------------------------------------------------

@@ -66,3 +66,24 @@ def load_stages(path: Path) -> StagesConfig:
 
 def load_profile(path: Path) -> Profile:
     return Profile.model_validate(_read_yaml(path))
+
+
+PROFILE_PRIVATE = "profile.private.yaml"
+PROFILE_EXAMPLE = "profile.example.yaml"
+
+
+def resolve_profile_path(config_dir: Path) -> Path:
+    """Return profile.private.yaml if present, else profile.example.yaml.
+
+    Per D7 M7 and D8: the private file is where real personal data lives
+    (gitignored). The example file is a public template committed to the repo.
+    """
+    private = config_dir / PROFILE_PRIVATE
+    if private.exists():
+        return private
+    example = config_dir / PROFILE_EXAMPLE
+    if example.exists():
+        return example
+    raise LoadError(
+        f"no profile config found in {config_dir}; expected {PROFILE_PRIVATE} or {PROFILE_EXAMPLE}"
+    )

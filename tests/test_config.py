@@ -11,6 +11,7 @@ from jscc.config import (
     StagesConfig,
     load_profile,
     load_stages,
+    resolve_profile_path,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +25,41 @@ def test_sample_stages_loads() -> None:
     assert cfg.staleness_thresholds_days["applied"] == 14
 
 
-def test_sample_profile_loads() -> None:
-    prof = load_profile(SAMPLE_CONFIG / "profile.yaml")
+def test_sample_profile_example_loads() -> None:
+    prof = load_profile(SAMPLE_CONFIG / "profile.example.yaml")
     assert isinstance(prof, Profile)
     assert prof.experience_years == 12
     assert prof.comp_target.min_usd < prof.comp_target.max_usd
+
+
+def test_resolve_profile_prefers_private(tmp_path: Path) -> None:
+    (tmp_path / "profile.example.yaml").write_text(
+        "display_name: Example\nrole_focus: [em]\nlevel_target: L6\n"
+        "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "profile.private.yaml").write_text(
+        "display_name: Private\nrole_focus: [em]\nlevel_target: L6\n"
+        "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
+        encoding="utf-8",
+    )
+    resolved = resolve_profile_path(tmp_path)
+    assert resolved.name == "profile.private.yaml"
+
+
+def test_resolve_profile_falls_back_to_example(tmp_path: Path) -> None:
+    (tmp_path / "profile.example.yaml").write_text(
+        "display_name: Example\nrole_focus: [em]\nlevel_target: L6\n"
+        "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
+        encoding="utf-8",
+    )
+    resolved = resolve_profile_path(tmp_path)
+    assert resolved.name == "profile.example.yaml"
+
+
+def test_resolve_profile_none_present_raises(tmp_path: Path) -> None:
+    with pytest.raises(LoadError, match="no profile config found"):
+        resolve_profile_path(tmp_path)
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:

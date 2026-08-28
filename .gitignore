@@ -11,8 +11,11 @@ venv/
 # uv
 uv.lock
 
-# JSCC data safety (D7 M1/M2 land in Slice A4.5 — these are the placeholder patterns)
+# JSCC data safety (D7 M1/M2 — locked in Slice A4.5a)
 data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
 !data/synthetic.db
 *.private.*
 profile.private.yaml
