@@ -88,8 +88,10 @@ def test_seed_synthetic_e2e_roundtrips_through_storage(conn: sqlite3.Connection)
     assert len(loaded_apps) == 25
 
     for app in loaded_apps:
-        # Contacts land under the right FK for later-stage apps.
-        if app.stage in {"recruiter_screen", "hm_screen", "technical_loop", "onsite", "closed"}:
+        # Non-closed later-stage apps carry contacts. Closed apps may close at any
+        # depth, including before a recruiter reply, so contact presence is not
+        # guaranteed for closed.
+        if app.stage in {"recruiter_screen", "hm_screen", "technical_loop", "onsite"}:
             assert list_contacts(conn, app.id), f"expected contacts for stage {app.stage}"
         # Every non-identified app has at least one interaction (the applied event).
         if app.stage != "identified":
@@ -103,6 +105,58 @@ def test_seed_synthetic_e2e_roundtrips_through_storage(conn: sqlite3.Connection)
     resolutions = {e.resolution for e in all_entries}
     assert Resolution.manual_paste in resolutions
     assert Resolution.unresolved in resolutions
+
+
+def test_interactions_are_chronologically_ordered(conn: sqlite3.Connection) -> None:
+    """Each application's interaction chain must be non-decreasing in occurred_at."""
+    seed_synthetic(conn, now=FIXED_NOW)
+    for app in list_applications(conn):
+        chain = list_interactions(conn, app.id)
+        for prev, curr in zip(chain, chain[1:]):
+            assert prev.occurred_at <= curr.occurred_at, (
+                f"chain out of order for {app.company}: {prev.type} @ {prev.occurred_at} "
+                f"followed by {curr.type} @ {curr.occurred_at}"
+            )
+
+
+def test_hm_contact_referenced_by_screen_or_onsite(conn: sqlite3.Connection) -> None:
+    """When an HM contact exists on an app, at least one interaction must link to it."""
+    seed_synthetic(conn, now=FIXED_NOW)
+    for app in list_applications(conn):
+        contacts = list_contacts(conn, app.id)
+        hm_ids = {c.id for c in contacts if c.role.value == "hm"}
+        if not hm_ids:
+            continue
+        chain = list_interactions(conn, app.id)
+        linked = [i for i in chain if i.contact_id in hm_ids]
+        assert linked, (
+            f"HM contact on {app.company} but no interaction references it"
+        )
+
+
+def test_extracted_jd_responsibilities_vary_across_apps() -> None:
+    """The responsibility pool must produce more than one distinct phrase across the fixture."""
+    apps, *_ = build_seed(now=FIXED_NOW)
+    seen: set[str] = set()
+    for a in apps:
+        if a.extracted_jd:
+            responsibilities = a.extracted_jd.get("responsibilities", [])  # type: ignore[union-attr]
+            seen.update(responsibilities)
+    assert len(seen) >= 5, f"responsibilities look too uniform: {seen}"
+
+
+def test_last_interaction_at_matches_chain_end(conn: sqlite3.Connection) -> None:
+    """Application.last_interaction_at is the timestamp of the final logged interaction."""
+    seed_synthetic(conn, now=FIXED_NOW)
+    for app in list_applications(conn):
+        chain = list_interactions(conn, app.id)
+        if not chain:
+            assert app.last_interaction_at is None
+            continue
+        final = chain[-1].occurred_at
+        assert app.last_interaction_at == final, (
+            f"last_interaction_at drifted from chain end for {app.company}"
+        )
 
 
 def test_seed_reset_wipes_existing(conn: sqlite3.Connection) -> None:

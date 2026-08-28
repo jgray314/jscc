@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### A3 hardening — timeline coherence + contact wiring + JD variety
+- Interaction chains are now anchored on `applied_at` and stepped forward with realistic gaps, producing chronologically-ordered timelines.
+- `Application.last_interaction_at` now equals the chain-end timestamp (previously drifted).
+- HM screen and onsite interactions reference the HM `contact_id` (previously always null).
+- `closed` applications now truncate at variable chain depth (early close vs. late close), weighted realistically.
+- Responsibility strings pulled from role-typed pools (platform / ML / growth / payments / reliability / devex / data / general) so extracted_jd content varies across the fixture.
+- 4 new pytest cases (38 total): chronological ordering, HM-contact-referenced-when-present, responsibility variety, `last_interaction_at` matches chain end.
+
 ### A3 — Synthetic seed generator
 - `jscc/seed.py`: deterministic (RNG-seeded) synthetic fixture — 25 applications distributed across all pipeline stages, 19 contacts (recruiter + HM chained by stage progression), 40 interactions (applied → recruiter reply → screen → onsite → rejection where applicable), 3 DLQ entries (paywall / blocked / timeout).
 - New CLI: `python -m jscc seed --synthetic` — supports `--random-seed`, `--db-path`, `--no-reset`. Wipes tables by default so re-runs are stable.

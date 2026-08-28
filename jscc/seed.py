@@ -1,8 +1,12 @@
 """Deterministic synthetic seed for the JSCC demo fixture.
 
-Uses obviously fake company names and job titles — never anything shaped like a
-real person, real employer, or real contact. Per D7/D8 (parent plan Rule 0),
+Uses obviously fake company names, obviously fake contact names ("Placeholder"),
+and role-tagged interaction chains. Per D7/D8 (parent plan Rule 0),
 personal-data-shaped strings do not belong here even in synthetic mode.
+
+Chain generation rule: interactions are anchored on `applied_at` and stepped
+forward with realistic gaps, so `list_interactions()` returns events in
+chronological order. `last_interaction_at` is the timestamp of the final event.
 """
 from __future__ import annotations
 
@@ -64,19 +68,97 @@ _STAGE_DISTRIBUTION: list[tuple[str, int]] = [
     ("closed", 2),
 ]
 
-# For each stage, the min/max days-ago range for last_interaction_at, chosen so
-# the resulting fixture contains a mix of fresh and stale under typical
-# staleness thresholds (see config/stages.yaml).
-_STAGE_AGE_DAYS: dict[str, tuple[int, int]] = {
-    "identified": (0, 20),
+# How long ago (in days) the application was submitted, per current stage.
+# Broad enough that later chain steps still leave a mix of fresh + stale apps.
+_APPLIED_AGE_DAYS: dict[str, tuple[int, int]] = {
+    "identified": (0, 20),   # identified only — no applied_at, used as identified_at
     "applied": (0, 40),
-    "recruiter_screen": (0, 14),
-    "hm_screen": (0, 14),
-    "technical_loop": (2, 18),
-    "onsite": (5, 15),
-    "offer": (5, 45),
-    "closed": (30, 90),
+    "recruiter_screen": (5, 30),
+    "hm_screen": (10, 45),
+    "technical_loop": (14, 55),
+    "onsite": (21, 60),
+    "offer": (30, 75),
+    "closed": (30, 120),
 }
+
+_STAGE_ORDER = [
+    "identified", "applied", "recruiter_screen", "hm_screen",
+    "technical_loop", "onsite", "offer", "closed",
+]
+
+_RESPONSIBILITY_POOLS: dict[str, list[str]] = {
+    "platform": [
+        "own the platform roadmap across two quarters ahead",
+        "define API contract standards for internal services",
+        "run capacity planning and cost modeling for the fleet",
+        "align infra investment with product priorities",
+        "coach senior engineers into staff-level scope",
+        "partner with security on the platform threat model",
+    ],
+    "ml": [
+        "own the training pipeline for production models",
+        "define offline and online evals for shipping model changes",
+        "instrument regressions in production model quality",
+        "partner with research on productionization of new architectures",
+        "coach engineers on ML system design and error budgets",
+    ],
+    "growth": [
+        "own funnel instrumentation and experiment infrastructure",
+        "partner with product on experiment design and readouts",
+        "reduce time-to-first-value for new users",
+        "build the analytics primitives that PMs and marketers rely on",
+    ],
+    "payments": [
+        "own SLAs for payment settlement and dispute handling",
+        "harden the fraud detection pipeline against emerging patterns",
+        "partner with compliance on gateway and rail changes",
+        "reduce time-to-onboard for a new payment method",
+    ],
+    "reliability": [
+        "cut mean-time-to-recovery on tier-0 services in half",
+        "lead post-incident learning reviews and follow-through",
+        "own SLOs and error budgets across the org",
+        "grow the SRE bench and its on-call practice",
+    ],
+    "devex": [
+        "reduce local dev setup time to under 10 minutes",
+        "define and enforce golden paths for new services",
+        "own the CI budget and reliability targets",
+        "reduce PR-merge lead time by 40 percent over the year",
+    ],
+    "data": [
+        "own the data platform investment plan across two years",
+        "define quality SLAs on the core datasets product depends on",
+        "reduce the time to answer new product questions",
+        "grow the data-engineering bench from four to eight",
+    ],
+    "general": [
+        "grow senior engineers into staff and staff into principal",
+        "partner with product on strategy and prioritization",
+        "own the technical vision for the team",
+        "define the hiring bar and grow the bench thoughtfully",
+        "shape the roadmap in partnership with the PM triad",
+    ],
+}
+
+
+def _responsibility_pool_for(title: str) -> list[str]:
+    t = title.lower()
+    if "platform" in t or "infra" in t:
+        return _RESPONSIBILITY_POOLS["platform"]
+    if "mle" in t or " ml" in t or t.startswith("ml") or "model" in t:
+        return _RESPONSIBILITY_POOLS["ml"]
+    if "growth" in t:
+        return _RESPONSIBILITY_POOLS["growth"]
+    if "payment" in t:
+        return _RESPONSIBILITY_POOLS["payments"]
+    if "reliability" in t or "sre" in t:
+        return _RESPONSIBILITY_POOLS["reliability"]
+    if "developer experience" in t or "devex" in t:
+        return _RESPONSIBILITY_POOLS["devex"]
+    if "data" in t:
+        return _RESPONSIBILITY_POOLS["data"]
+    return _RESPONSIBILITY_POOLS["general"]
 
 
 def _pick_extracted(rng: random.Random, title: str) -> dict[str, object] | None:
@@ -84,14 +166,14 @@ def _pick_extracted(rng: random.Random, title: str) -> dict[str, object] | None:
     if rng.random() < 0.5:
         return None
     level = rng.choice(["L5", "L6", "L7", "M5", "M6"])
-    stack = rng.sample(["python", "go", "rust", "typescript", "kubernetes", "postgres", "spark"], k=3)
+    stack = rng.sample(
+        ["python", "go", "rust", "typescript", "kubernetes", "postgres", "spark"], k=3
+    )
+    pool = _responsibility_pool_for(title)
+    responsibilities = rng.sample(pool, k=min(3, len(pool)))
     return {
         "level": level,
-        "responsibilities": [
-            "own platform roadmap",
-            "grow and coach senior engineers",
-            "partner with product on strategy",
-        ],
+        "responsibilities": responsibilities,
         "stack": stack,
         "comp_band": {
             "min_usd": rng.choice([250_000, 300_000, 340_000]),
@@ -101,29 +183,182 @@ def _pick_extracted(rng: random.Random, title: str) -> dict[str, object] | None:
     }
 
 
-def _make_application(
+def _placeholder_contact_letter(rng: random.Random) -> str:
+    return rng.choice("ABCDEFGHJKMNPQRSTUVWXYZ")
+
+
+def _effective_depth(rng: random.Random, stage: str) -> int:
+    """Return the max stage index that has generated actual interactions.
+
+    For most stages this is just the stage's own index. For `closed`, closure
+    can happen at any point in the loop, so we randomize the depth reached
+    before rejection.
+    """
+    if stage == "closed":
+        # Weighted so early closures are more common than late ones — matches reality
+        # for candidates who withdraw or get passed early.
+        return rng.choices(
+            [_STAGE_ORDER.index("applied"),
+             _STAGE_ORDER.index("recruiter_screen"),
+             _STAGE_ORDER.index("hm_screen"),
+             _STAGE_ORDER.index("onsite")],
+            weights=[3, 4, 3, 2],
+        )[0]
+    return _STAGE_ORDER.index(stage)
+
+
+def _build_contacts(
+    rng: random.Random,
+    application_id: str,
+    depth: int,
+) -> tuple[list[Contact], dict[ContactRole, Contact]]:
+    contacts: list[Contact] = []
+    by_role: dict[ContactRole, Contact] = {}
+    if depth >= _STAGE_ORDER.index("recruiter_screen"):
+        recruiter = Contact(
+            application_id=application_id,
+            name=f"Recruiter {_placeholder_contact_letter(rng)}. Placeholder",
+            role=ContactRole.recruiter,
+            notes="Synthetic contact.",
+        )
+        contacts.append(recruiter)
+        by_role[ContactRole.recruiter] = recruiter
+    if depth >= _STAGE_ORDER.index("hm_screen"):
+        hm = Contact(
+            application_id=application_id,
+            name=f"HM {_placeholder_contact_letter(rng)}. Placeholder",
+            role=ContactRole.hm,
+            notes="Synthetic contact.",
+        )
+        contacts.append(hm)
+        by_role[ContactRole.hm] = hm
+    return contacts, by_role
+
+
+def _build_chain(
+    rng: random.Random,
+    application_id: str,
+    stage: str,
+    applied_at: datetime,
+    contacts_by_role: dict[ContactRole, Contact],
+    depth: int,
+) -> tuple[list[Interaction], datetime]:
+    """Return chronologically-ordered interactions and the final event timestamp.
+
+    Cursor advances by realistic gaps between events. Steps included depend on
+    `depth` (the effective stage reached). For `closed` applications a final
+    rejection event is appended.
+    """
+    events: list[Interaction] = []
+    recruiter = contacts_by_role.get(ContactRole.recruiter)
+    hm = contacts_by_role.get(ContactRole.hm)
+
+    if stage == "identified":
+        return [], applied_at
+
+    cursor = applied_at
+    events.append(
+        Interaction(
+            application_id=application_id,
+            contact_id=None,
+            type=InteractionType.applied,
+            occurred_at=cursor,
+            notes="submitted via portal",
+        )
+    )
+
+    if depth >= _STAGE_ORDER.index("recruiter_screen"):
+        cursor = cursor + timedelta(days=rng.randint(3, 10))
+        events.append(
+            Interaction(
+                application_id=application_id,
+                contact_id=recruiter.id if recruiter else None,
+                type=InteractionType.recruiter_reply,
+                occurred_at=cursor,
+                notes="recruiter reached out; scheduled intro",
+                next_action="prep intro call",
+                next_action_due=(cursor + timedelta(days=rng.randint(2, 7))).date(),
+            )
+        )
+
+    if depth >= _STAGE_ORDER.index("hm_screen"):
+        cursor = cursor + timedelta(days=rng.randint(5, 12))
+        events.append(
+            Interaction(
+                application_id=application_id,
+                contact_id=hm.id if hm else None,
+                type=InteractionType.screen,
+                occurred_at=cursor,
+                notes="HM screen — scope and level aligned",
+            )
+        )
+
+    if depth >= _STAGE_ORDER.index("technical_loop"):
+        cursor = cursor + timedelta(days=rng.randint(3, 10))
+        events.append(
+            Interaction(
+                application_id=application_id,
+                contact_id=None,
+                type=InteractionType.screen,
+                occurred_at=cursor,
+                notes="technical screen — passed to loop",
+            )
+        )
+
+    if depth >= _STAGE_ORDER.index("onsite"):
+        cursor = cursor + timedelta(days=rng.randint(5, 14))
+        events.append(
+            Interaction(
+                application_id=application_id,
+                contact_id=hm.id if hm else None,
+                type=InteractionType.onsite,
+                occurred_at=cursor,
+                notes="onsite complete; awaiting debrief",
+            )
+        )
+
+    if stage == "closed":
+        cursor = cursor + timedelta(days=rng.randint(3, 14))
+        events.append(
+            Interaction(
+                application_id=application_id,
+                contact_id=None,
+                type=InteractionType.rejection,
+                occurred_at=cursor,
+                notes="closed loop",
+            )
+        )
+
+    return events, cursor
+
+
+def _make_application_bundle(
     rng: random.Random,
     now: datetime,
     stage: str,
     company: str,
-) -> Application:
+) -> tuple[Application, list[Contact], list[Interaction]]:
     title = rng.choice(_TITLES)
-    lo, hi = _STAGE_AGE_DAYS[stage]
-    age = rng.randint(lo, hi)
-    last_interaction_at = now - timedelta(days=age)
-    created_at = last_interaction_at - timedelta(days=rng.randint(0, 10))
-    applied_at = (
-        (created_at.date() + timedelta(days=rng.randint(0, 3)))
-        if stage != "identified"
-        else None
-    )
+    lo, hi = _APPLIED_AGE_DAYS[stage]
+    applied_days_ago = rng.randint(lo, hi)
+
+    if stage == "identified":
+        created_at = now - timedelta(days=applied_days_ago)
+        applied_at: date | None = None
+        applied_at_dt = created_at
+    else:
+        applied_at_dt = now - timedelta(days=applied_days_ago)
+        applied_at = applied_at_dt.date()
+        created_at = applied_at_dt - timedelta(days=rng.randint(0, 5))
+
+    # Provisional Application so we have a stable id for contacts/interactions.
     fit_score = round(rng.uniform(35.0, 95.0), 1) if stage != "identified" else None
     fit_rationale = (
         "Skills match strong on platform; comp band tight on the low end."
         if fit_score is not None
         else None
     )
-    return Application(
+    app = Application(
         source_url=f"https://jobs.example/{company.lower().replace(' ', '-')}/{rng.randint(1000, 9999)}",
         source_raw="(synthetic)",
         fetch_status=FetchStatus.ok,
@@ -135,112 +370,29 @@ def _make_application(
         fit_rationale=fit_rationale,
         applied_at=applied_at,
         created_at=created_at,
-        updated_at=last_interaction_at,
-        last_interaction_at=last_interaction_at,
+        updated_at=created_at,
+        last_interaction_at=None,
     )
 
+    depth = _effective_depth(rng, stage)
+    contacts, contacts_by_role = _build_contacts(rng, app.id, depth)
+    interactions, chain_end = _build_chain(
+        rng, app.id, stage, applied_at_dt, contacts_by_role, depth
+    )
 
-def _make_contacts_and_interactions(
-    rng: random.Random,
-    app: Application,
-    now: datetime,
-) -> tuple[list[Contact], list[Interaction]]:
-    """Later-stage applications carry a recruiter/HM contact and an interaction chain."""
-    contacts: list[Contact] = []
-    interactions: list[Interaction] = []
-    stage_order = [
-        "identified", "applied", "recruiter_screen", "hm_screen",
-        "technical_loop", "onsite", "offer", "closed",
-    ]
-    stage_idx = stage_order.index(app.stage)
+    if interactions:
+        app = app.model_copy(update={
+            "last_interaction_at": chain_end,
+            "updated_at": chain_end,
+        })
+    else:
+        # identified: no interactions; last_interaction_at stays None; updated_at = created_at
+        pass
 
-    recruiter = None
-    if stage_idx >= 2:  # anyone past applied has talked to a recruiter
-        recruiter = Contact(
-            application_id=app.id,
-            name=f"Recruiter {rng.choice('ABCDEFGHJKMNPQRSTUVWXYZ')}. Placeholder",
-            role=ContactRole.recruiter,
-            notes="Synthetic contact.",
-        )
-        contacts.append(recruiter)
-
-    if stage_idx >= 3:  # anyone past recruiter_screen has talked to an HM
-        contacts.append(
-            Contact(
-                application_id=app.id,
-                name=f"HM {rng.choice('ABCDEFGHJKMNPQRSTUVWXYZ')}. Placeholder",
-                role=ContactRole.hm,
-                notes="Synthetic contact.",
-            )
-        )
-
-    if app.stage != "identified":
-        applied_when = datetime.combine(
-            app.applied_at or app.created_at.date(),
-            datetime.min.time(),
-            tzinfo=timezone.utc,
-        )
-        interactions.append(
-            Interaction(
-                application_id=app.id,
-                contact_id=None,
-                type=InteractionType.applied,
-                occurred_at=applied_when,
-                notes="submitted via portal",
-            )
-        )
-
-    if stage_idx >= 2 and recruiter is not None:
-        interactions.append(
-            Interaction(
-                application_id=app.id,
-                contact_id=recruiter.id,
-                type=InteractionType.recruiter_reply,
-                occurred_at=app.last_interaction_at or now,
-                notes="recruiter reached out, scheduled intro",
-                next_action="prep intro call",
-                next_action_due=(now + timedelta(days=rng.randint(2, 7))).date(),
-            )
-        )
-
-    if stage_idx >= 4:  # technical_loop or later
-        interactions.append(
-            Interaction(
-                application_id=app.id,
-                contact_id=None,
-                type=InteractionType.screen,
-                occurred_at=(app.last_interaction_at or now) - timedelta(days=3),
-                notes="technical screen passed",
-            )
-        )
-
-    if stage_idx >= 5:  # onsite or later
-        interactions.append(
-            Interaction(
-                application_id=app.id,
-                contact_id=None,
-                type=InteractionType.onsite,
-                occurred_at=app.last_interaction_at or now,
-                notes="onsite complete; awaiting debrief",
-            )
-        )
-
-    if app.stage == "closed":
-        interactions.append(
-            Interaction(
-                application_id=app.id,
-                contact_id=None,
-                type=InteractionType.rejection,
-                occurred_at=app.last_interaction_at or now,
-                notes="closed loop",
-            )
-        )
-
-    return contacts, interactions
+    return app, contacts, interactions
 
 
 def _make_dlq_entries(rng: random.Random, now: datetime) -> list[DLQEntry]:
-    """A handful of failed-fetch entries so DLQ views have content."""
     modes = [
         (FailureMode.paywall, "HTTP 402 on ATS gate"),
         (FailureMode.blocked, "Cloudflare challenge; skipping"),
@@ -279,11 +431,10 @@ def build_seed(
     for stage, count in _STAGE_DISTRIBUTION:
         for _ in range(count):
             company = next(company_iter)
-            app = _make_application(rng, now, stage, company)
+            app, cs, ints = _make_application_bundle(rng, now, stage, company)
             apps.append(app)
-            c, i = _make_contacts_and_interactions(rng, app, now)
-            contacts.extend(c)
-            interactions.extend(i)
+            contacts.extend(cs)
+            interactions.extend(ints)
 
     dlq = _make_dlq_entries(rng, now)
 
@@ -319,7 +470,6 @@ def seed_synthetic(
     for entry in dlq:
         create_dlq_entry(conn, entry)
 
-    # Mark one DLQ entry as resolved so both states are represented.
     if dlq:
         resolve_dlq_entry(conn, dlq[0].id, Resolution.manual_paste)
 
