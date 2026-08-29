@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import random
 import sqlite3
+import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from .models import (
@@ -34,6 +35,17 @@ from .storage import (
 )
 
 DEFAULT_SEED = 42
+
+
+def _rng_uuid(rng: random.Random) -> str:
+    """Return a UUID4-shaped string whose entropy comes from `rng`, not the OS.
+
+    The default pydantic `Field(default_factory=uuid4)` on our models uses
+    `os.urandom`, which is not affected by the seed. Every model construction
+    in this module passes an explicit `id=_rng_uuid(rng)` so the whole
+    fixture is reproducible from (`random_seed`, `now`) alone.
+    """
+    return str(uuid.UUID(int=rng.getrandbits(128), version=4))
 
 _COMPANIES = [
     "Acme Robotics", "Bluewave Systems", "Ceres Analytics", "Delta Foundry",
@@ -216,6 +228,7 @@ def _build_contacts(
     by_role: dict[ContactRole, Contact] = {}
     if depth >= _STAGE_ORDER.index("recruiter_screen"):
         recruiter = Contact(
+            id=_rng_uuid(rng),
             application_id=application_id,
             name=f"Recruiter {_placeholder_contact_letter(rng)}. Placeholder",
             role=ContactRole.recruiter,
@@ -225,6 +238,7 @@ def _build_contacts(
         by_role[ContactRole.recruiter] = recruiter
     if depth >= _STAGE_ORDER.index("hm_screen"):
         hm = Contact(
+            id=_rng_uuid(rng),
             application_id=application_id,
             name=f"HM {_placeholder_contact_letter(rng)}. Placeholder",
             role=ContactRole.hm,
@@ -259,6 +273,7 @@ def _build_chain(
     cursor = applied_at
     events.append(
         Interaction(
+            id=_rng_uuid(rng),
             application_id=application_id,
             contact_id=None,
             type=InteractionType.applied,
@@ -359,6 +374,7 @@ def _make_application_bundle(
         else None
     )
     app = Application(
+        id=_rng_uuid(rng),
         source_url=f"https://jobs.example/{company.lower().replace(' ', '-')}/{rng.randint(1000, 9999)}",
         source_raw="(synthetic)",
         fetch_status=FetchStatus.ok,
@@ -402,6 +418,7 @@ def _make_dlq_entries(rng: random.Random, now: datetime) -> list[DLQEntry]:
     for i, (mode, detail) in enumerate(modes):
         entries.append(
             DLQEntry(
+                id=_rng_uuid(rng),
                 source_url=f"https://jobs.example/blocked/{i}",
                 failure_mode=mode,
                 attempted_at=now - timedelta(days=rng.randint(1, 5)),

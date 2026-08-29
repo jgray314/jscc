@@ -6,6 +6,8 @@
 # as scaffold + examples only. The scanner does exact-substring case-insensitive
 # matching, so keep entries specific enough to avoid noise.
 #
-# Examples (commented out — uncomment / replace in your local list):
+# Examples (commented out — uncomment / replace in your local list).
+# Use obvious placeholders here so the scaffold doesn't self-match under a
+# broadened regex; put real values only in a gitignored local override.
 #   ExRealCompanyName Corp
-#   555-123-4567
+#   XXX-XXX-XXXX

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -17,8 +18,6 @@ from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
     ModeMismatchError,
-    connect,
-    init_db,
     list_applications,
     open_for_mode,
     read_mode_marker,
@@ -142,8 +141,31 @@ def db_init(data_dir: Path) -> None:
     default=False,
     help="Append to existing data instead of clearing tables first.",
 )
-def seed(mode_flag: str, data_dir: Path, random_seed: int, no_reset: bool) -> None:
-    """Populate the synthetic DB with a fixture. Refuses to run in real mode."""
+@click.option(
+    "--now",
+    "now_str",
+    type=str,
+    default=None,
+    help=(
+        "Pin the fixture's reference 'now' (UTC ISO-8601, e.g. "
+        "2026-08-28T12:00:00+00:00). Required for run-to-run reproducibility "
+        "with --random-seed. Defaults to the current UTC time (non-deterministic)."
+    ),
+)
+def seed(
+    mode_flag: str,
+    data_dir: Path,
+    random_seed: int,
+    no_reset: bool,
+    now_str: str | None,
+) -> None:
+    """Populate the synthetic DB with a fixture. Refuses to run in real mode.
+
+    With --random-seed alone the RNG choices (companies, stage counts, contact
+    names) are reproducible, but the timestamps (`applied_at`, `created_at`,
+    `last_interaction_at`) are anchored on the current wall clock. Pass --now
+    with an explicit UTC timestamp for full run-to-run reproducibility.
+    """
     active_mode = _resolve_mode_or_exit()
     if active_mode is not Mode.synthetic:
         click.echo(
@@ -155,9 +177,25 @@ def seed(mode_flag: str, data_dir: Path, random_seed: int, no_reset: bool) -> No
     if mode_flag != "synthetic":
         raise click.UsageError(f"unsupported seed mode: {mode_flag}")
 
+    now_pinned: datetime | None = None
+    if now_str is not None:
+        try:
+            now_pinned = datetime.fromisoformat(now_str)
+        except ValueError as e:
+            raise click.UsageError(f"--now is not a valid ISO-8601 timestamp: {e}")
+        if now_pinned.tzinfo is None:
+            raise click.UsageError(
+                "--now must include a timezone offset (e.g. 2026-08-28T12:00:00+00:00)"
+            )
+
     conn = _open_or_exit(active_mode, data_dir)
     try:
-        counts = seed_synthetic(conn, reset=not no_reset, random_seed=random_seed)
+        counts = seed_synthetic(
+            conn,
+            reset=not no_reset,
+            random_seed=random_seed,
+            now=now_pinned,
+        )
     finally:
         conn.close()
 

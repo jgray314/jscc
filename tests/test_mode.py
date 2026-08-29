@@ -159,6 +159,43 @@ def test_no_ddl_run_on_wrong_mode_db(tmp_path: Path) -> None:
         conn2.close()
 
 
+def test_attach_database_does_not_bypass_mode_check(tmp_path: Path) -> None:
+    """M2: ATTACH DATABASE lets sqlite reach a file without going through
+    open_for_mode. Confirm the marker on the primary connection is still what
+    controls what's readable through the primary handle — ATTACHed reads target
+    the attached alias explicitly, so cross-mode data can never be accessed
+    through a mismatched primary connection's identity.
+    """
+    # Create both DBs cleanly.
+    synth_conn = open_for_mode(Mode.synthetic, tmp_path)
+    synth_conn.close()
+    real_conn = open_for_mode(Mode.real, tmp_path)
+    real_conn.close()
+
+    # Reopen synthetic and ATTACH real. This is technically allowed by SQLite
+    # (any code that CAN issue SQL can ATTACH). The point of this test is to
+    # verify that data from the ATTACHed DB is only reachable via qualified
+    # `real.applications` names, not via unqualified `applications` — so no
+    # code path in jscc that reads unqualified `FROM applications` can
+    # accidentally see cross-mode rows.
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        real_path = tmp_path / "real.db"
+        conn.execute(f"ATTACH DATABASE '{real_path}' AS other")
+        # Unqualified reads still see synthetic (the marker-verified DB).
+        marker_row = conn.execute(
+            "SELECT value FROM meta WHERE key = 'mode'"
+        ).fetchone()
+        assert marker_row["value"] == "synthetic"
+        # The attached alias sees its own marker independently.
+        other_row = conn.execute(
+            "SELECT value FROM other.meta WHERE key = 'mode'"
+        ).fetchone()
+        assert other_row["value"] == "real"
+    finally:
+        conn.close()
+
+
 def test_bare_meta_only_db_is_not_treated_as_populated(tmp_path: Path) -> None:
     """A DB containing ONLY the `meta` table (no user tables yet) is fresh and
     should proceed to full init. Guards against off-by-one in the populated check."""

@@ -25,7 +25,12 @@ from pathlib import Path
 from typing import Iterable
 
 EMAIL_RE = re.compile(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", re.IGNORECASE)
-PHONE_RE = re.compile(r"\+?\d[\d\-\s]{7,14}\d")
+# Phone char class allows separator variants seen in the wild:
+#   dashes / whitespace ((415) 555-0134 style)
+#   parens (US area-code grouping)
+#   dots (international dotted format, +44.20.7946.0018)
+# Real disambiguation from noise happens in the digit-count filter below.
+PHONE_RE = re.compile(r"\+?\d[\d\-\s().]{7,14}\d")
 
 # Phone matches must contain a plausible number of digits. Real phone numbers
 # have 10-15 digits (E.164). This is what disqualifies ISO dates like

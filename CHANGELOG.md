@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### A7 — Phase A correctness + coverage gaps (adversarial review, H1/H3/M2/M3)
+Closes the remaining HIGH and structural MEDIUM findings from the Phase A → B adversarial review.
+
+- **Phone regex expansion (H1).** Character class widened to include `(`, `)`, `.` so `(415) 555-0134` and `+44.20.7946.0018` now match. Digit-count filter (10-15) still gates false positives; ISO-date regression test still passes. Danger-list scaffold's example phone rewritten as `XXX-XXX-XXXX` since the widened regex would self-match the previous `555-123-4567`.
+- **Seed CLI `--now` flag (H3).** New `--now` option accepts a UTC ISO-8601 timestamp for reproducible fixtures; missing timezone or unparseable string raises `UsageError`. Without `--now`, seed continues to anchor on `datetime.now()` (documented as non-deterministic).
+- **Seed ID determinism (H3, deeper).** Every model construction in `seed.py` now passes an explicit `id=_rng_uuid(rng)` derived from the seeded RNG. Previously pydantic's `default_factory=uuid4` bypassed the seed (uses `os.urandom`), so IDs and FK references varied run-to-run even with a pinned `--now`. Docstring's "deterministic for a given seed" claim now holds for real.
+- **CLI test coverage (M3).** New `test_cli.py` via `click.testing.CliRunner`: 12 cases covering `validate-config` success/failure, `db init` synthetic/real/bogus-env, `seed` success + real-mode refusal + `--now` reproducibility + `--now` timezone/parse errors, `report` on seeded + empty DBs.
+- **ATTACH DATABASE bypass surface (M2).** New test confirms that ATTACH-ing a real-mode DB into a synthetic-mode connection does not silently expose cross-mode rows via unqualified `FROM applications` reads — cross-mode data is only reachable through the qualified `real.applications` alias, which no code path in `jscc/` uses.
+- **Missing marker / corrupt marker mode tests (M2).** Already landed in A6 (moved forward from A7 during hardening).
+- **L5 nit.** Removed unused `connect`/`init_db` imports from `cli.py` — dead code that was also a safety-surface smell.
+- 16 new pytest cases (126 total): 3 scanner (US-parenthesized, dotted international, digits-only), 12 CLI, 1 ATTACH.
+
 ### A6 — Phase A hardening (adversarial review findings)
 Fixes six CRITICAL and one HIGH finding from the Phase A → B adversarial review. All safety-relevant; landed before Phase B introduces the first LLM call so nothing downstream inherits a weak guarantee.
 

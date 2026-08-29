@@ -28,6 +28,27 @@ def test_phone_pattern_hit(tmp_path: Path) -> None:
     assert precommit_scan.main([str(f)]) == 1
 
 
+def test_us_parenthesized_phone_hit(tmp_path: Path) -> None:
+    """H1 regression: (415) 555-0134 format must match."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "Call (415) 555-0134 by Friday\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_dotted_international_phone_hit(tmp_path: Path) -> None:
+    """H1 regression: +44.20.7946.0018 format must match."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "London office: +44.20.7946.0018\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_digits_only_phone_hit(tmp_path: Path) -> None:
+    """A run of 10-15 digits with no separators still trips the phone rule."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "cell 4155550100 primary\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
 def test_iso_date_not_flagged_as_phone(tmp_path: Path) -> None:
     """Regression: 2026-08-28 (8 digits) should not match phone rule."""
     danger = _write(tmp_path / "danger.txt", "# empty\n")
