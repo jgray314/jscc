@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### A6 — Phase A hardening (adversarial review findings)
+Fixes six CRITICAL and one HIGH finding from the Phase A → B adversarial review. All safety-relevant; landed before Phase B introduces the first LLM call so nothing downstream inherits a weak guarantee.
+
+- **Sanitizer authenticity (C1/C2/C3).** `sanitize_for_llm` now returns a frozen `SanitizedPayload` dataclass carrying an HMAC-SHA256 authenticator over stable-JSON(data) + sanitized_at, keyed by a per-process 32-byte secret generated at import via `secrets.token_bytes`. `verify()` recomputes with constant-time compare. Forged wrappers, mutated data, and swapped timestamps all fail verify. `contains_personal` refusal now uses `bool(...)` — catches `1`/`"true"`/`"yes"` and any other truthy sentinel. `SanitizerRefusal` now inherits from `Exception` (was `ValueError`) so a generic `except ValueError:` in an upstream builder cannot silently swallow refusals. Removed `is_sanitized(dict)` — the wrapper + `verify()` replace it. ADR-005 documents alternatives.
+- **`open_for_mode` ordering (C4).** Full DDL used to run BEFORE the mode marker was checked, so a wrong-mode open would `PRAGMA user_version` on the wrong file before refusing. Reordered to: create only the `meta` table, detect whether the DB has any user tables, then branch — fresh DB (no user tables) runs full init + stamps; populated DB verifies the marker matches BEFORE any DDL runs.
+- **Missing-marker refuse (C5).** A populated DB whose `meta.mode` row is missing now raises `ModeMismatchError` rather than silently restamping under the caller's mode. Only truly empty DBs get a fresh stamp.
+- **Corrupt-marker refuse (C6).** A tampered marker value (e.g. `'production'`) now raises `ModeMismatchError` instead of a bare `ValueError` that would slip past `except ModeMismatchError:` guards. Connection is always closed before raising via a `try/except BaseException` guard.
+- **`_dump_json` robustness (H4).** New `_json_default` fallback handles the value types Phase B extraction is likely to embed in `extracted_jd`: `datetime` → UTC ISO-8601, `date` → ISO, pydantic `BaseModel` → `model_dump(mode='json')`, `Enum` → `.value`, `set`/`frozenset` → sorted list. Unknown types raise `TypeError` with a clear message rather than silent swallow.
+- 24 new pytest cases (110 total): 14 sanitizer (wrapper roundtrip, verify true/false paths, forgery attempts, data/timestamp tampering, truthy-refusal parametrized, `SanitizerRefusal` not caught by `except ValueError`, defensive-copy, frozen-dataclass); 4 mode (missing-marker refused, corrupt-marker raises `ModeMismatchError`, no-DDL-on-wrong-mode, meta-only DB treated as fresh); 3 storage (extracted_jd with datetime+set+enum, with nested pydantic model, with unknown type raising `TypeError`).
+- ADR-005 documents the sanitizer authenticity design with rejected alternatives (isinstance-only, module-visibility, marker-only, dict subclass, persistent secret, OTP registry).
+
 ### A4.5b — Content controls (D7 M3/M5)
 - `scripts/precommit_scan.py`: standalone Python scanner. Rules: email regex, phone regex (validated by digit-count 10-15 to defuse ISO-date false positives), and case-insensitive substring match against `.safety/danger-list.txt`. Reports every hit with `<file>:<line>: <reason> -- <match>` on stderr, exits 1 on any hit. Skips binaries. Standalone-invokable so tests exercise the exact commit-time code path.
 - `.pre-commit-config.yaml`: local hook wrapping the scanner. Excludes `data/`, the scanner itself, and its test file to avoid self-match.

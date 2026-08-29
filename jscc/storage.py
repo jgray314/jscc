@@ -114,8 +114,28 @@ def schema_version(conn: sqlite3.Connection) -> int:
     return int(row[0]) if row else 0
 
 
+def _db_has_user_tables(conn: sqlite3.Connection) -> bool:
+    """True iff the DB has any table other than the mode-marker `meta` table.
+
+    Used by `open_for_mode` to distinguish "fresh DB, safe to init" from
+    "populated DB whose marker row is missing" (which should refuse, not
+    silently restamp).
+    """
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name NOT LIKE 'sqlite_%' AND name != 'meta'"
+    ).fetchall()
+    return len(rows) > 0
+
+
 def read_mode_marker(conn: sqlite3.Connection) -> Mode | None:
-    """Return the stamped mode for a DB, or None if not yet stamped / no meta table."""
+    """Return the stamped mode for a DB, or None if not yet stamped / no meta table.
+
+    Raises `ModeMismatchError` if the marker row exists but its value is not
+    a valid `Mode`. A corrupt marker is a structural safety failure, not a
+    generic value error — surfacing it as `ValueError` would leak past any
+    `except ModeMismatchError` guard in the caller.
+    """
     try:
         row = conn.execute(
             "SELECT value FROM meta WHERE key = ?", (_MODE_META_KEY,)
@@ -124,7 +144,13 @@ def read_mode_marker(conn: sqlite3.Connection) -> Mode | None:
         return None
     if row is None:
         return None
-    return Mode(row["value"])
+    raw = row["value"]
+    try:
+        return Mode(raw)
+    except ValueError as e:
+        raise ModeMismatchError(
+            f"database has corrupt mode marker {raw!r}: {e}"
+        ) from None
 
 
 def write_mode_marker(conn: sqlite3.Connection, mode: Mode) -> None:
@@ -136,30 +162,70 @@ def write_mode_marker(conn: sqlite3.Connection, mode: Mode) -> None:
     conn.commit()
 
 
+def _ensure_meta_table(conn: sqlite3.Connection) -> None:
+    """Create only the `meta` table. Used to inspect a DB before deciding
+    whether to run full DDL — the full DDL must NEVER run against a DB that
+    was populated under a different mode (Phase A adversarial finding C4)."""
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    )
+    conn.commit()
+
+
 def open_for_mode(
     mode: Mode,
     data_dir: Path | None = None,
 ) -> sqlite3.Connection:
     """Open (and initialize on first use) the DB corresponding to `mode`.
 
-    On first open the DB is stamped with `mode`. On subsequent opens the
-    stamp is verified — a mismatch raises `ModeMismatchError` and the
-    connection is closed. This is the structural mode-crossing block that
-    D7 M1 requires.
+    Two paths, chosen by whether the DB is a fresh file or a populated one:
+
+    * **Fresh** (no user tables): run full DDL, stamp the mode marker.
+    * **Populated**: verify the mode marker exists AND matches. If the row
+      is missing (a populated DB with no `meta.mode`) — refuse. That state
+      is only reachable via bug/tampering; silently restamping it would
+      overwrite an unknown-mode file with the caller's mode. Ordering
+      matters: full DDL must NEVER run against a populated wrong-mode DB
+      (adversarial finding C4 — the previous ordering ran DDL first and
+      bumped `PRAGMA user_version` on the wrong file before catching the
+      mismatch).
+
+    Raises `ModeMismatchError` on any of: mismatched marker, missing marker
+    on a populated DB, corrupt marker value. Connection is always closed
+    before raising (try/finally-equivalent via close-then-raise; no error
+    can slip past because sqlite3 close is best-effort and does not raise
+    on a bare read connection).
     """
     path = resolve_db_path(mode, data_dir)
     conn = connect(path)
-    init_db(conn)  # idempotent; ensures `meta` table exists
-    stamped = read_mode_marker(conn)
-    if stamped is None:
+    try:
+        _ensure_meta_table(conn)
+        populated = _db_has_user_tables(conn)
+        stamped = read_mode_marker(conn)  # may raise ModeMismatchError
+
+        if populated:
+            if stamped is None:
+                raise ModeMismatchError(
+                    f"database at {path} is populated but has no mode marker; "
+                    f"refusing to open (would silently restamp under {mode.value!r})."
+                )
+            if stamped != mode:
+                raise ModeMismatchError(
+                    f"database at {path} was stamped as {stamped.value!r}; "
+                    f"refusing to open under mode {mode.value!r} (JSCC_DATA)."
+                )
+            # Populated + matches: bring schema up to date (idempotent DDL is
+            # safe now that we know the mode agrees).
+            init_db(conn)
+            return conn
+
+        # Fresh DB path: run full init, stamp the marker.
+        init_db(conn)
         write_mode_marker(conn, mode)
-    elif stamped is not mode:
+        return conn
+    except BaseException:
         conn.close()
-        raise ModeMismatchError(
-            f"database at {path} was stamped as {stamped.value!r}; "
-            f"refusing to open under mode {mode.value!r} (JSCC_DATA)."
-        )
-    return conn
+        raise
 
 
 # ---- serialization helpers ----------------------------------------------------
@@ -186,8 +252,36 @@ def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value)
 
 
+def _json_default(obj: Any) -> Any:
+    """Fallback serializer for `_dump_json`. Handles the value types Phase B
+    is likely to embed in `extracted_jd` (datetimes, sets, pydantic models,
+    enums) without silently swallowing types the schema hasn't decided about."""
+    from enum import Enum
+    from pydantic import BaseModel
+
+    if isinstance(obj, datetime):
+        if obj.tzinfo is None:
+            obj = obj.replace(tzinfo=timezone.utc)
+        return obj.astimezone(timezone.utc).isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, (set, frozenset)):
+        # Sort for determinism; if elements aren't comparable, TypeError bubbles
+        # up as a real schema-design signal rather than being silently masked.
+        return sorted(obj, key=repr)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON-serializable")
+
+
 def _dump_json(value: Any) -> str | None:
-    return None if value is None else json.dumps(value, sort_keys=True)
+    return (
+        None
+        if value is None
+        else json.dumps(value, sort_keys=True, default=_json_default)
+    )
 
 
 def _load_json(value: str | None) -> Any:

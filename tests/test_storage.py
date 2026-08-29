@@ -282,3 +282,82 @@ def test_connect_creates_missing_parent_dirs(tmp_path: Path) -> None:
         assert nested.exists()
     finally:
         c.close()
+
+
+def test_extracted_jd_serializes_datetime_set_enum(tmp_path: Path) -> None:
+    """H4 regression: _dump_json must handle types Phase B extraction will produce."""
+    c = connect(tmp_path / "test.db")
+    try:
+        init_db(c)
+        exotic = {
+            "posted_at": datetime(2026, 7, 4, 12, 0, tzinfo=timezone.utc),
+            "seen_on": date(2026, 8, 1),
+            "tags": {"remote", "senior", "python"},
+            "fetch_status": FetchStatus.ok,
+        }
+        app = Application(
+            id="app-h4",
+            title="SWE",
+            company="H4Co",
+            fetch_status=FetchStatus.ok,
+            stage="applied",
+            extracted_jd=exotic,
+        )
+        create_application(c, app)
+        loaded = get_application(c, "app-h4")
+        assert loaded is not None
+        jd = loaded.extracted_jd
+        assert jd["posted_at"] == "2026-07-04T12:00:00+00:00"
+        assert jd["seen_on"] == "2026-08-01"
+        assert jd["tags"] == sorted(["remote", "senior", "python"], key=repr)
+        assert jd["fetch_status"] == "ok"
+    finally:
+        c.close()
+
+
+def test_extracted_jd_serializes_nested_pydantic_model(tmp_path: Path) -> None:
+    """H4: nested BaseModel in extracted_jd is model_dump()'d, not TypeError'd."""
+    c = connect(tmp_path / "test.db")
+    try:
+        init_db(c)
+        nested_contact = Contact(
+            id="c1", application_id="app-h4b", name="Recruiter A. Placeholder",
+            role=ContactRole.recruiter,
+        )
+        app = Application(
+            id="app-h4b",
+            title="SWE",
+            company="H4Co",
+            fetch_status=FetchStatus.ok,
+            stage="applied",
+            extracted_jd={"nested": nested_contact},
+        )
+        create_application(c, app)
+        loaded = get_application(c, "app-h4b")
+        assert loaded is not None
+        assert loaded.extracted_jd["nested"]["name"] == "Recruiter A. Placeholder"
+        assert loaded.extracted_jd["nested"]["role"] == "recruiter"
+    finally:
+        c.close()
+
+
+def test_extracted_jd_unknown_type_raises_typerror(tmp_path: Path) -> None:
+    """H4: types the fallback doesn't handle raise a clear TypeError (schema signal),
+    not a silent swallow. Uses a class the fallback deliberately doesn't cover."""
+    c = connect(tmp_path / "test.db")
+    try:
+        init_db(c)
+        class Weird:
+            pass
+        app = Application(
+            id="app-h4c",
+            title="SWE",
+            company="H4Co",
+            fetch_status=FetchStatus.ok,
+            stage="applied",
+            extracted_jd={"weird": Weird()},
+        )
+        with pytest.raises(TypeError, match="not JSON-serializable"):
+            create_application(c, app)
+    finally:
+        c.close()
