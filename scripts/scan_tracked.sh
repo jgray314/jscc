@@ -2,10 +2,12 @@
 # Single source of truth for the safety-scanner exclude list.
 #
 # The scanner blocks name/email/phone patterns from being committed (D7 M3).
-# Three files legitimately hold placeholder personal-data shapes and must be
-# skipped: the scanner's own tests, the scanner's own regex source (docstring
-# self-match), and the CHANGELOG (A7/A8/A10 entries quote placeholder shapes
-# as prose describing the scanner).
+# Files that legitimately hold digit runs, placeholder email shapes, or the
+# scanner's own regex source are excluded:
+#   - scripts/precommit_scan.py         — self-match on the regex docstring
+#   - tests/test_precommit_scan.py      — deliberate email/phone fixtures
+#   - CHANGELOG.md                      — prose describing the scanner
+#   - uv.lock                           — sha256 hashes contain 10-15-digit runs
 #
 # Both CI (.github/workflows/ci.yml) and the pre-commit config
 # (.pre-commit-config.yaml, via `entry: bash scripts/scan_tracked.sh`)
@@ -19,11 +21,24 @@ EXCLUDES=(
   --exclude 'tests/test_precommit_scan.py'
   --exclude 'scripts/precommit_scan.py'
   --exclude 'CHANGELOG.md'
+  --exclude 'uv.lock'
 )
 
+# Collect files into a bash array so we can invoke the scanner exactly once
+# and read its explicit exit code. The previous shape was
+# `git ls-files -z | xargs -0 python …`, which on some bash builds
+# (notably Git Bash for Windows) failed to propagate xargs's non-zero exit
+# through `set -euo pipefail`, so a scanner hit would silently report as
+# green locally while CI's Linux bash correctly reported red. One
+# invocation with an explicit `if` closes that gap.
 if [ "$#" -eq 0 ]; then
   # No files passed: scan every tracked file (CI mode).
-  git ls-files -z | xargs -0 python scripts/precommit_scan.py "${EXCLUDES[@]}"
+  mapfile -d '' FILES < <(git ls-files -z)
+  set +e
+  python scripts/precommit_scan.py "${EXCLUDES[@]}" "${FILES[@]}"
+  rc=$?
+  set -e
+  exit "$rc"
 else
   # Files passed (pre-commit mode): scan just those.
   python scripts/precommit_scan.py "${EXCLUDES[@]}" "$@"

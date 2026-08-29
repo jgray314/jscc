@@ -24,6 +24,9 @@ Third round of both Phase A → B gates. Adversarial returned `PROCEED-WITH-FIXE
 - L-json-default-sanitizer-1 (strict `_stable_json` — real once Phase B payloads have real types).
 - L-report-format-injection-1 (control-char escaping in `format_report` — real once Phase B ingests real JDs).
 
+### CI hotfix — exclude `uv.lock` from scanner + fix exit-code propagation
+A10 turned CI red because `uv.lock`'s sha256 hashes contain 10-15-digit runs that trigger the phone regex (49 hits). The same run passed locally on Git Bash: `set -euo pipefail` didn't propagate `xargs`'s non-zero exit through the pipeline on that shell, so the wrapper silently reported success. Two structural fixes: (1) added `uv.lock` to the shared exclude list in `scripts/scan_tracked.sh`, (2) rewrote the wrapper to run the scanner exactly once with an explicit `if [ "$rc" -ne 0 ]` on its exit code, closing the pipe-fail gap. Verified: hit-file returns exit 1 locally.
+
 ### CI hotfix — bump `astral-sh/setup-uv` v3 → v6
 A8 and A9 both landed with red CI. Both runs failed at the "Install uv" step: the pinned `@v3` tag no longer resolved against the current uv release manifest (setup-uv is at v10 upstream). Bumped to `@v6` — mature major, same `enable-cache` surface. First green run on the resulting commit.
 
