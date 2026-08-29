@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: jscc-content-scan
+        name: JSCC content scan (D7 M3)
+        entry: python scripts/precommit_scan.py
+        language: system
+        # Scan all text-like files by default. The scanner itself skips binaries
+        # via UnicodeDecodeError, so a broad filter is safe and errs toward
+        # catching things.
+        types_or: [text]
+        # data/ is gitignored, but exclude explicitly in case someone force-adds.
+        # Also exclude the scanner's own regex source (self-match false positive)
+        # and its tests (they contain deliberate email/phone fixtures).
+        exclude: |
+          (?x)^(
+              data/.*
+            | scripts/precommit_scan\.py
+            | tests/test_precommit_scan\.py
+          )$

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### A4.5b — Content controls (D7 M3/M5)
+- `scripts/precommit_scan.py`: standalone Python scanner. Rules: email regex, phone regex (validated by digit-count 10-15 to defuse ISO-date false positives), and case-insensitive substring match against `.safety/danger-list.txt`. Reports every hit with `<file>:<line>: <reason> -- <match>` on stderr, exits 1 on any hit. Skips binaries. Standalone-invokable so tests exercise the exact commit-time code path.
+- `.pre-commit-config.yaml`: local hook wrapping the scanner. Excludes `data/`, the scanner itself, and its test file to avoid self-match.
+- `.safety/danger-list.txt`: committed scaffold with header comments only — real identifiers go in a local override so the repo itself doesn't leak the terms it guards.
+- `jscc/sanitizer.py`: `sanitize_for_llm(payload)` skeleton — pass-through that stamps a `_sanitized_at` UTC ISO-8601 marker; refuses payloads flagged `contains_personal=True` with `SanitizerRefusal`. Interface locked so Phase B slices can import stably; substantive redaction rules land with the first LLM call.
+- 22 new pytest cases (86 total): sanitizer roundtrip + marker + refusal + shallow-copy + type-check + `is_sanitized`; scanner email/phone/danger-list hits, case-insensitive matching, comment/blank stripping, seed-fake-data-passes gotcha check, ISO-date and short-version regression, binary skip, missing-file/missing-danger-list tolerance, multi-hit reporting.
+- ADR-004 documents `pre-commit.com` + local Python hook choice with alternatives (native hook, GHA-only, husky, commit-msg stage, larger regex battery).
+
 ### A4.5a — Environment isolation (D7 M1/M2/M7)
 - `jscc/mode.py`: `Mode` enum (`synthetic` / `real`) selected by `JSCC_DATA` env var (default synthetic). `resolve_db_path(mode)` → `data/<mode>.db`.
 - `storage.py`: `open_for_mode()` opens the mode's DB, ensures schema is initialized, stamps the mode marker on first use, verifies it on subsequent opens. `ModeMismatchError` on cross-mode open. Schema bumped v1 → v2 (new `meta` table).

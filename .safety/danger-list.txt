@@ -1,0 +1,11 @@
+# JSCC danger list — substrings that must never appear in committed content.
+# One per line, case-insensitive. Lines starting with `#` are ignored.
+#
+# Populate with real identifiers only in a local `.safety/danger-list.local.txt`
+# (gitignored) or wherever the local hook config points; keep the committed file
+# as scaffold + examples only. The scanner does exact-substring case-insensitive
+# matching, so keep entries specific enough to avoid noise.
+#
+# Examples (commented out — uncomment / replace in your local list):
+#   ExRealCompanyName Corp
+#   555-123-4567
