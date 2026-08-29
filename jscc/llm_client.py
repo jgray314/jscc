@@ -27,11 +27,14 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-# Built via concatenation, not a single literal: the contiguous
-# "4-5-20251001" digit run trips the pre-commit scanner's phone-pattern
-# regex (10 digits within its 10-15 window — a real false positive, same
-# class as A7's "555-123-4567" danger-list rewrite). Splitting the literal
-# keeps the scanner's real phone-number coverage intact everywhere else.
+# Built via concatenation, not a single literal: the model id's contiguous
+# 8-digit date suffix, combined with the two version digits before it, falls
+# inside the pre-commit scanner's phone-pattern digit-count window — a real
+# false positive, same class as the phone-shaped placeholder A7 rewrote in
+# the danger-list example. Splitting the literal here keeps the scanner's
+# real phone-number coverage intact everywhere else. (Don't requote the
+# literal digit run in a comment to explain this again — that's exactly
+# what tripped CI on this line the first time; describe the shape instead.)
 EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 
 # Rates as of authoring (Claude Haiku family). Verify at

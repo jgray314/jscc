@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### CI hotfix — comment in llm_client.py re-tripped the scanner it was explaining
+B2's fix for the model-id false positive (split the literal via concatenation) was correct, but the comment explaining *why* quoted both offending strings verbatim (`"4-5-20251001"` and `"555-123-4567"`), which matched the same phone-pattern regex it was documenting — same failure class as the CHANGELOG.md problem from A10 (prose describing a scanner match trips the scanner), just inside a code comment instead of a tracked doc. Confirmed via a fresh clone rather than the local working tree, since that's exactly how this slipped past the last local check. Fixed by describing the pattern's shape instead of requoting it, with an explicit comment note against doing this again. Did not touch the regex itself — this is the second scanner failure in three commits, and both were self-inflicted (lockfile hash format, now self-referential prose), not the regex blocking real content; loosening it now would trade away the phone-shape coverage A9 deliberately widened it for, to fix a problem that isn't actually about sensitivity.
+
 ### B2 — JD extraction prompt v1 + LLM client plumbing
 No `ANTHROPIC_API_KEY` is configured in this environment. Rather than block the slice, this lands the real prompt and the full call path — sanitizer routing, instrumentation, client abstraction — behind a `StubExtractionClient` fallback, so everything is exercisable end-to-end today and a real key is a drop-in swap later. Per the sub-plan's DoD ("eval suite passes at ≥80%"): **not met yet** — that requires live iteration against a real model, which needs the key. This is scoped honestly as prompt-authored-and-wired, not prompt-validated.
 
