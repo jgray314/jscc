@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### B3a — baseline fetcher + DLQ core
+Per D6, JD fetching is treated as a real product problem, not a happy-path assumption. `DLQEntry`/`FailureMode`/the storage layer already existed from A2; this slice adds the part that actually calls them.
+
+- `jscc/fetcher.py`: `fetch_jd(url)` — `requests`-based GET + `readability-lxml` for content isolation (strips nav/ads/boilerplate, keeps the JD body). Classifies every non-2xx or exception into a `FailureMode`: 402 → `paywall`; 401/403/429/451/5xx/other 4xx → `blocked`; `requests.Timeout` → `timeout`; `requests.ConnectionError` → `blocked`; readability content under 200 chars → `extraction_failed`. Never raises for network- or content-shaped failures, only programmer error — matches the "never crashes" DoD.
+- `python -m jscc ingest --url <url>`: fetch → on success, `extract_jd()` (D9, routed through the D5 instrumentation ledger since a `conn` is available here) → `Application`; on failure → `DLQEntry`. Always exits 0 — a bad fetch is an expected outcome, not a CLI error.
+- `python -m jscc dlq list [--all]`: unresolved entries by default (add `--all` for resolved too).
+- `python -m jscc resolve-dlq <id> --paste-text "..."`: the D6 escape hatch — pastes JD text in place of a failed fetch, creates the `Application`, marks the entry `resolved (manual_paste)`. Same code path Slice B4's `ingest --paste` will reuse.
+- New runtime deps: `requests`, `readability-lxml` (chosen over `trafilatura` — lighter footprint, matches the sub-plan's literal wording).
+- **Known gap, not fixed here:** `ExtractedJD` (D9's locked contract) has no `company` field, so `ingest`/`resolve-dlq` derive a placeholder company from the URL's domain (`_company_from_url`). Real company extraction needs either a D9 schema change (touches the eval suite) or a separate lookup — logged in jscc.md's Cleanup backlog, not addressed this slice.
+- 16 new pytest cases (189 total): 9 for `fetcher.py` (success + all 5 failure modes + error-detail population), 7 for the new CLI commands (ingest success/failure/never-crashes, dlq list populated/empty, resolve-dlq happy path + unknown-id).
+
 ### CI hotfix — comment in llm_client.py re-tripped the scanner it was explaining
 B2's fix for the model-id false positive (split the literal via concatenation) was correct, but the comment explaining *why* quoted both offending strings verbatim (`"4-5-20251001"` and `"555-123-4567"`), which matched the same phone-pattern regex it was documenting — same failure class as the CHANGELOG.md problem from A10 (prose describing a scanner match trips the scanner), just inside a code comment instead of a tracked doc. Confirmed via a fresh clone rather than the local working tree, since that's exactly how this slipped past the last local check. Fixed by describing the pattern's shape instead of requoting it, with an explicit comment note against doing this again. Did not touch the regex itself — this is the second scanner failure in three commits, and both were self-inflicted (lockfile hash format, now self-referential prose), not the regex blocking real content; loosening it now would trade away the phone-shape coverage A9 deliberately widened it for, to fix a problem that isn't actually about sensitivity.
 

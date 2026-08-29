@@ -69,9 +69,10 @@ jscc/           library code
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
   llm_client.py Anthropic client + StubExtractionClient fallback (no key configured yet)
   evals.py      hand-rolled eval harness (jd_extraction suite so far)
+  fetcher.py    requests + readability JD fetcher; classifies failures into FailureMode
   report.py     staleness detector + funnel counts
-  cli.py        click entry point
-tests/          pytest suite (173 tests)
+  cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
+tests/          pytest suite (189 tests)
 config/         stages.yaml + profile.example.yaml
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (danger-list + email/phone regex)
@@ -105,7 +106,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite) and B2 (extraction prompt + client plumbing) shipped. No `ANTHROPIC_API_KEY` is configured yet, so B2 runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar is next once a key is available. 173 pytest cases.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), and B3a (baseline fetcher + DLQ core) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 189 pytest cases.
 
 ## License
 

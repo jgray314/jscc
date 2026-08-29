@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import click
 from pydantic import ValidationError
@@ -15,17 +16,32 @@ from .config import (
 )
 from .evals import format_eval_summary, run_jd_extraction_evals
 from .extraction import extract_jd
+from .fetcher import fetch_jd
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
+from .models import Application, DLQEntry, Resolution
 from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
     ModeMismatchError,
+    create_application,
+    create_dlq_entry,
     list_applications,
+    list_dlq_entries,
     list_llm_calls,
     open_for_mode,
     read_mode_marker,
+    resolve_dlq_entry,
     schema_version,
 )
+
+FIRST_STAGE = "identified"
+
+
+def _company_from_url(url: str) -> str:
+    """Placeholder company name until extraction covers it (D9's ExtractedJD
+    has no company field yet -- see backlog note in jscc.md)."""
+    netloc = urlparse(url).netloc
+    return netloc.removeprefix("www.") or url
 
 DEFAULT_CONFIG_DIR = Path("config")
 
@@ -291,6 +307,131 @@ def eval_jd_extraction() -> None:
     click.echo(format_eval_summary(summary))
     if summary.passed < summary.total:
         sys.exit(1)
+
+
+@cli.command("ingest")
+@click.option("--url", required=True, help="Job posting URL to fetch and ingest.")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+def ingest(url: str, data_dir: Path) -> None:
+    """Fetch a JD by URL, extract structured fields, and create an Application.
+
+    Never crashes on a bad fetch. Paywalled, blocked, timed-out, or
+    unextractable pages land in the DLQ instead (per D6) -- see `dlq list`
+    and `resolve-dlq`.
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        result = fetch_jd(url)
+        if not result.ok:
+            entry = DLQEntry(
+                source_url=url,
+                failure_mode=result.failure_mode,
+                error_detail=result.error_detail,
+            )
+            entry_id = create_dlq_entry(conn, entry)
+            click.echo(
+                f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})"
+            )
+            return
+
+        extracted = extract_jd(result.raw_text, conn=conn)
+        app = Application(
+            source_url=url,
+            source_raw=result.raw_text,
+            title=extracted.title or result.title or "(untitled)",
+            company=_company_from_url(url),
+            stage=FIRST_STAGE,
+        )
+        app_id = create_application(conn, app)
+        click.echo(f"created application {app_id}: {app.title}")
+    finally:
+        conn.close()
+
+
+@cli.group("dlq")
+def dlq_group() -> None:
+    """Dead-letter queue for JDs that failed to fetch or extract cleanly."""
+
+
+@dlq_group.command("list")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+@click.option(
+    "--all", "show_all", is_flag=True, help="Include already-resolved entries."
+)
+def dlq_list(data_dir: Path, show_all: bool) -> None:
+    """List DLQ entries for the active mode (unresolved-only by default)."""
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        entries = list_dlq_entries(conn, unresolved_only=not show_all)
+    finally:
+        conn.close()
+
+    click.echo(f"[mode: {mode.value}]")
+    if not entries:
+        click.echo("no unresolved dlq entries")
+        return
+
+    click.echo(f"{'id':<38}{'failure_mode':<20}{'source_url'}")
+    for entry in entries:
+        click.echo(f"{entry.id:<38}{entry.failure_mode.value:<20}{entry.source_url}")
+
+
+@cli.command("resolve-dlq")
+@click.argument("entry_id")
+@click.option(
+    "--paste-text",
+    required=True,
+    help="Pasted JD text to use in place of the failed fetch.",
+)
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
+    """Resolve a DLQ entry by pasting the JD text manually (D6 escape hatch).
+
+    Creates the Application the original fetch couldn't, then marks the
+    entry resolved. Same code path Slice B4's `ingest --paste` reuses.
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        entries = list_dlq_entries(conn, unresolved_only=False)
+        entry = next((e for e in entries if e.id == entry_id), None)
+        if entry is None:
+            click.echo(f"no DLQ entry with id {entry_id}", err=True)
+            sys.exit(2)
+
+        extracted = extract_jd(paste_text, conn=conn)
+        app = Application(
+            source_url=entry.source_url,
+            source_raw=paste_text,
+            title=extracted.title or "(untitled)",
+            company=_company_from_url(entry.source_url),
+            stage=FIRST_STAGE,
+        )
+        app_id = create_application(conn, app)
+        resolve_dlq_entry(conn, entry_id, Resolution.manual_paste)
+        click.echo(f"created application {app_id} from DLQ entry {entry_id}")
+    finally:
+        conn.close()
 
 
 def main() -> None:

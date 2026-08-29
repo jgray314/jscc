@@ -248,3 +248,191 @@ def test_costs_summarizes_recorded_calls(
     assert result.exit_code == 0, result.output
     assert "extraction" in result.output
     assert "0.5000" in result.output
+
+
+# ---- ingest / dlq ---------------------------------------------------------------
+
+def test_ingest_url_success_creates_application(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
+    )
+
+    result = runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "created application" in result.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].source_url == "https://example.com/jobs/1"
+
+
+def test_ingest_url_failure_creates_dlq_entry_not_application(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+    from jscc.models import FailureMode
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(
+            ok=False, failure_mode=FailureMode.blocked, error_detail="HTTP 403"
+        ),
+    )
+
+    result = runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/2", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "dlq" in result.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, list_dlq_entries, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    entries = list_dlq_entries(conn, unresolved_only=False)
+    conn.close()
+    assert apps == []
+    assert len(entries) == 1
+    assert entries[0].source_url == "https://example.com/jobs/2"
+    assert entries[0].failure_mode.value == "blocked"
+
+
+def test_ingest_never_crashes_on_fetch_exception_shaped_failure(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DoD: ingest --url produces Application OR DLQEntry, never crashes."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+    from jscc.models import FailureMode
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(
+            ok=False, failure_mode=FailureMode.timeout, error_detail="timed out"
+        ),
+    )
+
+    result = runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/3", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_dlq_list_shows_unresolved_entries(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.models import DLQEntry, FailureMode
+    from jscc.mode import Mode
+    from jscc.storage import create_dlq_entry, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/4",
+            failure_mode=FailureMode.paywall,
+            error_detail="HTTP 402",
+        ),
+    )
+    conn.close()
+
+    result = runner.invoke(cli, ["dlq", "list", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "https://example.com/jobs/4" in result.output
+    assert "paywall" in result.output
+
+
+def test_dlq_list_empty(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["dlq", "list", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "no unresolved dlq entries" in result.output.lower()
+
+
+def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.models import DLQEntry, FailureMode
+    from jscc.mode import Mode
+    from jscc.storage import create_dlq_entry, list_applications, list_dlq_entries, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/5",
+            failure_mode=FailureMode.blocked,
+            error_detail="HTTP 403",
+        ),
+    )
+    conn.close()
+
+    result = runner.invoke(
+        cli,
+        [
+            "resolve-dlq",
+            entry_id,
+            "--paste-text",
+            "Senior Engineer at Rift Cloud. " * 20,
+            "--data-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    unresolved = list_dlq_entries(conn, unresolved_only=True)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].source_url == "https://example.com/jobs/5"
+    assert unresolved == []
+
+
+def test_resolve_dlq_unknown_id_exits_nonzero(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        [
+            "resolve-dlq",
+            "nonexistent-id",
+            "--paste-text",
+            "some text",
+            "--data-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code != 0
