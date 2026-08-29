@@ -14,7 +14,7 @@ from jscc.report import (
     funnel_counts,
 )
 from jscc.seed import seed_synthetic
-from jscc.storage import connect, init_db, list_applications
+from jscc.storage import _connect, _init_db, list_applications
 
 
 FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
@@ -163,8 +163,8 @@ def test_format_report_none_when_no_alerts(stages_cfg: StagesConfig) -> None:
 def test_report_e2e_against_seed(tmp_path: Path) -> None:
     """Seed a DB, run funnel + detect_stale against a pinned `now`, verify structure."""
     db_path = tmp_path / "e2e.db"
-    conn = connect(db_path)
-    init_db(conn)
+    conn = _connect(db_path)
+    _init_db(conn)
     seed_synthetic(conn, now=FIXED_NOW)
     apps = list_applications(conn)
     conn.close()
@@ -195,3 +195,19 @@ def test_report_e2e_against_seed(tmp_path: Path) -> None:
     # Most-overdue-first ordering:
     for prev, curr in zip(alerts, alerts[1:]):
         assert prev.overdue_by_days >= curr.overdue_by_days
+
+
+def test_detect_stale_raises_on_future_reference_timestamp(
+    stages_cfg: StagesConfig,
+) -> None:
+    """M6: a future last_interaction_at means bad data — must NOT silently drop.
+
+    Previously the `days < 0` case silently failed the `>= threshold` check
+    and the alert vanished, so clock skew or a --now in the past looked
+    exactly like a healthy pipeline. Now it raises.
+    """
+    import pytest as _pytest
+
+    apps = [_app(stage="applied", days_ago=-5, company="TimeTraveler")]
+    with _pytest.raises(ValueError, match="future reference timestamp"):
+        detect_stale(apps, stages_cfg, now=FIXED_NOW)

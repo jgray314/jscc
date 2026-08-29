@@ -22,13 +22,50 @@ Rules:
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import re
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 
-EMAIL_RE = re.compile(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", re.IGNORECASE)
+
+def _compile_exclude(pattern: str) -> re.Pattern[str]:
+    """Compile a glob-style exclude to a full-match regex.
+
+    Supports:
+      - ``**`` — any run of characters including ``/`` (recursive).
+      - ``*``  — any run of characters within one path segment (no ``/``).
+      - ``?``  — one non-``/`` character.
+      - literal ``.`` and other regex metachars are escaped.
+
+    `fnmatch` was rejected because it treats ``**`` as literal, giving
+    ``tests/**`` a silent hole where anything under ``tests/`` still got
+    scanned. That was M-exclude-1 in the A9 review.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "*":
+            if i + 1 < len(pattern) and pattern[i + 1] == "*":
+                out.append(".*")
+                i += 2
+            else:
+                out.append("[^/]*")
+                i += 1
+        elif c == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(c))
+            i += 1
+    return re.compile("".join(out))
+
+# Deliberately over-broad: matches any non-whitespace token containing `@` with a
+# dot-separated tail. Covers ASCII, IDN local/domain parts (e.g. `user@münchen.de`),
+# Punycode TLDs (`.xn--p1ai`), and non-ASCII TLDs (`.москва`). False positives are
+# the design point of D7 — the scanner errs toward blocking. Structured excludes
+# via `--exclude` handle known-safe scaffolding files.
+EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().]{2,}")
 # Phone char class allows separator variants seen in the wild:
 #   dashes / whitespace ((415) 555-0134 style)
 #   parens (US area-code grouping)
@@ -125,11 +162,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     danger_terms = load_danger_list(args.danger_list)
-    excludes: list[str] = args.exclude
+    excludes: list[re.Pattern[str]] = [_compile_exclude(p) for p in args.exclude]
 
     def _excluded(p: Path) -> bool:
         posix = PurePosixPath(*p.parts).as_posix()
-        return any(fnmatch.fnmatch(posix, pat) for pat in excludes)
+        return any(pat.fullmatch(posix) for pat in excludes)
 
     all_hits: list[Hit] = []
     for f in args.files:

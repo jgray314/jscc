@@ -9,8 +9,8 @@ import pytest
 from jscc.models import Resolution
 from jscc.seed import build_seed, seed_synthetic
 from jscc.storage import (
-    connect,
-    init_db,
+    _connect,
+    _init_db,
     list_applications,
     list_contacts,
     list_dlq_entries,
@@ -24,8 +24,8 @@ FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
 @pytest.fixture()
 def conn(tmp_path: Path):
     db_path = tmp_path / "seed.db"
-    c = connect(db_path)
-    init_db(c)
+    c = _connect(db_path)
+    _init_db(c)
     yield c
     c.close()
 

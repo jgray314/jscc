@@ -23,6 +23,27 @@ def test_email_pattern_hit(tmp_path: Path) -> None:
     assert precommit_scan.main([str(f)]) == 1
 
 
+def test_idn_local_email_hit(tmp_path: Path) -> None:
+    """H2 regression: IDN local-part email must match (ASCII regex missed this)."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "reach: münchen-office@example.de today\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_non_ascii_tld_email_hit(tmp_path: Path) -> None:
+    """H2 regression: non-ASCII TLD (e.g. .москва) must match."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "email user@пример.москва in file\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_punycode_tld_email_hit(tmp_path: Path) -> None:
+    """H2 regression: Punycode TLD (.xn--p1ai) must match."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = _write(tmp_path / "note.md", "email user@example.xn--p1ai listed\n")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
 def test_phone_pattern_hit(tmp_path: Path) -> None:
     f = _write(tmp_path / "note.md", "call +1 415-555-0134 tomorrow\n")
     assert precommit_scan.main([str(f)]) == 1
@@ -187,3 +208,39 @@ def test_exclude_pattern_matches_multiple(tmp_path: Path) -> None:
         [posix_a, posix_b, "--danger-list", str(danger), "--exclude", "**/tests/*.md"]
     )
     assert rc == 0
+
+
+def test_exclude_double_star_recurses(tmp_path: Path) -> None:
+    """M-exclude-1 regression: `**` must actually match through path
+    separators. Previously fnmatch treated `**` as literal so
+    `tests/**` missed nested files — a silent hole.
+    """
+    root = tmp_path / "tests"
+    sub = root / "sub" / "deeper"
+    sub.mkdir(parents=True)
+    shallow = _write(root / "shallow.md", "alice@example.com\n")
+    nested = _write(sub / "nested.md", "bob@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    posix_shallow = str(shallow).replace("\\", "/")
+    posix_nested = str(nested).replace("\\", "/")
+    # `**/nested.md` must reach the nested file specifically.
+    rc = precommit_scan.main(
+        [posix_shallow, posix_nested, "--danger-list", str(danger), "--exclude", "**/nested.md"]
+    )
+    # shallow still hits (not excluded); nested is excluded — so exit 1.
+    assert rc == 1
+
+
+def test_exclude_single_star_does_not_cross_slash(tmp_path: Path) -> None:
+    """Single `*` must NOT cross a path separator — narrower semantic than `**`."""
+    root = tmp_path / "d"
+    sub = root / "sub"
+    sub.mkdir(parents=True)
+    nested = _write(sub / "note.md", "alice@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    posix_nested = str(nested).replace("\\", "/")
+    # `*/note.md` should NOT reach `d/sub/note.md` (two levels).
+    rc = precommit_scan.main(
+        [posix_nested, "--danger-list", str(danger), "--exclude", "*/note.md"]
+    )
+    assert rc == 1  # not excluded

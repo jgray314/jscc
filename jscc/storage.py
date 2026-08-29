@@ -1,3 +1,21 @@
+"""SQLite persistence layer — the second choke point after the sanitizer.
+
+Two rules that make the mode-safety story structural rather than disciplinary:
+
+1. **Every production DB open goes through `open_for_mode`.** That function
+   creates only the meta table on a bare connection, verifies the stamped mode
+   marker matches the caller's intent, and only then runs the DDL. The
+   primitives underneath — `_connect` and `_init_db` — are underscored on
+   purpose. If you need one from outside this module, you are about to
+   accidentally recreate the C4/C5 bug class the A6 hardening slice closed.
+2. **`__all__` names the safe surface only.** `import *` will not reach the
+   primitives; the safe entry points are `open_for_mode` plus the CRUD helpers
+   (which all take a `sqlite3.Connection` an `open_for_mode` caller already
+   validated).
+
+Tests can still import the underscored names — they need them to construct
+pre-corrupt / pre-populated fixtures the safe front door refuses to create.
+"""
 from __future__ import annotations
 
 import json
@@ -16,6 +34,28 @@ from .models import (
     Resolution,
     _now,
 )
+
+
+__all__ = [
+    "ModeMismatchError",
+    "DB_SCHEMA_VERSION",
+    "open_for_mode",
+    "read_mode_marker",
+    "write_mode_marker",
+    "resolve_db_path",
+    "schema_version",
+    "create_application",
+    "create_contact",
+    "create_interaction",
+    "create_dlq_entry",
+    "update_application",
+    "resolve_dlq_entry",
+    "list_applications",
+    "list_contacts",
+    "list_interactions",
+    "list_dlq_entries",
+    "reset_tables",
+]
 
 
 class ModeMismatchError(RuntimeError):
@@ -95,15 +135,29 @@ CREATE TABLE IF NOT EXISTS meta (
 _MODE_META_KEY = "mode"
 
 
-def connect(db_path: Path) -> sqlite3.Connection:
+def _connect(db_path: Path) -> sqlite3.Connection:
+    """Low-level DB open. **Private on purpose.**
+
+    Everything that opens a DB in production must go through `open_for_mode` so
+    the mode marker is verified first. `_connect` is the primitive underneath;
+    tests use it to construct pre-corrupt / pre-populated fixtures that would be
+    impossible to build through the safe front door. Never import this from
+    outside the jscc package or its tests.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # M4: keep concurrent CLI invocations (seed + report, or Phase B agent
+    # workers) from spuriously getting `database is locked`. WAL is safe for
+    # this workload (single-machine, filesystem-local); busy_timeout gives
+    # writers 5s of retry room before raising.
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
-def init_db(conn: sqlite3.Connection) -> None:
+def _init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_DDL)
     conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
     conn.commit()
@@ -197,7 +251,7 @@ def open_for_mode(
     on a bare read connection).
     """
     path = resolve_db_path(mode, data_dir)
-    conn = connect(path)
+    conn = _connect(path)
     try:
         _ensure_meta_table(conn)
         populated = _db_has_user_tables(conn)
@@ -216,11 +270,11 @@ def open_for_mode(
                 )
             # Populated + matches: bring schema up to date (idempotent DDL is
             # safe now that we know the mode agrees).
-            init_db(conn)
+            _init_db(conn)
             return conn
 
         # Fresh DB path: run full init, stamp the marker.
-        init_db(conn)
+        _init_db(conn)
         write_mode_marker(conn, mode)
         return conn
     except BaseException:
@@ -525,11 +579,13 @@ def resolve_dlq_entry(
     conn: sqlite3.Connection,
     entry_id: str,
     resolution: Resolution,
+    now: datetime | None = None,
 ) -> None:
     if resolution is Resolution.unresolved:
         raise ValueError("cannot resolve to 'unresolved'; use one of manual_paste, wont_fix")
+    stamped_at = now if now is not None else _now()
     conn.execute(
         "UPDATE dlq_entries SET resolution = ?, resolved_at = ? WHERE id = ?",
-        (resolution.value, _iso(_now()), entry_id),
+        (resolution.value, _iso(stamped_at), entry_id),
     )
     conn.commit()

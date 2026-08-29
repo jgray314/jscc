@@ -19,14 +19,14 @@ from jscc.models import (
 )
 from jscc.storage import (
     DB_SCHEMA_VERSION,
-    connect,
+    _connect,
     create_application,
     create_contact,
     create_dlq_entry,
     create_interaction,
     get_application,
     get_contact,
-    init_db,
+    _init_db,
     list_applications,
     list_contacts,
     list_dlq_entries,
@@ -40,8 +40,8 @@ from jscc.storage import (
 @pytest.fixture()
 def conn(tmp_path: Path):
     db_path = tmp_path / "test.db"
-    c = connect(db_path)
-    init_db(c)
+    c = _connect(db_path)
+    _init_db(c)
     yield c
     c.close()
 
@@ -69,9 +69,9 @@ def test_init_creates_schema(conn: sqlite3.Connection) -> None:
 
 def test_init_is_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "twice.db"
-    c = connect(db_path)
-    init_db(c)
-    init_db(c)  # must not raise
+    c = _connect(db_path)
+    _init_db(c)
+    _init_db(c)  # must not raise
     assert schema_version(c) == DB_SCHEMA_VERSION
     c.close()
 
@@ -275,9 +275,9 @@ def test_update_extracted_jd_via_update_path(conn: sqlite3.Connection) -> None:
 def test_connect_creates_missing_parent_dirs(tmp_path: Path) -> None:
     nested = tmp_path / "a" / "b" / "c" / "test.db"
     assert not nested.parent.exists()
-    c = connect(nested)
+    c = _connect(nested)
     try:
-        init_db(c)
+        _init_db(c)
         assert nested.parent.exists()
         assert nested.exists()
     finally:
@@ -286,9 +286,9 @@ def test_connect_creates_missing_parent_dirs(tmp_path: Path) -> None:
 
 def test_extracted_jd_serializes_datetime_set_enum(tmp_path: Path) -> None:
     """H4 regression: _dump_json must handle types Phase B extraction will produce."""
-    c = connect(tmp_path / "test.db")
+    c = _connect(tmp_path / "test.db")
     try:
-        init_db(c)
+        _init_db(c)
         exotic = {
             "posted_at": datetime(2026, 7, 4, 12, 0, tzinfo=timezone.utc),
             "seen_on": date(2026, 8, 1),
@@ -317,9 +317,9 @@ def test_extracted_jd_serializes_datetime_set_enum(tmp_path: Path) -> None:
 
 def test_extracted_jd_serializes_nested_pydantic_model(tmp_path: Path) -> None:
     """H4: nested BaseModel in extracted_jd is model_dump()'d, not TypeError'd."""
-    c = connect(tmp_path / "test.db")
+    c = _connect(tmp_path / "test.db")
     try:
-        init_db(c)
+        _init_db(c)
         nested_contact = Contact(
             id="c1", application_id="app-h4b", name="Recruiter A. Placeholder",
             role=ContactRole.recruiter,
@@ -344,9 +344,9 @@ def test_extracted_jd_serializes_nested_pydantic_model(tmp_path: Path) -> None:
 def test_extracted_jd_unknown_type_raises_typerror(tmp_path: Path) -> None:
     """H4: types the fallback doesn't handle raise a clear TypeError (schema signal),
     not a silent swallow. Uses a class the fallback deliberately doesn't cover."""
-    c = connect(tmp_path / "test.db")
+    c = _connect(tmp_path / "test.db")
     try:
-        init_db(c)
+        _init_db(c)
         class Weird:
             pass
         app = Application(

@@ -268,12 +268,17 @@ def _build_chain(
     applied_at: datetime,
     contacts_by_role: dict[ContactRole, Contact],
     depth: int,
+    now: datetime,
 ) -> tuple[list[Interaction], datetime]:
     """Return chronologically-ordered interactions and the final event timestamp.
 
     Cursor advances by realistic gaps between events. Steps included depend on
     `depth` (the effective stage reached). For `closed` applications a final
     rejection event is appended.
+
+    Chain end is clamped to `now`: an interaction that would land in the future
+    is dropped. Synthetic fixtures must not emit future timestamps — the report
+    module now raises on them (M6 regression).
     """
     events: list[Interaction] = []
     recruiter = contacts_by_role.get(ContactRole.recruiter)
@@ -296,8 +301,11 @@ def _build_chain(
 
     if depth >= _STAGE_ORDER.index("recruiter_screen"):
         cursor = cursor + timedelta(days=rng.randint(3, 10))
+        if cursor > now:
+            return events, events[-1].occurred_at
         events.append(
             Interaction(
+                id=_rng_uuid(rng),
                 application_id=application_id,
                 contact_id=recruiter.id if recruiter else None,
                 type=InteractionType.recruiter_reply,
@@ -310,8 +318,11 @@ def _build_chain(
 
     if depth >= _STAGE_ORDER.index("hm_screen"):
         cursor = cursor + timedelta(days=rng.randint(5, 12))
+        if cursor > now:
+            return events, events[-1].occurred_at
         events.append(
             Interaction(
+                id=_rng_uuid(rng),
                 application_id=application_id,
                 contact_id=hm.id if hm else None,
                 type=InteractionType.screen,
@@ -322,8 +333,11 @@ def _build_chain(
 
     if depth >= _STAGE_ORDER.index("technical_loop"):
         cursor = cursor + timedelta(days=rng.randint(3, 10))
+        if cursor > now:
+            return events, events[-1].occurred_at
         events.append(
             Interaction(
+                id=_rng_uuid(rng),
                 application_id=application_id,
                 contact_id=None,
                 type=InteractionType.screen,
@@ -334,8 +348,11 @@ def _build_chain(
 
     if depth >= _STAGE_ORDER.index("onsite"):
         cursor = cursor + timedelta(days=rng.randint(5, 14))
+        if cursor > now:
+            return events, events[-1].occurred_at
         events.append(
             Interaction(
+                id=_rng_uuid(rng),
                 application_id=application_id,
                 contact_id=hm.id if hm else None,
                 type=InteractionType.onsite,
@@ -346,8 +363,11 @@ def _build_chain(
 
     if stage == "closed":
         cursor = cursor + timedelta(days=rng.randint(3, 14))
+        if cursor > now:
+            return events, events[-1].occurred_at
         events.append(
             Interaction(
+                id=_rng_uuid(rng),
                 application_id=application_id,
                 contact_id=None,
                 type=InteractionType.rejection,
@@ -405,7 +425,7 @@ def _make_application_bundle(
     depth = _effective_depth(rng, stage)
     contacts, contacts_by_role = _build_contacts(rng, app.id, depth)
     interactions, chain_end = _build_chain(
-        rng, app.id, stage, applied_at_dt, contacts_by_role, depth
+        rng, app.id, stage, applied_at_dt, contacts_by_role, depth, now
     )
 
     if interactions:
@@ -488,7 +508,12 @@ def seed_synthetic(
     if reset:
         reset_tables(conn)
 
-    apps, contacts, interactions, dlq = build_seed(now=now, random_seed=random_seed)
+    # Pin the anchor now here (not inside build_seed) so the DLQ resolve below
+    # can stamp resolved_at against the same moment build_seed used — otherwise
+    # resolved_at falls back to wall clock and breaks reproducibility.
+    ref_now = now if now is not None else datetime.now(timezone.utc).replace(microsecond=0)
+
+    apps, contacts, interactions, dlq = build_seed(now=ref_now, random_seed=random_seed)
 
     for app in apps:
         create_application(conn, app)
@@ -500,7 +525,7 @@ def seed_synthetic(
         create_dlq_entry(conn, entry)
 
     if dlq:
-        resolve_dlq_entry(conn, dlq[0].id, Resolution.manual_paste)
+        resolve_dlq_entry(conn, dlq[0].id, Resolution.manual_paste, now=ref_now)
 
     return {
         "applications": len(apps),

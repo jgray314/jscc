@@ -1,8 +1,10 @@
 # JSCC — Job Search Command Center
 
+[![ci](https://github.com/jgray314/jscc/actions/workflows/ci.yml/badge.svg)](https://github.com/jgray314/jscc/actions/workflows/ci.yml)
+
 An agentic, eval-gated pipeline tracker for a real job search. Ingests job descriptions, scores fit against a profile, drafts follow-ups for routine cases only, and surfaces stale opportunities.
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) is complete; Phase B (evals + first LLM stage) is next. See [CHANGELOG.md](CHANGELOG.md).
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) is complete; Phase B (evals + first LLM stage) is next. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
 ## Why this project
 
@@ -44,9 +46,10 @@ Funnel
 
 Stale alerts (13)
 ----------------
-  hm_screen         Ember Grid         Senior Engineering Manager, Payments  overdue by 21d (last interaction 28d ago, threshold 7d)
+  hm_screen         Yield Model Co     Director of Engineering, ML  overdue by 25d (last interaction 32d ago, threshold 7d)
   applied           Rift Cloud         Director of Engineering, ML  overdue by 19d (last interaction 33d ago, threshold 14d)
-  recruiter_screen  Ceres Analytics    Staff MLE, Foundations  overdue by 14d (last interaction 21d ago, threshold 7d)
+  identified        Timber Motors      Director of Engineering, ML  overdue by 13d (last interaction 20d ago, threshold 7d)
+  applied           Pinnacle Search    Director of Engineering, ML  overdue by 7d (last interaction 21d ago, threshold 14d)
   ...
 ```
 
@@ -55,12 +58,21 @@ Bit-reproducible for a pinned `--random-seed` and `--now`.
 ## Repo layout
 
 ```
-jscc/           library code (config, mode, storage, seed, sanitizer, report, cli)
-tests/          pytest suite (126 tests)
+jscc/           library code
+  config.py     load + validate stages.yaml, profile.yaml
+  mode.py       synthetic/real mode resolution + DB path convention
+  storage.py    SQLite persistence with stamped mode marker
+  models.py     pydantic domain models (Application, Contact, Interaction, ...)
+  seed.py       deterministic synthetic fixture (evaluation infrastructure)
+  sanitizer.py  the LLM-egress choke point; HMAC-wrapped payloads
+  report.py     staleness detector + funnel counts
+  cli.py        click entry point
+tests/          pytest suite (135 tests)
 config/         stages.yaml + profile.example.yaml
-scripts/        pre-commit hook (danger-list + name/email/phone scanner)
+scripts/        pre-commit content scanner (danger-list + email/phone regex)
 decisions/      ADRs (see below)
 docs/           design-principles.md
+.github/        CI workflow
 data/           synthetic.db (tracked); real.db (gitignored)
 ```
 
@@ -80,7 +92,7 @@ The ten locked design principles behind them are in [docs/design-principles.md](
 
 ```bash
 uv sync
-uv run pytest              # 126 tests, ~seconds
+uv run pytest              # ~seconds
 uv run pre-commit install  # enable the safety scanner
 ```
 
@@ -88,7 +100,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: two adversarial-review passes, structural fixes for all critical findings, 126 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
+Phase A hardening complete: two rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 135 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
 
 ## License
 

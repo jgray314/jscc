@@ -124,21 +124,33 @@ def test_seed_with_pinned_now_reproducible(
     runner.invoke(cli, ["seed", "--data-dir", str(dir_a), *args_common])
     runner.invoke(cli, ["seed", "--data-dir", str(dir_b), *args_common])
 
-    def dump_rows(path: Path) -> list[tuple]:
+    # A9 broadening: the A7 version of this test only queried applications, and
+    # every application row DID get a seeded id — but every non-first Interaction
+    # was constructed without an explicit id, silently falling back to
+    # default_factory=uuid4 → os.urandom. Hashing every table catches that miss
+    # and any future one like it.
+    def dump_tables(path: Path) -> dict[str, list[tuple]]:
         conn = sqlite3.connect(str(path))
         try:
-            rows = conn.execute(
-                "SELECT id, title, company, stage, applied_at, created_at, "
-                "last_interaction_at FROM applications ORDER BY id"
-            ).fetchall()
-            return rows
+            out: dict[str, list[tuple]] = {}
+            for table in ("applications", "contacts", "interactions", "dlq_entries"):
+                cols = [
+                    row[1]
+                    for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+                ]
+                col_list = ", ".join(cols)
+                out[table] = conn.execute(
+                    f"SELECT {col_list} FROM {table} ORDER BY id"
+                ).fetchall()
+            return out
         finally:
             conn.close()
 
-    rows_a = dump_rows(dir_a / "synthetic.db")
-    rows_b = dump_rows(dir_b / "synthetic.db")
-    assert rows_a == rows_b
-    assert len(rows_a) > 0
+    tables_a = dump_tables(dir_a / "synthetic.db")
+    tables_b = dump_tables(dir_b / "synthetic.db")
+    for table in ("applications", "contacts", "interactions", "dlq_entries"):
+        assert tables_a[table] == tables_b[table], f"drift in {table}"
+        assert len(tables_a[table]) > 0, f"empty {table}"
 
 
 def test_seed_now_missing_timezone_fails(

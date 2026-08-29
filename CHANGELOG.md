@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### A9 — Rerun-gate closure (adversarial CRITICAL + walkthrough polish)
+Rerun of both Phase A → B gates. Adversarial rerun returned BLOCK on one CRITICAL — a regression of H3 that A7 claimed closed. Walkthrough rerun returned "almost ready, no blockers". This slice closes everything that a fresh reviewer would trip on before Phase B lands.
+
+- **C-seed-1 CRITICAL fix.** Only the first `Interaction` (the `applied` event) had `id=_rng_uuid(rng)` — the other five (`recruiter_reply`, HM `screen`, technical `screen`, `onsite`, `rejection`) fell back to `default_factory=uuid4` → `os.urandom`, so two runs with the same `--random-seed` and `--now` produced different `interactions.id` bytes. The A7 reproducibility test queried only the `applications` table (which was clean), so the regression was invisible until the adversarial pass found it. `resolve_dlq_entry` also used wall-clock time; now accepts an explicit `now`. All construction sites in `seed.py` now pass explicit seeded IDs, and the reproducibility test hashes every table (`applications`, `contacts`, `interactions`, `dlq_entries`).
+- **H2 IDN email regex.** ASCII-only regex missed IDN local parts (`münchen@…`), non-ASCII TLDs (`.москва`), and Punycode TLDs (`.xn--p1ai`). Widened to `[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().]{2,}` — deliberately over-broad per D7's "false positives are the design point" contract. Three new tests.
+- **M1 `connect` / `init_db` bypass surface.** Renamed to `_connect` / `_init_db` — the safe DB open path (`open_for_mode`) is now the only public one. Added `__all__` naming the safe surface. New lock test asserts `not hasattr(jscc.storage, "connect")` so a future contributor cannot re-expose the primitive by accident.
+- **M4 `busy_timeout` + WAL.** `_connect` now sets `PRAGMA busy_timeout = 5000` and `PRAGMA journal_mode = WAL`. Concurrent `seed` + `report` (and Phase B agent workers) no longer race to `database is locked`.
+- **M6 future timestamps raise.** `detect_stale` no longer silently drops `days < 0` — a future reference timestamp now raises `ValueError`. Fixed the seed as the source: chain generation is capped at `now`, so synthetic fixtures cannot themselves emit future last-interaction timestamps.
+- **M-exclude-1 `**` recursion.** Scanner `--exclude` was using `fnmatch`, which treats `**` as literal — `tests/**` had a silent hole where anything under nested subdirs still got scanned. Replaced with a real glob-to-regex compiler: `**` = any run of chars including `/`, `*` = any run excluding `/`, `?` = one non-`/` char. Two new tests.
+- **Walkthrough polish.** README CI badge, refreshed sample `report` output (post-M6 seed clamp), corrected test count (135), expanded repo-layout tree to name every module. `storage.py` module docstring documents the safe-surface rule.
+- **Storage module docstring.** Documents `open_for_mode` as the only production entry point and explains why `_connect` / `_init_db` are underscored.
+- 7 new pytest cases (135 total): 3 IDN email (local / non-ASCII TLD / Punycode TLD), 1 M6 future-timestamp raise, 1 M1 lock test, 2 M-exclude-1 (recursive `**`, single `*` does not cross slash).
+
 ### A8 — Reviewer polish + CI
 Portfolio-quality polish so a cold reviewer can grok the project in under five minutes, plus continuous coverage that the safety scanner and pytest suite both stay green.
 
