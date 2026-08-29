@@ -104,6 +104,22 @@ class DLQEntry(BaseModel):
     resolved_at: datetime | None = None
 
 
+class ExtractedJD(BaseModel):
+    """Structured output of `extract_jd` (D9 step 1). Stored in
+    `Application.extracted_jd` as a plain dict; this model is the contract
+    the extraction prompt (Slice B2) is written against and the eval suite
+    (Slice B1) grades against.
+    """
+
+    title: str
+    level: str
+    comp_band: str | None = None
+    location: str | None = None
+    remote_policy: str | None = None
+    must_have_skills: list[str] = Field(default_factory=list)
+    responsibilities_summary: str
+
+
 class LLMCallRecord(BaseModel):
     """One row per LLM call, captured by the `@instrumented` decorator (D5).
 

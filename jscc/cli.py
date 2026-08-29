@@ -13,6 +13,8 @@ from .config import (
     load_stages,
     resolve_profile_path,
 )
+from .evals import format_eval_summary, run_jd_extraction_evals
+from .extraction import extract_jd
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
@@ -271,6 +273,24 @@ def costs(data_dir: Path) -> None:
         click.echo(
             f"{feature:<20}{len(feature_calls):>8}{total_cost:>12.4f}{avg_latency:>16.1f}"
         )
+
+
+@cli.group("eval")
+def eval_group() -> None:
+    """Run an eval suite."""
+
+
+@eval_group.command("jd_extraction")
+def eval_jd_extraction() -> None:
+    """Run the JD-extraction eval suite against the current `extract_jd`.
+
+    Exits non-zero if any case fails, so it can gate CI once Slice B2 lands
+    a real prompt. Expected to fail every case until then (Slice B1 stub).
+    """
+    summary = run_jd_extraction_evals(extract_jd)
+    click.echo(format_eval_summary(summary))
+    if summary.passed < summary.total:
+        sys.exit(1)
 
 
 def main() -> None:

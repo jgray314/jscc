@@ -66,10 +66,13 @@ jscc/           library code
   seed.py       deterministic synthetic fixture (evaluation infrastructure)
   sanitizer.py  the LLM-egress choke point; HMAC-wrapped payloads
   instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
+  extraction.py the extract_jd interface (D9 step 1); B2 lands the real prompt
+  evals.py      hand-rolled eval harness (jd_extraction suite so far)
   report.py     staleness detector + funnel counts
   cli.py        click entry point
-tests/          pytest suite (149 tests)
+tests/          pytest suite (161 tests)
 config/         stages.yaml + profile.example.yaml
+evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (danger-list + email/phone regex)
 decisions/      ADRs (see below)
 docs/           design-principles.md
@@ -101,7 +104,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 149 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (JD extraction eval suite) shipped; B2 (extraction prompt) is next. 161 pytest cases.
 
 ## License
 

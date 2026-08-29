@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### B1 — JD extraction eval suite
+First Phase B slice. Per D9, extraction and scoring are split so extraction facts can be graded independently of scoring judgment — this suite is that independence made concrete.
+
+- `ExtractedJD` model (`title`, `level`, `comp_band`, `location`, `remote_policy`, `must_have_skills`, `responsibilities_summary`) — the contract Slice B2's prompt is written against.
+- `jscc/extraction.py`: `extract_jd(raw_text) -> ExtractedJD` stub, raises `ExtractionNotImplementedError` until B2. Signature is final now so the eval suite doesn't reshape when the prompt lands.
+- `evals/jd_extraction/cases.json`: 15 hand-authored JDs (fictional companies) across levels junior→director, with and without stated comp, across remote/hybrid/onsite. `evals/README.md` documents the suite and how to add cases.
+- `jscc/evals.py`: hand-rolled harness. Structural fields (`level`, `remote_policy`) exact-match; `must_have_skills` set-equality; `comp_band` presence-only (dollar figures are too brittle to grade exactly); prose field (`responsibilities_summary`) checked non-empty only — real LLM-judge grading is deferred to when there's a prompt worth judging.
+- `python -m jscc eval jd_extraction` CLI command — exits non-zero on any failing case, ready to gate CI once B2 lands.
+- 12 new pytest cases (161 total): grading rules, fixture-file shape, harness-against-stub (all 15 fail, as expected), CLI wiring.
+- DoD met: `python -m jscc eval jd_extraction` runs and reports `0/15 passed` — the harness works; there's just no prompt yet.
+
 ### A5 — LLM call instrumentation (deferred from Phase A, landed at Phase B start)
 Per D5, the `@instrumented` decorator was supposed to land as Phase A foundation so no LLM call — starting with B2's extractor — could ever go uninstrumented. It slipped out of the A1-A4.5 sequence and no gate round caught the gap (three rounds of adversarial + walkthrough all reviewed *shipped* code; nothing had reason to check for a missing slice). Caught while reading the sub-plan back before starting Phase B.
 

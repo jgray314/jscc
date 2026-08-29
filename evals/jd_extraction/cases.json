@@ -1,0 +1,197 @@
+[
+  {
+    "id": "case-01-senior-backend-remote-with-comp",
+    "raw_jd": "Senior Backend Engineer — Rift Cloud\n\nWe're hiring a Senior Backend Engineer to own our billing and metering services. You'll design APIs, review PRs, and mentor two mid-level engineers. Compensation: $180,000-$220,000 base plus equity. Fully remote (US timezones).\n\nRequirements: 5+ years backend experience, strong Python, experience with distributed systems and PostgreSQL.",
+    "expected": {
+      "title": "Senior Backend Engineer",
+      "level": "senior",
+      "comp_band": "$180,000-$220,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["Python", "distributed systems", "PostgreSQL"],
+      "responsibilities_summary": "Owns billing and metering services: designs APIs, reviews PRs, mentors two mid-level engineers."
+    }
+  },
+  {
+    "id": "case-02-staff-ml-hybrid-no-comp",
+    "raw_jd": "Staff Machine Learning Engineer — Timber Motors\n\nJoin our perception team building the models behind our driver-assist stack. You'll lead model architecture decisions, own the training pipeline, and partner with the safety review board on rollout criteria. Hybrid — 3 days/week in our Austin, TX office.\n\nRequirements: 8+ years ML experience, PyTorch, experience shipping models to production, strong communication skills for cross-functional safety reviews.",
+    "expected": {
+      "title": "Staff Machine Learning Engineer",
+      "level": "staff",
+      "comp_band": null,
+      "location": "Austin, TX",
+      "remote_policy": "hybrid",
+      "must_have_skills": ["PyTorch", "production ML deployment"],
+      "responsibilities_summary": "Leads perception model architecture, owns the training pipeline, partners with safety review on rollout criteria."
+    }
+  },
+  {
+    "id": "case-03-junior-frontend-onsite",
+    "raw_jd": "Junior Frontend Engineer — Pinnacle Search\n\nEntry-level role on our search results team. You'll implement UI components from Figma specs, fix bugs, and write tests under the guidance of senior engineers. Onsite in Seattle, WA — no remote option.\n\nRequirements: 0-2 years experience, React, CSS, willingness to learn.",
+    "expected": {
+      "title": "Junior Frontend Engineer",
+      "level": "junior",
+      "comp_band": null,
+      "location": "Seattle, WA",
+      "remote_policy": "onsite",
+      "must_have_skills": ["React", "CSS"],
+      "responsibilities_summary": "Implements UI components from Figma specs, fixes bugs, writes tests under senior guidance."
+    }
+  },
+  {
+    "id": "case-04-principal-platform-remote-with-comp",
+    "raw_jd": "Principal Platform Engineer — Yield Model Co\n\nSet technical direction for our internal developer platform used by 200+ engineers. You'll drive the multi-year infra roadmap, arbitrate cross-team architecture disputes, and represent platform in exec planning. $260,000-$310,000 + significant equity. Remote, US only.\n\nRequirements: 12+ years, deep Kubernetes and infra-as-code experience, track record setting org-wide technical direction.",
+    "expected": {
+      "title": "Principal Platform Engineer",
+      "level": "principal",
+      "comp_band": "$260,000-$310,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["Kubernetes", "infrastructure as code"],
+      "responsibilities_summary": "Sets technical direction for the internal developer platform, drives the infra roadmap, arbitrates architecture disputes, represents platform in exec planning."
+    }
+  },
+  {
+    "id": "case-05-mid-data-hybrid-no-comp",
+    "raw_jd": "Data Engineer — Rift Cloud\n\nBuild and maintain ETL pipelines feeding our analytics warehouse. You'll own pipeline reliability, add new data sources, and partner with analysts on schema design. Hybrid, 2 days/week in our Denver office.\n\nRequirements: 3-5 years data engineering, SQL, Airflow, dbt.",
+    "expected": {
+      "title": "Data Engineer",
+      "level": "mid",
+      "comp_band": null,
+      "location": "Denver",
+      "remote_policy": "hybrid",
+      "must_have_skills": ["SQL", "Airflow", "dbt"],
+      "responsibilities_summary": "Owns ETL pipeline reliability, adds new data sources, partners with analysts on schema design."
+    }
+  },
+  {
+    "id": "case-06-director-eng-remote-with-comp",
+    "raw_jd": "Director of Engineering, ML — Yield Model Co\n\nLead a 25-person org spanning ML platform, applied science, and MLOps. You'll set hiring bar, own the quarterly roadmap, and be the escalation point for cross-org dependencies. $290,000-$340,000 base, senior leadership equity grant. Remote, US/Canada.\n\nRequirements: prior experience managing managers, ML domain fluency, track record scaling an org through 2x headcount growth.",
+    "expected": {
+      "title": "Director of Engineering, ML",
+      "level": "director",
+      "comp_band": "$290,000-$340,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["managing managers", "ML domain fluency"],
+      "responsibilities_summary": "Leads a 25-person ML org across platform, applied science, and MLOps; sets hiring bar and quarterly roadmap; escalation point for cross-org dependencies."
+    }
+  },
+  {
+    "id": "case-07-senior-sre-onsite-no-comp",
+    "raw_jd": "Senior Site Reliability Engineer — Timber Motors\n\nOwn on-call rotation health and incident response process for our core services. You'll drive postmortem quality, build alerting, and reduce toil through automation. Onsite in Detroit, MI.\n\nRequirements: 5+ years SRE/infra, strong Linux fundamentals, experience with incident command.",
+    "expected": {
+      "title": "Senior Site Reliability Engineer",
+      "level": "senior",
+      "comp_band": null,
+      "location": "Detroit, MI",
+      "remote_policy": "onsite",
+      "must_have_skills": ["Linux", "incident command"],
+      "responsibilities_summary": "Owns on-call health and incident response, drives postmortem quality, builds alerting, reduces toil through automation."
+    }
+  },
+  {
+    "id": "case-08-mid-fullstack-remote-with-comp",
+    "raw_jd": "Full-Stack Engineer — Pinnacle Search\n\nWork across our Rails backend and React frontend shipping features for the search results team. You'll pair with design on UX details and own features end-to-end. $130,000-$160,000. Remote, US.\n\nRequirements: 3+ years full-stack, Rails or similar, React.",
+    "expected": {
+      "title": "Full-Stack Engineer",
+      "level": "mid",
+      "comp_band": "$130,000-$160,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["Rails", "React"],
+      "responsibilities_summary": "Ships features end-to-end across the Rails backend and React frontend, pairs with design on UX details."
+    }
+  },
+  {
+    "id": "case-09-staff-security-hybrid-with-comp",
+    "raw_jd": "Staff Security Engineer — Yield Model Co\n\nLead application security reviews for new product launches and own the vulnerability disclosure program. You'll set secure-coding standards and run tabletop exercises with the incident response team. $220,000-$260,000. Hybrid, San Francisco, CA.\n\nRequirements: 8+ years security engineering, threat modeling experience, familiarity with OWASP top 10.",
+    "expected": {
+      "title": "Staff Security Engineer",
+      "level": "staff",
+      "comp_band": "$220,000-$260,000",
+      "location": "San Francisco, CA",
+      "remote_policy": "hybrid",
+      "must_have_skills": ["threat modeling", "OWASP top 10"],
+      "responsibilities_summary": "Leads application security reviews for launches, owns the vulnerability disclosure program, sets secure-coding standards, runs tabletop exercises."
+    }
+  },
+  {
+    "id": "case-10-junior-data-remote-no-comp",
+    "raw_jd": "Junior Data Analyst — Rift Cloud\n\nSupport the growth team with weekly reporting and ad-hoc analysis. You'll build dashboards, validate data quality, and present findings in team syncs. Remote, US.\n\nRequirements: 0-2 years, SQL, spreadsheet fluency, curiosity about the business.",
+    "expected": {
+      "title": "Junior Data Analyst",
+      "level": "junior",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["SQL"],
+      "responsibilities_summary": "Builds dashboards, validates data quality, presents findings in team syncs for weekly reporting and ad-hoc analysis."
+    }
+  },
+  {
+    "id": "case-11-senior-mobile-onsite-with-comp",
+    "raw_jd": "Senior iOS Engineer — Timber Motors\n\nOwn the driver companion app's navigation and trip-history features. You'll drive architecture for offline-first sync and mentor a junior iOS engineer. $175,000-$205,000. Onsite, Detroit, MI.\n\nRequirements: 5+ years iOS, Swift, experience with offline-first architecture.",
+    "expected": {
+      "title": "Senior iOS Engineer",
+      "level": "senior",
+      "comp_band": "$175,000-$205,000",
+      "location": "Detroit, MI",
+      "remote_policy": "onsite",
+      "must_have_skills": ["Swift", "offline-first architecture"],
+      "responsibilities_summary": "Owns navigation and trip-history features, drives offline-first sync architecture, mentors a junior iOS engineer."
+    }
+  },
+  {
+    "id": "case-12-mid-devops-hybrid-no-comp",
+    "raw_jd": "DevOps Engineer — Pinnacle Search\n\nMaintain CI/CD pipelines and Terraform-managed infrastructure for the search platform. You'll reduce deploy friction and improve build times. Hybrid, Seattle, WA.\n\nRequirements: 3-5 years DevOps, Terraform, GitHub Actions or similar CI.",
+    "expected": {
+      "title": "DevOps Engineer",
+      "level": "mid",
+      "comp_band": null,
+      "location": "Seattle, WA",
+      "remote_policy": "hybrid",
+      "must_have_skills": ["Terraform", "CI/CD"],
+      "responsibilities_summary": "Maintains CI/CD pipelines and Terraform-managed infrastructure, reduces deploy friction, improves build times."
+    }
+  },
+  {
+    "id": "case-13-principal-data-remote-no-comp",
+    "raw_jd": "Principal Data Scientist — Yield Model Co\n\nSet the technical bar for experimentation methodology across the science org. You'll review high-stakes experiment designs, mentor senior scientists, and advise leadership on causal inference tradeoffs. Remote, US.\n\nRequirements: 10+ years applied statistics or data science, causal inference expertise, experience influencing exec decisions with data.",
+    "expected": {
+      "title": "Principal Data Scientist",
+      "level": "principal",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["causal inference", "experimentation methodology"],
+      "responsibilities_summary": "Sets the technical bar for experimentation methodology, reviews high-stakes experiment designs, mentors senior scientists, advises leadership on causal inference tradeoffs."
+    }
+  },
+  {
+    "id": "case-14-senior-eng-manager-hybrid-with-comp",
+    "raw_jd": "Engineering Manager, Payments — Rift Cloud\n\nLead a team of 6 engineers owning the payments settlement service. You'll run the hiring loop, set quarterly goals, and be the primary escalation point for payment incidents. $195,000-$230,000 + management equity refresh. Hybrid, Denver.\n\nRequirements: 2+ years as an engineering manager, prior IC background in backend systems, experience with regulated/financial systems a plus.",
+    "expected": {
+      "title": "Engineering Manager, Payments",
+      "level": "senior",
+      "comp_band": "$195,000-$230,000",
+      "location": "Denver",
+      "remote_policy": "hybrid",
+      "must_have_skills": ["engineering management", "backend systems"],
+      "responsibilities_summary": "Leads a 6-engineer team owning payments settlement, runs the hiring loop, sets quarterly goals, is the primary escalation point for payment incidents."
+    }
+  },
+  {
+    "id": "case-15-mid-qa-onsite-no-comp",
+    "raw_jd": "QA Automation Engineer — Pinnacle Search\n\nBuild and maintain the end-to-end test suite for the search results web app. You'll triage flaky tests, expand coverage for new features, and partner with engineers on testability. Onsite, Seattle, WA.\n\nRequirements: 3+ years QA automation, Playwright or Selenium, CI integration experience.",
+    "expected": {
+      "title": "QA Automation Engineer",
+      "level": "mid",
+      "comp_band": null,
+      "location": "Seattle, WA",
+      "remote_policy": "onsite",
+      "must_have_skills": ["Playwright", "test automation"],
+      "responsibilities_summary": "Builds and maintains the end-to-end test suite, triages flaky tests, expands coverage for new features, partners with engineers on testability."
+    }
+  }
+]
