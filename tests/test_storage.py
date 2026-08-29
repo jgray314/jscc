@@ -15,6 +15,7 @@ from jscc.models import (
     FetchStatus,
     Interaction,
     InteractionType,
+    LLMCallRecord,
     Resolution,
 )
 from jscc.storage import (
@@ -31,6 +32,8 @@ from jscc.storage import (
     list_contacts,
     list_dlq_entries,
     list_interactions,
+    list_llm_calls,
+    record_llm_call,
     resolve_dlq_entry,
     schema_version,
     update_application,
@@ -64,7 +67,7 @@ def test_init_creates_schema(conn: sqlite3.Connection) -> None:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    assert {"applications", "contacts", "interactions", "dlq_entries"} <= tables
+    assert {"applications", "contacts", "interactions", "dlq_entries", "llm_calls"} <= tables
 
 
 def test_init_is_idempotent(tmp_path: Path) -> None:
@@ -361,3 +364,48 @@ def test_extracted_jd_unknown_type_raises_typerror(tmp_path: Path) -> None:
             create_application(c, app)
     finally:
         c.close()
+
+
+# ---- LLM call ledger (D5) -------------------------------------------------------
+
+def test_llm_call_roundtrip(conn: sqlite3.Connection) -> None:
+    record = LLMCallRecord(
+        feature="extraction",
+        model="claude-haiku",
+        prompt_hash="a" * 64,
+        input_tokens=100,
+        output_tokens=50,
+        cost_usd=0.0012,
+        latency_ms=234.5,
+    )
+    record_llm_call(conn, record)
+
+    records = list_llm_calls(conn)
+    assert len(records) == 1
+    got = records[0]
+    assert got.id == record.id
+    assert got.feature == "extraction"
+    assert got.model == "claude-haiku"
+    assert got.prompt_hash == "a" * 64
+    assert got.input_tokens == 100
+    assert got.output_tokens == 50
+    assert got.cost_usd == 0.0012
+    assert got.latency_ms == 234.5
+
+
+def test_llm_calls_ordered_by_ts(conn: sqlite3.Connection) -> None:
+    earlier = LLMCallRecord(
+        feature="extraction", model="m", prompt_hash="b" * 64,
+        input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1.0,
+        ts=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    later = LLMCallRecord(
+        feature="extraction", model="m", prompt_hash="c" * 64,
+        input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1.0,
+        ts=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+    record_llm_call(conn, later)
+    record_llm_call(conn, earlier)
+
+    records = list_llm_calls(conn)
+    assert [r.id for r in records] == [earlier.id, later.id]

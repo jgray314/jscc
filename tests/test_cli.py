@@ -209,3 +209,42 @@ def test_report_empty_db(
         ["report", "--data-dir", str(tmp_path), "--config-dir", str(CONFIG_DIR)],
     )
     assert result.exit_code == 0, result.output
+
+
+# ---- costs ----------------------------------------------------------------------
+
+def test_costs_empty_ledger(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D5: the ledger exists (and is CLI-visible) ahead of any real LLM call."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["costs", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "no LLM calls recorded yet" in result.output
+
+
+def test_costs_summarizes_recorded_calls(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.instrumentation import LLMResult, instrumented
+    from jscc.mode import Mode
+    from jscc.storage import open_for_mode
+
+    @instrumented("extraction")
+    def fake_llm_call(conn, model, prompt):
+        return LLMResult(output=None, input_tokens=1, output_tokens=1, cost_usd=0.5)
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        fake_llm_call(conn, "claude-haiku", "prompt")
+    finally:
+        conn.close()
+
+    result = runner.invoke(cli, ["costs", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "extraction" in result.output
+    assert "0.5000" in result.output

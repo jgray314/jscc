@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### A5 — LLM call instrumentation (deferred from Phase A, landed at Phase B start)
+Per D5, the `@instrumented` decorator was supposed to land as Phase A foundation so no LLM call — starting with B2's extractor — could ever go uninstrumented. It slipped out of the A1-A4.5 sequence and no gate round caught the gap (three rounds of adversarial + walkthrough all reviewed *shipped* code; nothing had reason to check for a missing slice). Caught while reading the sub-plan back before starting Phase B.
+
+- `jscc/instrumentation.py`: `@instrumented(feature: str)` wraps a function of shape `(conn, model, prompt, *a, **kw) -> LLMResult`, capturing call_id, feature, model, `sha256(prompt)` (never the prompt itself — D8 boundary applies here too), input/output tokens, cost, latency, and timestamp. Returns `result.output` unchanged so callers see the same shape as an uninstrumented call.
+- `llm_calls` table (schema v2 → v3) + `record_llm_call` / `list_llm_calls` in `storage.py`.
+- `LLMCallRecord` model in `models.py`.
+- `python -m jscc costs` CLI command: per-feature call count / total cost / avg latency table; prints "no LLM calls recorded yet" today (empty ledger, populates from B2 onward).
+- 7 new pytest cases (149 total): decorator end-to-end capture, prompt-hash-not-prompt, multi-call distinct rows, storage roundtrip + ts ordering, CLI empty + populated ledger.
+
 ### A10 — Third-gate closure (adversarial HIGH + walkthrough substance) + supply-chain hardening
 Third round of both Phase A → B gates. Adversarial returned `PROCEED-WITH-FIXES` (one HIGH, five MEDIUMs, three LOWs). Walkthrough returned `lean yes to advance` with an 8-item punch list. This slice lands every finding classified as substance / structural; deferred items are noted at the end.
 

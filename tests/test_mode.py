@@ -13,6 +13,7 @@ from jscc.mode import (
     resolve_mode,
 )
 from jscc.storage import (
+    DB_SCHEMA_VERSION,
     ModeMismatchError,
     _ensure_meta_table,
     _connect,
@@ -65,7 +66,7 @@ def test_open_for_mode_stamps_marker_on_first_use(tmp_path: Path) -> None:
     conn = open_for_mode(Mode.synthetic, tmp_path)
     try:
         assert read_mode_marker(conn) is Mode.synthetic
-        assert schema_version(conn) == 2
+        assert schema_version(conn) == DB_SCHEMA_VERSION
     finally:
         conn.close()
 
@@ -208,7 +209,7 @@ def test_bare_meta_only_db_is_not_treated_as_populated(tmp_path: Path) -> None:
     conn2 = open_for_mode(Mode.synthetic, tmp_path)
     try:
         assert read_mode_marker(conn2) is Mode.synthetic
-        assert schema_version(conn2) == 2
+        assert schema_version(conn2) == DB_SCHEMA_VERSION
     finally:
         conn2.close()
 

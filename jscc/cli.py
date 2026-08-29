@@ -19,6 +19,7 @@ from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
     ModeMismatchError,
     list_applications,
+    list_llm_calls,
     open_for_mode,
     read_mode_marker,
     schema_version,
@@ -231,6 +232,45 @@ def report(data_dir: Path, config_dir: Path) -> None:
     alerts = detect_stale(apps, stages_cfg)
     click.echo(f"[mode: {mode.value}]")
     click.echo(format_report(counts, alerts, stages_cfg))
+
+
+@cli.command("costs")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+def costs(data_dir: Path) -> None:
+    """Print per-feature LLM cost/latency summary for the active mode.
+
+    Empty until Phase B's first `@instrumented` call lands (D5) — this ledger
+    exists ahead of that call on purpose, so nothing is uninstrumented from day one.
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        calls = list_llm_calls(conn)
+    finally:
+        conn.close()
+
+    click.echo(f"[mode: {mode.value}]")
+    if not calls:
+        click.echo("no LLM calls recorded yet")
+        return
+
+    by_feature: dict[str, list] = {}
+    for call in calls:
+        by_feature.setdefault(call.feature, []).append(call)
+
+    click.echo(f"{'feature':<20}{'calls':>8}{'cost_usd':>12}{'avg_latency_ms':>16}")
+    for feature, feature_calls in sorted(by_feature.items()):
+        total_cost = sum(c.cost_usd for c in feature_calls)
+        avg_latency = sum(c.latency_ms for c in feature_calls) / len(feature_calls)
+        click.echo(
+            f"{feature:<20}{len(feature_calls):>8}{total_cost:>12.4f}{avg_latency:>16.1f}"
+        )
 
 
 def main() -> None:

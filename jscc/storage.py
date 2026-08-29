@@ -31,6 +31,7 @@ from .models import (
     Contact,
     DLQEntry,
     Interaction,
+    LLMCallRecord,
     Resolution,
     _now,
 )
@@ -55,6 +56,8 @@ __all__ = [
     "list_interactions",
     "list_dlq_entries",
     "reset_tables",
+    "record_llm_call",
+    "list_llm_calls",
 ]
 
 
@@ -62,7 +65,7 @@ class ModeMismatchError(RuntimeError):
     """A DB stamped with one mode is being opened under a different mode."""
 
 
-DB_SCHEMA_VERSION = 2
+DB_SCHEMA_VERSION = 3
 
 SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS applications (
@@ -130,6 +133,21 @@ CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id TEXT PRIMARY KEY,
+    feature TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_hash TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    cost_usd REAL NOT NULL,
+    latency_ms REAL NOT NULL,
+    ts TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_llm_calls_feature ON llm_calls(feature);
+CREATE INDEX IF NOT EXISTS ix_llm_calls_ts ON llm_calls(ts);
 """
 
 _MODE_META_KEY = "mode"
@@ -598,3 +616,41 @@ def resolve_dlq_entry(
         (resolution.value, _iso(stamped_at), entry_id),
     )
     conn.commit()
+
+
+# ---- LLM call ledger (D5) ------------------------------------------------------
+
+def record_llm_call(conn: sqlite3.Connection, record: LLMCallRecord) -> str:
+    conn.execute(
+        """
+        INSERT INTO llm_calls (
+            id, feature, model, prompt_hash,
+            input_tokens, output_tokens, cost_usd, latency_ms, ts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id, record.feature, record.model, record.prompt_hash,
+            record.input_tokens, record.output_tokens,
+            record.cost_usd, record.latency_ms, _iso(record.ts),
+        ),
+    )
+    conn.commit()
+    return record.id
+
+
+def list_llm_calls(conn: sqlite3.Connection) -> list[LLMCallRecord]:
+    rows = conn.execute("SELECT * FROM llm_calls ORDER BY ts").fetchall()
+    return [
+        LLMCallRecord(
+            id=r["id"],
+            feature=r["feature"],
+            model=r["model"],
+            prompt_hash=r["prompt_hash"],
+            input_tokens=r["input_tokens"],
+            output_tokens=r["output_tokens"],
+            cost_usd=r["cost_usd"],
+            latency_ms=r["latency_ms"],
+            ts=_parse_dt(r["ts"]),
+        )
+        for r in rows
+    ]

@@ -65,9 +65,10 @@ jscc/           library code
   models.py     pydantic domain models (Application, Contact, Interaction, ...)
   seed.py       deterministic synthetic fixture (evaluation infrastructure)
   sanitizer.py  the LLM-egress choke point; HMAC-wrapped payloads
+  instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
   report.py     staleness detector + funnel counts
   cli.py        click entry point
-tests/          pytest suite (142 tests)
+tests/          pytest suite (149 tests)
 config/         stages.yaml + profile.example.yaml
 scripts/        pre-commit content scanner (danger-list + email/phone regex)
 decisions/      ADRs (see below)
@@ -100,7 +101,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 142 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 149 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
 
 ## License
 

@@ -102,3 +102,21 @@ class DLQEntry(BaseModel):
     error_detail: str = ""
     resolution: Resolution = Resolution.unresolved
     resolved_at: datetime | None = None
+
+
+class LLMCallRecord(BaseModel):
+    """One row per LLM call, captured by the `@instrumented` decorator (D5).
+
+    Exists ahead of any real LLM call (Phase B) on purpose: instrumentation
+    is Phase A foundation so every call from B2 onward is caught from day one.
+    """
+
+    id: str = Field(default_factory=_new_id)
+    feature: str
+    model: str
+    prompt_hash: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    latency_ms: float
+    ts: datetime = Field(default_factory=_now)
