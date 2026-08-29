@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### A8 — Reviewer polish + CI
+Portfolio-quality polish so a cold reviewer can grok the project in under five minutes, plus continuous coverage that the safety scanner and pytest suite both stay green.
+
+- **README rewrite.** Three-idea framing (eval discipline, dual-use safety, when-not-to-automate), quick-start block, reproducible sample `report` output, repo layout, ADR link section, license.
+- **`docs/design-principles.md`.** D1-D10 principles inlined for cold reviewers who don't want to hunt through five ADRs to find the frame. Each principle records what was chosen, why, and the alternative considered.
+- **LICENSE.** MIT, Jess Gray 2026.
+- **GH Actions CI (`ci.yml`).** `uv sync` + `pytest -q` + safety scanner sweep across every tracked file on `ubuntu-latest`, Python 3.12. Runs on push to main and every PR.
+- **Scanner `--exclude` glob (pulled forward from rerun-gate M5).** CI would always be red without this: the scanner's own test file, its docstring, and CHANGELOG entries describing it all contain deliberately-placeholder personal-data shapes (`alice@example.com`, `(415) 555-0134`, etc.). New `--exclude GLOB` flag (repeatable, fnmatch on POSIX repo-relative paths) skips those files. CI passes `--exclude 'tests/test_precommit_scan.py' --exclude 'scripts/precommit_scan.py' --exclude 'CHANGELOG.md'`. 2 new pytest cases (128 total): single-file exclude, `**` pattern exclude.
+- **`seed.py` module docstring reframe.** Now positions the seed as evaluation infrastructure with an explicit bit-reproducibility contract and a content contract, not just "the demo fixture."
+
 ### A7 — Phase A correctness + coverage gaps (adversarial review, H1/H3/M2/M3)
 Closes the remaining HIGH and structural MEDIUM findings from the Phase A → B adversarial review.
 

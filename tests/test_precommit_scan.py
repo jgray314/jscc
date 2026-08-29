@@ -154,3 +154,36 @@ def test_multiple_hits_all_reported(tmp_path: Path, capsys: pytest.CaptureFixtur
     err = capsys.readouterr().err
     assert err.count("email-pattern") == 2
     assert "phone-pattern" in err
+
+
+def test_exclude_glob_skips_file(tmp_path: Path) -> None:
+    """--exclude glob skips scanning a file that would otherwise hit."""
+    scanned = _write(tmp_path / "note.md", "contact: alice@example.com\n")
+    skipped = _write(tmp_path / "fixtures.md", "sample: bob@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    rc = precommit_scan.main(
+        [
+            str(scanned),
+            str(skipped),
+            "--danger-list",
+            str(danger),
+            "--exclude",
+            str(skipped).replace("\\", "/"),
+        ]
+    )
+    assert rc == 1  # scanned still hits
+
+
+def test_exclude_pattern_matches_multiple(tmp_path: Path) -> None:
+    """A `**` glob excludes every match, making CI-side sweeps clean."""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    a = _write(tests_dir / "a.md", "alice@example.com\n")
+    b = _write(tests_dir / "b.md", "bob@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    posix_a = str(a).replace("\\", "/")
+    posix_b = str(b).replace("\\", "/")
+    rc = precommit_scan.main(
+        [posix_a, posix_b, "--danger-list", str(danger), "--exclude", "**/tests/*.md"]
+    )
+    assert rc == 0

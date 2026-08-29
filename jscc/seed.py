@@ -1,8 +1,20 @@
-"""Deterministic synthetic seed for the JSCC demo fixture.
+"""Deterministic synthetic seed — evaluation infrastructure for JSCC.
 
-Uses obviously fake company names, obviously fake contact names ("Placeholder"),
-and role-tagged interaction chains. Per D7/D8 (parent plan Rule 0),
-personal-data-shaped strings do not belong here even in synthetic mode.
+This is not just a demo fixture. It is the substrate every downstream eval
+runs against: extractor evals check that the LLM recovers known facts,
+scorer evals check band placement against a known profile, drafter evals
+check routing on canned routine / non-routine situations. Bit-reproducibility
+matters — evals that drift because the fixture drifted are eval theater.
+
+Reproducibility contract: given the same `--random-seed` and the same `--now`,
+this module produces byte-identical rows across runs. All UUIDs are drawn from
+the seeded RNG (not `uuid4()`) and all timestamps are anchored on `now` (not
+wall clock).
+
+Content contract: obviously fake company names, obviously fake contact names
+("Placeholder"), and role-tagged interaction chains. Per D7/D8 (parent plan
+Rule 0), personal-data-shaped strings do not belong here even in synthetic
+mode — the synthetic fixture is committed to a public repo.
 
 Chain generation rule: interactions are anchored on `applied_at` and stepped
 forward with realistic gaps, so `list_interactions()` returns events in

@@ -14,14 +14,18 @@ Rules:
   loose; false positives are safer than misses.
 - Danger list: substrings from `.safety/danger-list.txt` (one per line, comments
   with `#`, case-insensitive). Path override via `--danger-list`.
+- Exclude: `--exclude GLOB` (repeatable, fnmatch on POSIX repo-relative paths)
+  skips files that legitimately hold placeholder personal-data shapes — the
+  scanner's own tests, this docstring, changelog entries describing it.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 EMAIL_RE = re.compile(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", re.IGNORECASE)
@@ -106,12 +110,32 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_DANGER_LIST,
         help="Path to newline-delimited danger substring list.",
     )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help=(
+            "Glob patterns (repo-relative, POSIX slashes) to skip. "
+            "Use for files that legitimately contain placeholder personal-data "
+            "shapes: the scanner's own tests, its docstring, changelog entries "
+            "describing it. Repeatable."
+        ),
+    )
     args = parser.parse_args(argv)
 
     danger_terms = load_danger_list(args.danger_list)
+    excludes: list[str] = args.exclude
+
+    def _excluded(p: Path) -> bool:
+        posix = PurePosixPath(*p.parts).as_posix()
+        return any(fnmatch.fnmatch(posix, pat) for pat in excludes)
+
     all_hits: list[Hit] = []
     for f in args.files:
         if not f.is_file():
+            continue
+        if _excluded(f):
             continue
         all_hits.extend(scan_file(f, danger_terms))
 
