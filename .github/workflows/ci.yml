@@ -6,14 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+# Actions are SHA-pinned with the release tag in a trailing comment
+# (M-ci-actions-pinning-1 in the A10 review). A floating major-tag pin (@v4,
+# @v6) can be silently repointed upstream — either by an accidental release
+# retag or a compromised maintainer — and would execute arbitrary code with
+# access to the checkout and GITHUB_TOKEN. Phase B introduces API-key secrets
+# so this needs to be right before then. To update: bump the tag in the
+# comment, re-resolve the SHA via `gh api repos/OWNER/REPO/git/refs/tags/vX`,
+# paste the commit SHA before the `#`.
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
 
@@ -21,17 +30,15 @@ jobs:
         run: uv python install 3.12
 
       - name: Sync dependencies
-        run: uv sync --all-extras
+        # --frozen refuses to update the lockfile — CI must match what
+        # the developer committed. M-uvlock-untracked-1 in the A10 review.
+        run: uv sync --all-extras --frozen
 
       - name: Run pytest
         run: uv run pytest -q
 
       - name: Run precommit safety scanner on tracked files
-        run: |
-          # Exclude files that legitimately contain placeholder personal-data
-          # shapes: the scanner's own tests, its docstring, and CHANGELOG
-          # entries describing it. Every other tracked file is scanned.
-          git ls-files -z | xargs -0 uv run python scripts/precommit_scan.py \
-            --exclude 'tests/test_precommit_scan.py' \
-            --exclude 'scripts/precommit_scan.py' \
-            --exclude 'CHANGELOG.md'
+        # scan_tracked.sh is the single source of truth for the exclude list;
+        # .pre-commit-config.yaml calls the same script so CI and local hooks
+        # cannot drift (H-precommit-changelog-1 in the A10 review).
+        run: bash scripts/scan_tracked.sh

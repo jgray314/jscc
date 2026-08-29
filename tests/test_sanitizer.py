@@ -125,3 +125,70 @@ def test_sanitized_payload_is_frozen() -> None:
     out = sanitize_for_llm({"a": 1})
     with pytest.raises(Exception):  # FrozenInstanceError
         out.authenticator = "0" * 64  # type: ignore[misc]
+
+
+def test_nested_mutation_after_verify_does_not_change_wrapper() -> None:
+    """M-sanitizer-toctou-1 regression (A10 review).
+
+    Before the fix, `_transform` was `dict(payload)` — a top-level shallow
+    copy. A nested list or dict was still shared by reference with the
+    caller. A caller could pass verify(), then mutate the shared nested
+    container between verify and the LLM send, and the sent bytes would
+    differ from the authenticated bytes.
+
+    After the fix, `_transform` snapshots via `json.loads(_stable_json(...))`,
+    so no mutable object is shared with the caller and this test's mutation
+    cannot reach `out.data`.
+    """
+    inner = {"role": "SWE"}
+    src = {"candidate": inner, "meta": [1, 2, 3]}
+    out = sanitize_for_llm(src)
+    assert verify(out) is True
+
+    # Mutate through the still-held caller references. Using a plain scalar
+    # rather than an @-shaped placeholder so this test file itself doesn't
+    # trip the safety scanner in CI.
+    inner["injected"] = "LEAKED_MARKER"
+    src["meta"].append(999)  # type: ignore[union-attr]
+
+    # Wrapper snapshot is unaffected — content the HMAC covers has not changed.
+    assert "injected" not in out.data["candidate"]
+    assert out.data["meta"] == [1, 2, 3]
+    # Verify still passes; the caller's mutation could not desync send-vs-authenticated bytes.
+    assert verify(out) is True
+
+
+def test_send_to_llm_returns_data_on_verify_success() -> None:
+    """Walkthrough #2 (A10 review): the send boundary exists and consumes
+    SanitizedPayload. Verify passes, and the caller receives the snapshotted
+    data. Phase B will replace the return with a real LLM client call."""
+    from jscc.sanitizer import send_to_llm
+
+    out = sanitize_for_llm({"jd_summary": "SWE at ExampleCo"})
+    result = send_to_llm(out)
+    assert result == out.data
+    assert result["jd_summary"] == "SWE at ExampleCo"
+
+
+def test_send_to_llm_refuses_bare_dict() -> None:
+    """Walkthrough #2: the runtime type check must catch a bare dict cast
+    past mypy — the type annotation is not enough on its own."""
+    from typing import cast
+    from jscc.sanitizer import LLMSendError, send_to_llm
+
+    with pytest.raises(LLMSendError):
+        send_to_llm(cast(SanitizedPayload, {"role": "SWE"}))
+
+
+def test_send_to_llm_refuses_forged_payload() -> None:
+    """Walkthrough #2: a hand-constructed SanitizedPayload with a bogus
+    authenticator must not send — verify must fire at the boundary."""
+    from jscc.sanitizer import LLMSendError, send_to_llm
+
+    forged = SanitizedPayload(
+        data={"role": "SWE"},
+        sanitized_at="2026-08-28T12:00:00+00:00",
+        authenticator="0" * 64,
+    )
+    with pytest.raises(LLMSendError):
+        send_to_llm(forged)

@@ -106,8 +106,21 @@ def _utcnow_iso() -> str:
 
 
 def _transform(payload: dict[str, Any]) -> dict[str, Any]:
-    """Attach point for Phase B redaction rules. A6 is identity."""
-    return dict(payload)
+    """Attach point for Phase B redaction rules. A6 was identity via `dict(payload)`,
+    but that was a shallow copy: nested lists / dicts inside the payload stayed
+    aliased to the caller's references. A caller that retained a handle to a
+    nested container could mutate it between `verify()` and the LLM send — the
+    authenticator would still match at verify time, but the bytes on the wire
+    would be whatever the caller wrote last. That was M-sanitizer-toctou-1 in
+    the A10 review.
+
+    Snapshot the payload through the same canonical JSON both HMAC input and
+    `verify` use. This deep-copies every container, coerces to JSON-native
+    types up front, and forbids sharing any mutable object with the caller.
+    Any downstream mutation of the caller's original dict is now invisible
+    to `SanitizedPayload.data`.
+    """
+    return json.loads(_stable_json(payload))
 
 
 def sanitize_for_llm(payload: dict[str, Any]) -> SanitizedPayload:
@@ -139,3 +152,43 @@ def verify(obj: Any) -> bool:
         return False
     expected = _compute_authenticator(obj.data, obj.sanitized_at)
     return hmac.compare_digest(expected, obj.authenticator)
+
+
+class LLMSendError(Exception):
+    """Raised when `send_to_llm` refuses to ship a payload.
+
+    Distinct from `SanitizerRefusal` (upstream flagged personal data before
+    sanitization). This fires at the send boundary: the wrapper's HMAC did
+    not verify under this process's secret, or the caller passed a bare
+    dict / forged object. Either way the payload does not leave the process.
+    """
+
+
+def send_to_llm(payload: SanitizedPayload) -> dict[str, Any]:
+    """Phase A send boundary: verifies the wrapper, then returns the payload's
+    data snapshot. Phase B will replace the return with a real LLM call.
+
+    The type annotation forces callers to pass `SanitizedPayload`, not `dict`.
+    The runtime `verify()` check catches:
+      - callers who cast a bare dict via `typing.cast` and slipped past mypy,
+      - forged `SanitizedPayload` objects constructed with a bogus HMAC,
+      - `SanitizedPayload` objects that authenticated under a different
+        process's secret (cross-process copy, pickle-and-reload).
+
+    Raises `LLMSendError` on any of those. Callers MUST NOT catch and
+    continue — a failed verify at the send boundary is a system-fatal
+    signal that the D8 guarantee is broken for this payload.
+
+    This function's whole purpose in Phase A is to make the type contract
+    have a callsite. Without it, `SanitizedPayload` is a wrapper nothing
+    consumes, and the D8 claim in the README is unenforced. See walkthrough
+    finding #2 from the A10 gate.
+    """
+    if not verify(payload):
+        raise LLMSendError(
+            "send_to_llm: payload failed verify(). The wrapper's HMAC did not "
+            "match this process's secret over its data + sanitized_at. This is "
+            "either a forged SanitizedPayload, a bare dict passed via cast, or "
+            "a payload constructed in a different process. Refusing to send."
+        )
+    return payload.data

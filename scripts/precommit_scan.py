@@ -32,20 +32,28 @@ def _compile_exclude(pattern: str) -> re.Pattern[str]:
     """Compile a glob-style exclude to a full-match regex.
 
     Supports:
-      - ``**`` — any run of characters including ``/`` (recursive).
-      - ``*``  — any run of characters within one path segment (no ``/``).
-      - ``?``  — one non-``/`` character.
+      - ``foo/**`` — matches ``foo`` and everything under ``foo/``.
+        (``**`` after a ``/`` matches zero or more segments.)
+      - ``**``     — any run of characters including ``/`` (recursive).
+      - ``*``      — any run of characters within one path segment (no ``/``).
+      - ``?``      — one non-``/`` character.
       - literal ``.`` and other regex metachars are escaped.
 
     `fnmatch` was rejected because it treats ``**`` as literal, giving
     ``tests/**`` a silent hole where anything under ``tests/`` still got
-    scanned. That was M-exclude-1 in the A9 review.
+    scanned. That was M-exclude-1 in the A9 review. M-precommit-abs-paths-1
+    in the A10 review added the zero-match ``/`` handling so ``tests/**``
+    also covers the ``tests`` directory itself.
     """
     out: list[str] = []
     i = 0
     while i < len(pattern):
         c = pattern[i]
-        if c == "*":
+        if c == "/" and pattern[i + 1 : i + 3] == "**":
+            # `foo/**` — match `foo` (no slash) OR `foo/anything`.
+            out.append("(?:/.*)?")
+            i += 3
+        elif c == "*":
             if i + 1 < len(pattern) and pattern[i + 1] == "*":
                 out.append(".*")
                 i += 2
@@ -59,6 +67,25 @@ def _compile_exclude(pattern: str) -> re.Pattern[str]:
             out.append(re.escape(c))
             i += 1
     return re.compile("".join(out))
+
+
+def _to_repo_relative_posix(p: Path, cwd: Path) -> str:
+    """Return `p` as a POSIX slash-joined path relative to `cwd` when possible.
+
+    Windows contributors invoking the scanner with absolute paths (or
+    pre-commit's file-list resolution passing absolute paths) previously
+    silently defeated `--exclude`: `PurePosixPath(*Path('C:/.../CHANGELOG.md').parts)`
+    yields `C:\\/Users/.../CHANGELOG.md`, and no natural glob `fullmatch`ed
+    that string. M-precommit-abs-paths-1 in the A10 review.
+
+    Falls back to the raw POSIX join for paths that live outside the tree —
+    an intentional out-of-tree scan run should not silently drop excludes.
+    """
+    try:
+        rel = p.resolve().relative_to(cwd.resolve())
+    except (ValueError, OSError):
+        return PurePosixPath(*p.parts).as_posix()
+    return PurePosixPath(*rel.parts).as_posix()
 
 # Deliberately over-broad: matches any non-whitespace token containing `@` with a
 # dot-separated tail. Covers ASCII, IDN local/domain parts (e.g. `user@münchen.de`),
@@ -164,8 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     danger_terms = load_danger_list(args.danger_list)
     excludes: list[re.Pattern[str]] = [_compile_exclude(p) for p in args.exclude]
 
+    cwd = Path.cwd()
+
     def _excluded(p: Path) -> bool:
-        posix = PurePosixPath(*p.parts).as_posix()
+        posix = _to_repo_relative_posix(p, cwd)
         return any(pat.fullmatch(posix) for pat in excludes)
 
     all_hits: list[Hit] = []

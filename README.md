@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/jgray314/jscc/actions/workflows/ci.yml/badge.svg)](https://github.com/jgray314/jscc/actions/workflows/ci.yml)
 
-An agentic, eval-gated pipeline tracker for a real job search. Ingests job descriptions, scores fit against a profile, drafts follow-ups for routine cases only, and surfaces stale opportunities.
+A pipeline tracker for a real job search. Ingests job descriptions, scores fit against a profile, drafts follow-ups for routine cases only, and surfaces stale opportunities. The eval-gated LLM stages ship in Phase B.
 
 Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) is complete; Phase B (evals + first LLM stage) is next. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
@@ -11,7 +11,7 @@ Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phas
 Three ideas being demonstrated at once:
 
 1. **Eval-driven agent design.** Every LLM stage is behind an eval suite. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
-2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, a pre-commit scanner, and an authenticated sanitizer wrapper on every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)).
+2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, a pre-commit scanner, and an authenticated sanitizer wrapper on every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). *Phase A ships the wrapper + HMAC integrity + `send_to_llm` boundary; content redaction rules attach at `_transform` in Phase B.*
 3. **Knowing when not to automate.** The drafter routes to a briefing card, not a prose draft, for anything non-routine ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)).
 
 ## Quick start
@@ -67,7 +67,7 @@ jscc/           library code
   sanitizer.py  the LLM-egress choke point; HMAC-wrapped payloads
   report.py     staleness detector + funnel counts
   cli.py        click entry point
-tests/          pytest suite (135 tests)
+tests/          pytest suite (142 tests)
 config/         stages.yaml + profile.example.yaml
 scripts/        pre-commit content scanner (danger-list + email/phone regex)
 decisions/      ADRs (see below)
@@ -100,7 +100,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: two rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 135 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 142 pytest cases, 5 ADRs. Phase B starts the evals + first LLM stage.
 
 ## License
 

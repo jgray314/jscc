@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### A10 — Third-gate closure (adversarial HIGH + walkthrough substance) + supply-chain hardening
+Third round of both Phase A → B gates. Adversarial returned `PROCEED-WITH-FIXES` (one HIGH, five MEDIUMs, three LOWs). Walkthrough returned `lean yes to advance` with an 8-item punch list. This slice lands every finding classified as substance / structural; deferred items are noted at the end.
+
+- **H-precommit-changelog-1 — pre-commit/CI divergence.** `.pre-commit-config.yaml` did not exclude `CHANGELOG.md`, but CI did. `pre-commit run --all-files` was refusing commits on a clean tree because the CHANGELOG's own A7/A8/A10 entries quote placeholder personal-data shapes as prose describing the scanner. Structural fix: the exclude list now lives in `scripts/scan_tracked.sh`, and both CI and the pre-commit hook invoke that single script. Drift is impossible by construction.
+- **M-sanitizer-toctou-1 — shallow copy in `_transform`.** `dict(payload)` was a top-level shallow copy; nested lists / dicts inside the payload were aliased to the caller's references. A caller retaining a handle could mutate them between `verify()` and send, breaking D8 with a payload that literally passed the choke point. Fix: `_transform` now snapshots via `json.loads(_stable_json(payload))` — a deep JSON-canonical copy that shares no mutable object with the caller. New test proves post-verify mutation cannot reach `SanitizedPayload.data`.
+- **Walkthrough #2 — `send_to_llm(SanitizedPayload)` Phase A boundary stub.** The wrapper's type contract had no callsite; a reviewer would ask what enforces the D8 guarantee. New `send_to_llm(payload: SanitizedPayload) -> dict` calls `verify()` and raises `LLMSendError` on failure. This makes the "authenticated wrapper on every LLM call" claim testable end-to-end today, before any real LLM stage. Three regression tests: verify-success returns data, bare-dict-via-cast raises, forged authenticator raises.
+- **Walkthrough #3 + L-doc-drift-synthetic-db-1 — commit `data/synthetic.db`.** README claimed the fixture was tracked; it wasn't. Regenerated deterministically from `--random-seed 42 --now 2026-08-28T12:00:00+00:00`, committed. New `test_synthetic_fixture_passes_scanner` runs the pre-commit content scanner over the actual SQLite file — proves the portfolio-visible fixture is scrubbed and no future contributor can commit a fixture with a real name in it without CI catching it.
+- **M-ci-actions-pinning-1 — SHA-pin GitHub Actions.** `actions/checkout@v4` and `astral-sh/setup-uv@v6` were pinned by floating major tag. The recent v3→v6 hotfix was the same failure mode; Phase B introduces API-key secrets. Now pinned by full commit SHA (`actions/checkout@11d59...` and `astral-sh/setup-uv@d0cc0...`) with the release tag in a trailing comment.
+- **M-uvlock-untracked-1 — commit `uv.lock` + `--frozen`.** `uv.lock` was gitignored; `uv sync` resolved fresh each run. A pydantic point release could turn CI red overnight with no commit; a transitive dep compromise had a wider window. Removed from `.gitignore`, committed, CI now runs `uv sync --all-extras --frozen`.
+- **M-storage-except-baseexception-1 — best-effort `conn.close()`.** The `try / except BaseException / conn.close() / raise` pattern in `open_for_mode` would let a `conn.close()` error replace the original safety-critical `ModeMismatchError`. Wrapped the close in an inner `try/except Exception: pass` so the original exception's traceback survives.
+- **M-precommit-abs-paths-1 — Windows absolute paths + `**` zero-match.** `--exclude` matched against `PurePosixPath(*p.parts).as_posix()`, which on Windows produces `C:\/Users/...` for an absolute path and no glob fullmatch reached it. Now normalizes to repo-relative POSIX via `Path.resolve().relative_to(cwd.resolve())`. Also: `foo/**` now zero-matches the `foo` directory itself (standard glob semantics — previously only `foo/x` matched). Two new tests.
+- **Walkthrough #1 — README opening trim.** Dropped "agentic, eval-gated" from the first sentence — the Phase A cut has zero LLM calls, and the three-idea block below explains the frame. Also updated status: "three rounds" of gates, "142 pytest cases".
+- **Walkthrough #8 — README D7/D8 Phase A boundary caveat.** Added an italicized clause: "Phase A ships the wrapper + HMAC integrity + `send_to_llm` boundary; content redaction rules attach at `_transform` in Phase B." Prevents a fast reviewer from mis-reading the D7/D8 claim as promising redaction that hasn't shipped.
+- 7 new pytest cases (142 total): 1 M-sanitizer-toctou nested-mutation, 3 send_to_llm boundary (verify-success / bare-dict / forged), 2 M-precommit-abs-paths (double-star zero-match + absolute-path normalize), 1 synthetic-fixture scanner sweep.
+
+**Deferred to Phase B / follow-up polish (documented, not blocking):**
+- Walkthrough #5 (ADR-001 rewrite — real judgment call on framing, want to discuss shape first).
+- Walkthrough #6 (coverage badge — its own micro-slice; needs `pytest-cov` dep + workflow step).
+- Walkthrough #7 (CHANGELOG split — structural doc-reorg; wants a shape agreement).
+- L-json-default-sanitizer-1 (strict `_stable_json` — real once Phase B payloads have real types).
+- L-report-format-injection-1 (control-char escaping in `format_report` — real once Phase B ingests real JDs).
+
 ### CI hotfix — bump `astral-sh/setup-uv` v3 → v6
 A8 and A9 both landed with red CI. Both runs failed at the "Install uv" step: the pinned `@v3` tag no longer resolved against the current uv release manifest (setup-uv is at v10 upstream). Bumped to `@v6` — mature major, same `enable-cache` surface. First green run on the resulting commit.
 

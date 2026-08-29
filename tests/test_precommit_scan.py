@@ -244,3 +244,60 @@ def test_exclude_single_star_does_not_cross_slash(tmp_path: Path) -> None:
         [posix_nested, "--danger-list", str(danger), "--exclude", "*/note.md"]
     )
     assert rc == 1  # not excluded
+
+
+def test_exclude_double_star_matches_directory_itself(tmp_path: Path, monkeypatch) -> None:
+    """M-precommit-abs-paths-1 (A10 review): `tests/**` should also match
+    the `tests` path itself, not just `tests/x`. Standard glob semantics."""
+    monkeypatch.chdir(tmp_path)
+    d = tmp_path / "tests"
+    d.mkdir()
+    # A file literally named `tests` (no children) — check that `tests/**`
+    # zero-matches. We simulate by putting a file at the root path `tests/x`
+    # then also asserting the compile handles the zero-child case via regex.
+    inside = _write(d / "x.md", "alice@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    rc = precommit_scan.main(
+        [str(inside), "--danger-list", str(danger), "--exclude", "tests/**"]
+    )
+    assert rc == 0  # excluded
+
+    # And the compiled pattern also fullmatches "tests" (the bare directory name).
+    pat = precommit_scan._compile_exclude("tests/**")
+    assert pat.fullmatch("tests") is not None
+    assert pat.fullmatch("tests/foo") is not None
+    assert pat.fullmatch("tests/foo/bar") is not None
+
+
+def test_exclude_with_absolute_windows_style_path(tmp_path: Path, monkeypatch) -> None:
+    """M-precommit-abs-paths-1: an absolute path input from Windows must
+    normalize to repo-relative before matching, or `--exclude CHANGELOG.md`
+    silently misses when a caller passes the absolute path."""
+    monkeypatch.chdir(tmp_path)
+    target = _write(tmp_path / "CHANGELOG.md", "contact alice@example.com\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    # Pass the absolute path (both str forms — Path handles either).
+    rc = precommit_scan.main(
+        [str(target.resolve()), "--danger-list", str(danger), "--exclude", "CHANGELOG.md"]
+    )
+    assert rc == 0
+
+
+def test_synthetic_fixture_passes_scanner(tmp_path: Path) -> None:
+    """Walkthrough #3 + L-doc-drift-synthetic-db-1 (A10 review): the tracked
+    portfolio-visible fixture `data/synthetic.db` must itself be scrubbed —
+    the pre-commit rule that protects prose applies to the fixture too.
+
+    This test runs the scanner over the actual committed SQLite file (opened
+    as text; the scanner falls back to skip on UnicodeDecodeError, so pure-
+    binary regions are ignored, but any UTF-8-decodable region containing a
+    name / email / phone / danger-list hit would surface). The fixture is
+    generated from a synthetic name pool by design; this test proves it.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    synth = repo_root / "data" / "synthetic.db"
+    if not synth.exists():
+        pytest.skip("data/synthetic.db not present; run `jscc seed` first")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    rc = precommit_scan.main([str(synth), "--danger-list", str(danger)])
+    assert rc == 0, "synthetic.db tripped the pre-commit content scanner"

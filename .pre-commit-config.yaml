@@ -3,18 +3,15 @@ repos:
     hooks:
       - id: jscc-content-scan
         name: JSCC content scan (D7 M3)
-        entry: python scripts/precommit_scan.py
+        entry: bash scripts/scan_tracked.sh
         language: system
         # Scan all text-like files by default. The scanner itself skips binaries
         # via UnicodeDecodeError, so a broad filter is safe and errs toward
         # catching things.
+        #
+        # The exclude list lives in scripts/scan_tracked.sh, which CI also
+        # invokes. See H-precommit-changelog-1 in the A10 review: previously
+        # this file duplicated the exclude list and CI drifted from local,
+        # causing `pre-commit run --all-files` to fail on a clean tree that
+        # CI accepted.
         types_or: [text]
-        # data/ is gitignored, but exclude explicitly in case someone force-adds.
-        # Also exclude the scanner's own regex source (self-match false positive)
-        # and its tests (they contain deliberate email/phone fixtures).
-        exclude: |
-          (?x)^(
-              data/.*
-            | scripts/precommit_scan\.py
-            | tests/test_precommit_scan\.py
-          )$

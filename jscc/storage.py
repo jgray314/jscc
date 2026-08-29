@@ -278,7 +278,16 @@ def open_for_mode(
         write_mode_marker(conn, mode)
         return conn
     except BaseException:
-        conn.close()
+        # Best-effort close: a raise from conn.close() here (rare, but possible
+        # on a WAL sidecar I/O failure) would replace the original exception
+        # — including the safety-critical ModeMismatchError — with a generic
+        # disk error, and the developer would have no idea their JSCC_DATA was
+        # pointed at the wrong file. M-storage-except-baseexception-1 in the
+        # A10 review.
+        try:
+            conn.close()
+        except Exception:
+            pass
         raise
 
 

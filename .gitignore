@@ -8,8 +8,6 @@ __pycache__/
 .venv/
 venv/
 
-# uv
-uv.lock
 
 # JSCC data safety (D7 M1/M2 — locked in Slice A4.5a)
 data/*.db
