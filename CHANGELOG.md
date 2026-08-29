@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### CI hotfix — bump `astral-sh/setup-uv` v3 → v6
+A8 and A9 both landed with red CI. Both runs failed at the "Install uv" step: the pinned `@v3` tag no longer resolved against the current uv release manifest (setup-uv is at v10 upstream). Bumped to `@v6` — mature major, same `enable-cache` surface. First green run on the resulting commit.
+
 ### A9 — Rerun-gate closure (adversarial CRITICAL + walkthrough polish)
 Rerun of both Phase A → B gates. Adversarial rerun returned BLOCK on one CRITICAL — a regression of H3 that A7 claimed closed. Walkthrough rerun returned "almost ready, no blockers". This slice closes everything that a fresh reviewer would trip on before Phase B lands.
 
