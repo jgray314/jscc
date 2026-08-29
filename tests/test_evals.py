@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from jscc.evals import (
     EvalCase,
     JD_EXTRACTION_CASES_PATH,
@@ -10,7 +8,8 @@ from jscc.evals import (
     load_cases,
     run_jd_extraction_evals,
 )
-from jscc.extraction import ExtractionNotImplementedError, extract_jd
+from jscc.extraction import extract_jd
+from jscc.llm_client import StubExtractionClient
 from jscc.models import ExtractedJD
 
 
@@ -100,28 +99,26 @@ def test_grade_extraction_empty_prose_fails() -> None:
     assert any(d.field == "responsibilities_summary" for d in result.diffs)
 
 
-# ---- harness ------------------------------------------------------------------
+# ---- harness against StubExtractionClient (no API key in B2) ------------------
 
-def test_run_jd_extraction_evals_all_fail_against_b1_stub() -> None:
-    """DoD: `eval jd_extraction` runs and fails every case until Slice B2 lands a prompt."""
-    summary = run_jd_extraction_evals(extract_jd)
+def _extract_via_stub(raw_text: str) -> ExtractedJD:
+    return extract_jd(raw_text, client=StubExtractionClient())
+
+
+def test_run_jd_extraction_evals_against_stub_client() -> None:
+    """StubExtractionClient returns a fixed placeholder, not a real extraction.
+    Every case is expected to fail on structural fields — that's the honest
+    result until an ANTHROPIC_API_KEY is set and the prompt is iterated,
+    not a regression."""
+    summary = run_jd_extraction_evals(_extract_via_stub)
     assert summary.total == 15
     assert summary.passed == 0
-    assert all(r.error for r in summary.results)
-
-
-def test_run_jd_extraction_evals_captures_stub_error_message() -> None:
-    summary = run_jd_extraction_evals(extract_jd)
-    assert "Slice B2" in summary.results[0].error
-
-
-def test_extract_jd_stub_raises() -> None:
-    with pytest.raises(ExtractionNotImplementedError):
-        extract_jd("some JD text")
+    assert all(not r.passed for r in summary.results)
+    assert all(r.error is None for r in summary.results)  # stub parses cleanly; grading just fails
 
 
 def test_format_eval_summary_reports_pass_and_fail() -> None:
-    summary = run_jd_extraction_evals(extract_jd, JD_EXTRACTION_CASES_PATH)
+    summary = run_jd_extraction_evals(_extract_via_stub, JD_EXTRACTION_CASES_PATH)
     text = format_eval_summary(summary)
     assert "0/15 passed" in text
     assert "[FAIL]" in text

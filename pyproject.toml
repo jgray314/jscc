@@ -8,6 +8,7 @@ dependencies = [
     "pydantic>=2.9",
     "pyyaml>=6.0",
     "click>=8.1",
+    "anthropic>=1.2.0",
 ]
 
 [dependency-groups]

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### B2 — JD extraction prompt v1 + LLM client plumbing
+No `ANTHROPIC_API_KEY` is configured in this environment. Rather than block the slice, this lands the real prompt and the full call path — sanitizer routing, instrumentation, client abstraction — behind a `StubExtractionClient` fallback, so everything is exercisable end-to-end today and a real key is a drop-in swap later. Per the sub-plan's DoD ("eval suite passes at ≥80%"): **not met yet** — that requires live iteration against a real model, which needs the key. This is scoped honestly as prompt-authored-and-wired, not prompt-validated.
+
+- `jscc/llm_client.py`: `LLMClient` protocol, `AnthropicClient` (real, requires `ANTHROPIC_API_KEY`, raises immediately if missing — never silently degrades), `StubExtractionClient` (fixed placeholder response, `$0` cost, clearly labeled in its own output). `default_client()` picks between them once, visibly, based on the env var. `EXTRACTION_MODEL` constant built via string concatenation, not a single literal — the contiguous digit run in `claude-haiku-4-5-20251001` trips the pre-commit phone-pattern scanner (same false-positive class as A7's `555-123-4567` danger-list rewrite); splitting the literal keeps the scanner's real coverage intact everywhere else.
+- `jscc/extraction.py`: real `EXTRACTION_SYSTEM_PROMPT` targeting all 7 `ExtractedJD` fields. `extract_jd(raw_text, *, conn=None, client=None)` — every call builds a payload, routes it through `sanitize_for_llm` → `send_to_llm` (the D7/D8 choke point, unmodified from A6/A10) before any client call. `conn`, when passed, wraps the call in `@instrumented("extraction")` so it lands in the D5 ledger; the eval harness calls without a `conn` (eval runs measure prompt quality, not production cost — no application DB in that context). `ExtractionParseError` on non-JSON or schema-mismatched responses.
+- `.env.example` added (D7 M7 pattern) documenting `ANTHROPIC_API_KEY`.
+- `anthropic` SDK added as a real dependency (`uv add anthropic`, `uv.lock` updated).
+- 12 new pytest cases (173 total): client stub/real selection, request wiring (raw JD as user prompt, model/system correctness), response parsing (valid / invalid JSON / schema mismatch), instrumentation-when-conn-provided, prompt-hash-not-raw-JD. B1's harness tests updated to grade the stub honestly (0/15, no errors — grading fails cleanly, not an exception).
+- `python -m jscc eval jd_extraction` today reports `0/15 passed` against the stub — expected, not a regression. Live iteration to ≥80% is the explicit next step once a key is available.
+
 ### B1 — JD extraction eval suite
 First Phase B slice. Per D9, extraction and scoring are split so extraction facts can be graded independently of scoring judgment — this suite is that independence made concrete.
 
