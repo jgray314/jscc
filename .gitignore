@@ -22,6 +22,12 @@ contacts.private.*
 .env.*
 !.env.example
 
+# B3b smoke test snapshot -- regenerable, and its live job-board URLs embed
+# numeric IDs that trip the phone-pattern scanner as a digit-count false
+# positive (same class as A9/B2's; see CHANGELOG). Not gitignored dual-use
+# data, just noisy to keep tracked -- results are summarized in jscc.md/CHANGELOG.
+docs/smoke-test-results.md
+
 # IDE / OS
 .vscode/
 .idea/

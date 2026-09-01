@@ -69,15 +69,15 @@ jscc/           library code
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
   llm_client.py Anthropic client + StubExtractionClient fallback (no key configured yet)
   evals.py      hand-rolled eval harness (jd_extraction suite so far)
-  fetcher.py    requests + readability JD fetcher; classifies failures into FailureMode
+  fetcher.py    requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (189 tests)
-config/         stages.yaml + profile.example.yaml
+tests/          pytest suite (198 tests)
+config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
-scripts/        pre-commit content scanner (danger-list + email/phone regex)
+scripts/        pre-commit content scanner (danger-list + email/phone regex); smoke_fetch.py (real-URL smoke test, not CI-gated)
 decisions/      ADRs (see below)
-docs/           design-principles.md
+docs/           design-principles.md; smoke-test-results.md (smoke_fetch.py output snapshot)
 .github/        CI workflow
 data/           synthetic.db (tracked); real.db (gitignored)
 ```
@@ -100,13 +100,14 @@ The ten locked design principles behind them are in [docs/design-principles.md](
 uv sync
 uv run pytest              # ~seconds
 uv run pre-commit install  # enable the safety scanner
+uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
 
 The pre-commit scanner refuses commits that match name/email/phone patterns or entries in a local `.safety/danger-list.local.txt` (gitignored).
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), and B3a (baseline fetcher + DLQ core) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 189 pytest cases.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), and B3b (Playwright fallback + real-URL smoke test) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 198 pytest cases.
 
 ## License
 

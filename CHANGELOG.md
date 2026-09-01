@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### B3b — Playwright fallback + real-URL smoke test
+Per D6, some JD pages need a rendered DOM, not just an HTTP GET — this slice adds that path, opt-in only.
+
+- `config/pipeline.yaml`: new optional config file. `playwright_fallback: false` by default (heavy dep — browser binary, ~200MB — off unless explicitly turned on). `jscc.config.load_pipeline()` defaults cleanly to `PipelineConfig(playwright_fallback=False)` when the file is absent.
+- `jscc/fetcher.py`: `fetch_jd(url, *, use_playwright_fallback=False)`. JS-required detection reuses the existing thin-content heuristic (readability extracts <200 chars) — that's the same signal for "site refused to render server-side" and "genuine SPA shell," and we can't tell them apart without rendering, so both route through the fallback identically when it's on. When triggered, `_render_with_playwright()` launches headless Chromium, waits for `networkidle`, and re-runs readability against the rendered DOM. `FetchResult` gained `used_playwright: bool` so callers/logs can see which path served a given fetch. A `PlaywrightFetchError` (browser launch/render failure) still lands as `blocked`, not a crash — same never-raises contract as the rest of the fetcher.
+- `python -m jscc ingest` gained `--config-dir` (default `config/`) to locate `pipeline.yaml` and thread `playwright_fallback` into `fetch_jd`.
+- `scripts/smoke_fetch.py`: real-URL smoke test, not CI-gated (network-dependent, results snapshotted to `docs/smoke-test-results.md` — regenerate manually with `uv run python scripts/smoke_fetch.py [--playwright]`). Ran against 5 live postings across platforms (Microsoft's SPA career site, Amazon Jobs, OpenAI, Anthropic/Greenhouse, LinkedIn's unauthenticated jobs search) chosen live via browser rather than guessed. Confirms the DoD directly: Microsoft's SPA and LinkedIn's authwall both come back `extraction_failed` with the flag off and `ok` (rendered) with it on; OpenAI's straight 403 stays `blocked` either way, correctly, since that's a server-side bot-block the fallback was never meant to route around.
+- New runtime dep: `playwright` (+ `uv run playwright install chromium` for the browser binary — documented in README dev setup). Added as an optional/opt-in dep per explicit confirmation, matching the "no new deps without asking" rule.
+- 9 new pytest cases (198 total): 3 for `PipelineConfig`/`load_pipeline` (sample file, missing-file default, explicit true), 5 for fetcher routing (`_render_with_playwright` mocked — no real browser in the test suite: flag-off stays `extraction_failed`, flag-on routes to playwright and can recover, rich content never calls playwright even with the flag on, still-thin-after-render stays `extraction_failed`, render error maps to `blocked`), 1 for CLI wiring (`pipeline.yaml`'s flag reaches `fetch_jd`'s kwarg).
+
 ### B3a — baseline fetcher + DLQ core
 Per D6, JD fetching is treated as a real product problem, not a happy-path assumption. `DLQEntry`/`FailureMode`/the storage layer already existed from A2; this slice adds the part that actually calls them.
 

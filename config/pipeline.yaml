@@ -1,0 +1,8 @@
+# Optional runtime toggles for the ingest pipeline. Absent keys fall back to
+# their defaults (see jscc/config.py:PipelineConfig) -- this file itself is
+# optional; if it's missing entirely, all defaults apply.
+
+# Playwright is a heavy dep (browser binary). Off by default. When on, jscc
+# ingest retries a fetch with a rendered browser page if the plain-requests
+# fetch looks like it hit a JS-required page (thin extracted content).
+playwright_fallback: false

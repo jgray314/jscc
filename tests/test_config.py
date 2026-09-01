@@ -7,8 +7,10 @@ from pydantic import ValidationError
 
 from jscc.config import (
     LoadError,
+    PipelineConfig,
     Profile,
     StagesConfig,
+    load_pipeline,
     load_profile,
     load_stages,
     resolve_profile_path,
@@ -23,6 +25,25 @@ def test_sample_stages_loads() -> None:
     assert isinstance(cfg, StagesConfig)
     assert cfg.stages[0] == "identified"
     assert cfg.staleness_thresholds_days["applied"] == 14
+
+
+def test_sample_pipeline_loads_playwright_off() -> None:
+    cfg = load_pipeline(SAMPLE_CONFIG / "pipeline.yaml")
+    assert isinstance(cfg, PipelineConfig)
+    assert cfg.playwright_fallback is False
+
+
+def test_pipeline_missing_file_defaults_to_off(tmp_path: Path) -> None:
+    cfg = load_pipeline(tmp_path / "does-not-exist.yaml")
+    assert cfg.playwright_fallback is False
+
+
+def test_pipeline_playwright_on(tmp_path: Path) -> None:
+    (tmp_path / "pipeline.yaml").write_text(
+        "playwright_fallback: true\n", encoding="utf-8"
+    )
+    cfg = load_pipeline(tmp_path / "pipeline.yaml")
+    assert cfg.playwright_fallback is True
 
 
 def test_sample_profile_example_loads() -> None:

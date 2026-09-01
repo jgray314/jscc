@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from .config import (
     LoadError,
+    load_pipeline,
     load_profile,
     load_stages,
     resolve_profile_path,
@@ -318,17 +319,27 @@ def eval_jd_extraction() -> None:
     show_default=True,
     help="Directory holding mode DBs.",
 )
-def ingest(url: str, data_dir: Path) -> None:
+@click.option(
+    "--config-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_CONFIG_DIR,
+    show_default=True,
+    help="Directory containing pipeline.yaml.",
+)
+def ingest(url: str, data_dir: Path, config_dir: Path) -> None:
     """Fetch a JD by URL, extract structured fields, and create an Application.
 
     Never crashes on a bad fetch. Paywalled, blocked, timed-out, or
     unextractable pages land in the DLQ instead (per D6) -- see `dlq list`
-    and `resolve-dlq`.
+    and `resolve-dlq`. If a page looks JS-required (thin extracted content)
+    and `playwright_fallback: true` is set in pipeline.yaml, retries with a
+    rendered browser page before giving up.
     """
+    pipeline_cfg = load_pipeline(config_dir / "pipeline.yaml")
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
-        result = fetch_jd(url)
+        result = fetch_jd(url, use_playwright_fallback=pipeline_cfg.playwright_fallback)
         if not result.ok:
             entry = DLQEntry(
                 source_url=url,

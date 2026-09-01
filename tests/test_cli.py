@@ -281,6 +281,42 @@ def test_ingest_url_success_creates_application(
     assert apps[0].source_url == "https://example.com/jobs/1"
 
 
+def test_ingest_passes_playwright_flag_from_pipeline_config(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "pipeline.yaml").write_text("playwright_fallback: true\n", encoding="utf-8")
+
+    captured_kwargs = {}
+
+    def fake_fetch_jd(url, **kw):
+        captured_kwargs.update(kw)
+        return FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300)
+
+    monkeypatch.setattr("jscc.cli.fetch_jd", fake_fetch_jd)
+
+    result = runner.invoke(
+        cli,
+        [
+            "ingest",
+            "--url",
+            "https://example.com/jobs/1",
+            "--data-dir",
+            str(tmp_path),
+            "--config-dir",
+            str(config_dir),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured_kwargs.get("use_playwright_fallback") is True
+
+
 def test_ingest_url_failure_creates_dlq_entry_not_application(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

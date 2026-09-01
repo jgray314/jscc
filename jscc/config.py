@@ -44,6 +44,10 @@ class Profile(BaseModel):
     style_samples: list[str] = []
 
 
+class PipelineConfig(BaseModel):
+    playwright_fallback: bool = False
+
+
 class LoadError(Exception):
     pass
 
@@ -66,6 +70,13 @@ def load_stages(path: Path) -> StagesConfig:
 
 def load_profile(path: Path) -> Profile:
     return Profile.model_validate(_read_yaml(path))
+
+
+def load_pipeline(path: Path) -> PipelineConfig:
+    """Load pipeline.yaml. The file is optional -- missing means all defaults."""
+    if not path.exists():
+        return PipelineConfig()
+    return PipelineConfig.model_validate(_read_yaml(path))
 
 
 PROFILE_PRIVATE = "profile.private.yaml"
