@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### B4 — JD paste-only path
+Per D6, this is the escape hatch for any site the fetcher can't crack at all — no URL, no fetch attempt, no DLQ detour, just pasted JD text straight to extraction and storage.
+
+- `python -m jscc ingest --paste` reads JD text from stdin; `--file <path>` reads it from a file instead. Either produces an `Application` through the same extract-then-store path as `resolve-dlq --paste-text` — both now funnel through a shared `_extract_and_create_application()` helper in `cli.py`, so the DoD ("same Application shape as the URL path") is enforced structurally, not by convention.
+- `--url` and `--paste`/`--file` are mutually exclusive; passing neither, or both, is a `UsageError`, not a silent no-op.
+- No URL means no domain to derive a placeholder company from (the same `ExtractedJD`-has-no-company gap noted in B3a) — `--company` is a new optional flag for the paste path, defaulting to `"(pasted)"` when omitted.
+- Empty stdin/file input exits non-zero with a message rather than creating a blank `Application`.
+- 5 new pytest cases (203 total): stdin paste creates an `Application` with `source_url=None`; `--file` reads from a file instead of stdin; empty paste input exits non-zero and creates nothing; `--url` + `--paste` together is a usage error; neither flag is a usage error.
+
 ### B3b — Playwright fallback + real-URL smoke test
 Per D6, some JD pages need a rendered DOM, not just an HTTP GET — this slice adds that path, opt-in only.
 

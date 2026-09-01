@@ -375,6 +375,111 @@ def test_ingest_never_crashes_on_fetch_exception_shaped_failure(
     assert result.exit_code == 0, result.output
 
 
+def test_ingest_paste_stdin_creates_application_same_shape_as_url(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DoD: paste path produces the same Application shape as the URL path."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(
+        cli,
+        ["ingest", "--paste", "--data-dir", str(tmp_path)],
+        input="Senior Engineer at Rift Cloud. " * 20,
+    )
+    assert result.exit_code == 0, result.output
+    assert "created application" in result.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].source_url is None
+    assert apps[0].company == "(pasted)"
+    assert apps[0].source_raw.startswith("Senior Engineer at Rift Cloud.")
+
+
+def test_ingest_paste_file_reads_from_file_not_stdin(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    jd_file = tmp_path / "jd.txt"
+    jd_file.write_text("Staff Engineer at Timber Motors. " * 20, encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        [
+            "ingest",
+            "--file",
+            str(jd_file),
+            "--company",
+            "Timber Motors",
+            "--data-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].company == "Timber Motors"
+    assert apps[0].source_raw.startswith("Staff Engineer at Timber Motors.")
+
+
+def test_ingest_paste_empty_input_exits_nonzero_no_application(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(
+        cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n"
+    )
+    assert result.exit_code != 0
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert apps == []
+
+
+def test_ingest_url_and_paste_together_is_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(
+        cli,
+        ["ingest", "--url", "https://example.com/jobs/1", "--paste", "--data-dir", str(tmp_path)],
+        input="text",
+    )
+    assert result.exit_code != 0
+
+
+def test_ingest_neither_url_nor_paste_is_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(cli, ["ingest", "--data-dir", str(tmp_path)])
+    assert result.exit_code != 0
+
+
 def test_dlq_list_shows_unresolved_entries(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -310,8 +310,49 @@ def eval_jd_extraction() -> None:
         sys.exit(1)
 
 
+def _extract_and_create_application(
+    conn,
+    *,
+    raw_text: str,
+    source_url: str | None,
+    company: str,
+    fallback_title: str | None,
+) -> tuple[str, Application]:
+    """Shared extract-then-store path for both `ingest` (URL and --paste) and
+    `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
+    same Application shape as the URL path, so both funnel through here."""
+    extracted = extract_jd(raw_text, conn=conn)
+    app = Application(
+        source_url=source_url,
+        source_raw=raw_text,
+        title=extracted.title or fallback_title or "(untitled)",
+        company=company,
+        stage=FIRST_STAGE,
+    )
+    app_id = create_application(conn, app)
+    return app_id, app
+
+
 @cli.command("ingest")
-@click.option("--url", required=True, help="Job posting URL to fetch and ingest.")
+@click.option("--url", default=None, help="Job posting URL to fetch and ingest.")
+@click.option(
+    "--paste",
+    is_flag=True,
+    default=False,
+    help="Read JD text from stdin (or --file) instead of fetching a URL.",
+)
+@click.option(
+    "--file",
+    "paste_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read pasted JD text from this file instead of stdin. Implies --paste.",
+)
+@click.option(
+    "--company",
+    default=None,
+    help="Company name for a pasted JD (no URL to infer it from). Defaults to '(pasted)'.",
+)
 @click.option(
     "--data-dir",
     type=click.Path(path_type=Path),
@@ -326,7 +367,14 @@ def eval_jd_extraction() -> None:
     show_default=True,
     help="Directory containing pipeline.yaml.",
 )
-def ingest(url: str, data_dir: Path, config_dir: Path) -> None:
+def ingest(
+    url: str | None,
+    paste: bool,
+    paste_file: Path | None,
+    company: str | None,
+    data_dir: Path,
+    config_dir: Path,
+) -> None:
     """Fetch a JD by URL, extract structured fields, and create an Application.
 
     Never crashes on a bad fetch. Paywalled, blocked, timed-out, or
@@ -334,33 +382,53 @@ def ingest(url: str, data_dir: Path, config_dir: Path) -> None:
     and `resolve-dlq`. If a page looks JS-required (thin extracted content)
     and `playwright_fallback: true` is set in pipeline.yaml, retries with a
     rendered browser page before giving up.
+
+    `--paste` (optionally with `--file`) is the escape hatch for any site the
+    fetcher can't crack at all -- no URL, no fetch, no DLQ, just pasted JD
+    text straight to extraction and storage.
     """
-    pipeline_cfg = load_pipeline(config_dir / "pipeline.yaml")
+    if url and (paste or paste_file):
+        raise click.UsageError("--url and --paste/--file are mutually exclusive")
+    if not url and not paste and not paste_file:
+        raise click.UsageError("provide --url or --paste (optionally with --file)")
+
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
-        result = fetch_jd(url, use_playwright_fallback=pipeline_cfg.playwright_fallback)
-        if not result.ok:
-            entry = DLQEntry(
-                source_url=url,
-                failure_mode=result.failure_mode,
-                error_detail=result.error_detail,
-            )
-            entry_id = create_dlq_entry(conn, entry)
-            click.echo(
-                f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})"
-            )
-            return
+        if url:
+            pipeline_cfg = load_pipeline(config_dir / "pipeline.yaml")
+            result = fetch_jd(url, use_playwright_fallback=pipeline_cfg.playwright_fallback)
+            if not result.ok:
+                entry = DLQEntry(
+                    source_url=url,
+                    failure_mode=result.failure_mode,
+                    error_detail=result.error_detail,
+                )
+                entry_id = create_dlq_entry(conn, entry)
+                click.echo(
+                    f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})"
+                )
+                return
+            raw_text = result.raw_text
+            source_url: str | None = url
+            company_val = company or _company_from_url(url)
+            fallback_title = result.title
+        else:
+            raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
+            if not raw_text.strip():
+                click.echo("no JD text provided (empty stdin/file)", err=True)
+                sys.exit(2)
+            source_url = None
+            company_val = company or "(pasted)"
+            fallback_title = None
 
-        extracted = extract_jd(result.raw_text, conn=conn)
-        app = Application(
-            source_url=url,
-            source_raw=result.raw_text,
-            title=extracted.title or result.title or "(untitled)",
-            company=_company_from_url(url),
-            stage=FIRST_STAGE,
+        app_id, app = _extract_and_create_application(
+            conn,
+            raw_text=raw_text,
+            source_url=source_url,
+            company=company_val,
+            fallback_title=fallback_title,
         )
-        app_id = create_application(conn, app)
         click.echo(f"created application {app_id}: {app.title}")
     finally:
         conn.close()
@@ -430,15 +498,13 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(2)
 
-        extracted = extract_jd(paste_text, conn=conn)
-        app = Application(
+        app_id, _app = _extract_and_create_application(
+            conn,
+            raw_text=paste_text,
             source_url=entry.source_url,
-            source_raw=paste_text,
-            title=extracted.title or "(untitled)",
             company=_company_from_url(entry.source_url),
-            stage=FIRST_STAGE,
+            fallback_title=None,
         )
-        app_id = create_application(conn, app)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste)
         click.echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:

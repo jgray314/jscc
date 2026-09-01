@@ -72,7 +72,7 @@ jscc/           library code
   fetcher.py    requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (198 tests)
+tests/          pytest suite (203 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (danger-list + email/phone regex); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -107,7 +107,7 @@ The pre-commit scanner refuses commits that match name/email/phone patterns or e
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), and B3b (Playwright fallback + real-URL smoke test) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 198 pytest cases.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 203 pytest cases.
 
 ## License
 
