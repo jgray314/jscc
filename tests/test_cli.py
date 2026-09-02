@@ -352,10 +352,50 @@ def test_ingest_url_failure_creates_dlq_entry_not_application(
     assert entries[0].failure_mode.value == "blocked"
 
 
+def test_ingest_empty_response_body_dlqs_instead_of_crashing(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding H1, at the boundary where the DoD is actually stated.
+
+    The test below this one mocks `fetch_jd` itself, so it proves the CLI
+    handles a FetchResult -- not that the real fetcher always produces one.
+    That gap is how an empty-body 200 (a routine bot-block response) reached
+    `lxml` and crashed ingest with exit 1 and no DLQ entry. This one drives
+    the real fetcher through a mocked transport instead.
+    """
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from unittest.mock import Mock
+
+    empty = Mock()
+    empty.status_code = 200
+    empty.text = ""
+    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: empty)
+
+    result = runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/9", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert result.exception is None
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, list_dlq_entries, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    entries = list_dlq_entries(conn, unresolved_only=False)
+    conn.close()
+    assert apps == []
+    assert len(entries) == 1
+    assert entries[0].failure_mode.value == "extraction_failed"
+
+
 def test_ingest_never_crashes_on_fetch_exception_shaped_failure(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """DoD: ingest --url produces Application OR DLQEntry, never crashes."""
+    """CLI-side half of the DoD: a returned FetchResult failure becomes a DLQ
+    entry, not an exception. The fetcher-side half is the test above."""
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 

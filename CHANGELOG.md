@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### B5 — sanitizer redaction (Phase B gate finding C1)
+### B5 — Phase B gate hardening (findings C1, H1)
 
-The Phase B → C gate opened with an adversarial finding against the project's headline safety claim, and this closes it.
+The Phase B → C two-lens gate opened with an adversarial finding against the project's headline safety claim, plus a confirmed crash in the fetch path. This closes both.
 
 **The finding.** `sanitizer.py`'s `_transform` had been an identity snapshot since A6, deferring real redaction to "Phase B, when the first prompt is written." Phase B then shipped a prompt (B2a), two production call sites (B3a), and an arbitrary-pasted-text path (B4) without it. Meanwhile D7 M5 claimed the sanitizer "redacts contact names to role tokens" and D8 claimed the tool "structurally cannot send identifiable person information to a third-party LLM." Neither was true of the code. Demonstrated concretely: a string carrying a name, email address, and phone number was *blocked from git* by the D7 M3 pre-commit scanner and *forwarded verbatim to the LLM* by the D7 M5 sanitizer. Two mitigations named in the same principle, disagreeing completely about what counts as personal data.
 
@@ -20,7 +20,11 @@ The Phase B → C gate opened with an adversarial finding against the project's 
 
 Local storage is deliberately untouched: D7 governs egress, not the user's own records.
 
-- 26 new pytest cases (229 total): 18 in `tests/test_personal_data.py` (each redaction class, email-before-phone ordering, ISO dates surviving the digit filter, idempotence, danger-list and name-role substitution, and a property test that anything the scanner flags, `redact()` removes), 8 in `tests/test_sanitizer.py` (the C1 paste scenario end-to-end, redaction despite `contains_personal: False`, HMAC covering redacted bytes, nested containers, model-id preservation).
+**H1 — `fetch_jd` crashed on an empty response body.** `lxml.html.fromstring("")` raises `ParserError`, and an empty-body `200` is a routine bot-block response, not an exotic input. That exception escaped `fetch_jd` and terminated `python -m jscc ingest` with exit 1 and no DLQ entry — breaking both the fetcher's never-raises contract and B3a's DoD ("produces Application OR DLQEntry, never crashes"). `_extract` now catches parse failures and degrades to empty text, so an unparseable body flows down the existing thin-content path: `extraction_failed` with the Playwright fallback off, a render retry with it on (correct — a server that returned nothing to plain HTTP may render fine in a browser). The catch is deliberately broad; narrowing it to today's exception types would reinvite the bug the next time lxml or readability raises something new from that operation.
+
+Six regression tests, including a CLI-level one that drives the *real* fetcher through a mocked transport. The pre-existing `test_ingest_never_crashes_on_fetch_exception_shaped_failure` mocks `fetch_jd` itself, so it only ever proved the CLI handles a `FetchResult` — that gap is how this shipped. It has been renamed and re-docstringed to say which half of the DoD it covers.
+
+- 32 new pytest cases (235 total): 18 in `tests/test_personal_data.py` (each redaction class, email-before-phone ordering, ISO dates surviving the digit filter, idempotence, danger-list and name-role substitution, and a property test that anything the scanner flags, `redact()` removes), 8 in `tests/test_sanitizer.py` (the C1 paste scenario end-to-end, redaction despite `contains_personal: False`, HMAC covering redacted bytes, nested containers, model-id preservation).
 
 ### B4 — JD paste-only path
 Per D6, this is the escape hatch for any site the fetcher can't crack at all — no URL, no fetch attempt, no DLQ detour, just pasted JD text straight to extraction and storage.

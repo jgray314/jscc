@@ -40,11 +40,31 @@ def _failure(mode: FailureMode, detail: str, *, used_playwright: bool = False) -
 
 
 def _extract(html: str) -> tuple[str, str]:
-    """Return (title, body_text) via readability. Body may be thin/empty."""
-    doc = Document(html)
-    title = doc.short_title()
-    body_text = _strip_tags(doc.summary())
-    return title, body_text
+    """Return (title, body_text) via readability. Body may be thin/empty.
+
+    **Never raises.** Both readability and lxml throw on input they can't
+    parse -- `lxml.html.fromstring("")` raises `ParserError: Document is
+    empty`, and an empty-body `200` is a routine bot-block response, not an
+    exotic case. Before the B5 hardening slice that exception escaped
+    `fetch_jd` and crashed `python -m jscc ingest` with exit 1 and no DLQ
+    entry, breaking both this module's never-raises contract and B3a's DoD
+    ("produces Application OR DLQEntry, never crashes"). Gate finding H1.
+
+    A parse failure is a content-shaped failure, so it degrades to empty
+    text and lets the thin-content path route it: `extraction_failed` when
+    the Playwright fallback is off, and a render retry when it's on -- which
+    is the right call, since a server that returned an empty body to plain
+    HTTP may well render fine in a browser.
+
+    The catch is deliberately broad. Narrowing it to today's exception types
+    would reintroduce this exact bug the next time lxml or readability
+    raises something new from the same operation.
+    """
+    try:
+        doc = Document(html)
+        return doc.short_title(), _strip_tags(doc.summary())
+    except Exception:
+        return "", ""
 
 
 def _looks_js_required(body_text: str) -> bool:

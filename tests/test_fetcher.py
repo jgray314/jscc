@@ -165,3 +165,61 @@ def test_playwright_render_error_is_blocked():
     assert result.failure_mode is FailureMode.blocked
     assert result.used_playwright is True
     assert "browser not installed" in result.error_detail
+
+
+# ---- unparseable bodies must not raise (gate finding H1) --------------------
+#
+# `lxml.html.fromstring("")` raises ParserError, and an empty-body 200 is a
+# routine bot-block response. Before B5 that escaped fetch_jd and crashed the
+# ingest CLI with no DLQ entry. Every case here asserts a FetchResult comes
+# back at all -- the never-raises contract -- not just that it's shaped right.
+
+
+def test_empty_body_is_extraction_failed_not_a_crash():
+    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "")):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.extraction_failed
+
+
+def test_whitespace_only_body_is_extraction_failed_not_a_crash():
+    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "   \n\t  ")):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.extraction_failed
+
+
+def test_non_html_body_is_extraction_failed_not_a_crash():
+    """A URL that serves a PDF or an image still has to come back as a result."""
+    with patch(
+        "jscc.fetcher.requests.get",
+        return_value=_mock_response(200, "%PDF-1.4\x00\x01\x02 binary garbage"),
+    ):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.extraction_failed
+
+
+def test_empty_body_routes_to_playwright_when_fallback_is_on():
+    """An unparseable body is treated as thin content, so the render retry
+    applies -- a server that returned nothing to plain HTTP may render fine."""
+    with (
+        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "")),
+        patch("jscc.fetcher._render_with_playwright", return_value=SAMPLE_HTML) as render,
+    ):
+        result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
+    render.assert_called_once()
+    assert result.ok is True
+    assert result.used_playwright is True
+
+
+def test_empty_rendered_html_is_extraction_failed_not_a_crash():
+    """Same guard on the post-render extraction, not just the first one."""
+    with (
+        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
+        patch("jscc.fetcher._render_with_playwright", return_value=""),
+    ):
+        result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.extraction_failed
+    assert result.used_playwright is True
