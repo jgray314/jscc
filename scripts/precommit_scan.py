@@ -17,6 +17,11 @@ Rules:
 - Exclude: `--exclude GLOB` (repeatable, fnmatch on POSIX repo-relative paths)
   skips files that legitimately hold placeholder personal-data shapes — the
   scanner's own tests, this docstring, changelog entries describing it.
+
+The patterns themselves live in `jscc/personal_data.py`, not here. That module
+is the single definition shared with the D7 M5 prompt sanitizer, so git egress
+(M3) and LLM egress (M5) cannot drift apart on what counts as personal data —
+they did drift before the B5 hardening slice, and the sanitizer lost.
 """
 
 from __future__ import annotations
@@ -26,6 +31,17 @@ import re
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Iterable
+
+# Keep this script runnable as a bare `python scripts/precommit_scan.py ...`
+# with no install step — `scripts/scan_tracked.sh` invokes it that way, from
+# both CI and the pre-commit hook. Same bootstrap `scripts/smoke_fetch.py` uses.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from jscc.personal_data import (  # noqa: E402
+    DEFAULT_DANGER_LIST,
+    find_personal,
+    load_danger_list,
+)
 
 
 def _compile_exclude(pattern: str) -> re.Pattern[str]:
@@ -87,28 +103,6 @@ def _to_repo_relative_posix(p: Path, cwd: Path) -> str:
         return PurePosixPath(*p.parts).as_posix()
     return PurePosixPath(*rel.parts).as_posix()
 
-# Deliberately over-broad: matches any non-whitespace token containing `@` with a
-# dot-separated tail. Covers ASCII, IDN local/domain parts (e.g. `user@münchen.de`),
-# Punycode TLDs (`.xn--p1ai`), and non-ASCII TLDs (`.москва`). False positives are
-# the design point of D7 — the scanner errs toward blocking. Structured excludes
-# via `--exclude` handle known-safe scaffolding files.
-EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().]{2,}")
-# Phone char class allows separator variants seen in the wild:
-#   dashes / whitespace ((415) 555-0134 style)
-#   parens (US area-code grouping)
-#   dots (international dotted format, +44.20.7946.0018)
-# Real disambiguation from noise happens in the digit-count filter below.
-PHONE_RE = re.compile(r"\+?\d[\d\-\s().]{7,14}\d")
-
-# Phone matches must contain a plausible number of digits. Real phone numbers
-# have 10-15 digits (E.164). This is what disqualifies ISO dates like
-# "2026-08-28" (8 digits) from the phone rule.
-PHONE_DIGITS_MIN = 10
-PHONE_DIGITS_MAX = 15
-
-DEFAULT_DANGER_LIST = Path(".safety/danger-list.txt")
-
-
 class Hit:
     __slots__ = ("path", "line_no", "reason", "match")
 
@@ -122,33 +116,13 @@ class Hit:
         return f"{self.path}:{self.line_no}: {self.reason} -- {self.match!r}"
 
 
-def load_danger_list(path: Path) -> list[str]:
-    if not path.exists():
-        return []
-    terms: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        terms.append(line.lower())
-    return terms
-
-
 def scan_line(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str]]:
-    """Return (reason, matched-substring) tuples for every rule that fires."""
-    hits: list[tuple[str, str]] = []
-    for m in EMAIL_RE.finditer(line):
-        hits.append(("email-pattern", m.group(0)))
-    for m in PHONE_RE.finditer(line):
-        digit_count = sum(1 for c in m.group(0) if c.isdigit())
-        if PHONE_DIGITS_MIN <= digit_count <= PHONE_DIGITS_MAX:
-            hits.append(("phone-pattern", m.group(0)))
-    lower = line.lower()
-    for term in danger_terms:
-        idx = lower.find(term)
-        if idx != -1:
-            hits.append(("danger-list", line[idx : idx + len(term)]))
-    return hits
+    """Return (reason, matched-substring) tuples for every rule that fires.
+
+    Thin alias over the shared definition so existing callers and tests keep
+    working; the rules themselves live in `jscc/personal_data.py`.
+    """
+    return find_personal(line, danger_terms)
 
 
 def scan_file(path: Path, danger_terms: Iterable[str]) -> list[Hit]:

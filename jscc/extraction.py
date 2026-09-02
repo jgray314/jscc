@@ -91,8 +91,14 @@ def extract_jd(
         "model": EXTRACTION_MODEL,
         "system": EXTRACTION_SYSTEM_PROMPT,
         "user": raw_text,
-        # A JD describes a role, not a named individual — D8's hard line is
-        # about personal notes, not job postings. contains_personal stays False.
+        # Not flagged: a job posting describes a role, not a named individual.
+        # But this flag is NOT what protects the call. `raw_text` here can be
+        # arbitrary pasted text (`ingest --paste`, `resolve-dlq --paste-text`),
+        # and a JD forwarded from a recruiter's email carries their name,
+        # address, and number in the signature. The sanitizer redacts every
+        # payload unconditionally regardless of this flag (D7 M5) — that is
+        # the guarantee. Gate finding C1: before the B5 slice it did not, and
+        # this comment's reasoning was the whole defense.
         "contains_personal": False,
     }
     sanitized = sanitize_for_llm(payload)

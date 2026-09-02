@@ -5,6 +5,10 @@
 # Files that legitimately hold digit runs, placeholder email shapes, or the
 # scanner's own regex source are excluded:
 #   - scripts/precommit_scan.py         — self-match on the regex docstring
+#   - jscc/personal_data.py             — holds the patterns themselves (same
+#                                         self-match reason); shared by the
+#                                         scanner (M3) and the sanitizer (M5)
+#   - tests/test_personal_data.py       — deliberate email/phone fixtures
 #   - tests/test_precommit_scan.py      — deliberate email/phone fixtures
 #   - CHANGELOG.md                      — prose describing the scanner
 #   - uv.lock                           — sha256 hashes contain 10-15-digit runs
@@ -19,7 +23,9 @@ set -euo pipefail
 
 EXCLUDES=(
   --exclude 'tests/test_precommit_scan.py'
+  --exclude 'tests/test_personal_data.py'
   --exclude 'scripts/precommit_scan.py'
+  --exclude 'jscc/personal_data.py'
   --exclude 'CHANGELOG.md'
   --exclude 'uv.lock'
 )

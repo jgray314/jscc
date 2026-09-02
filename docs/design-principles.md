@@ -36,7 +36,7 @@ Real personal data and synthetic fixtures both flow through this tool. Safety is
 - **M2** Belt-and-suspenders `.gitignore` with explicit real-data patterns (`data/*.db`, `!data/synthetic.db`, `*.private.*`, `profile.private.yaml`, `contacts.private.*`, `.env*`, `!.env.example`).
 - **M3** Pre-commit hook scanning staged files for real-data name/email/phone patterns and a local danger list.
 - **M4** Log-line hygiene: application code logs by ID, never by content.
-- **M5** Prompt sanitizer: cross-cutting choke point on every LLM call. Redacts contact names to role tokens, refuses entries flagged `contains_personal`, wraps output in an authenticated payload so downstream code cannot fake having been sanitized.
+- **M5** Prompt sanitizer: cross-cutting choke point on every LLM call. Redacts email addresses, phone-shaped digit runs, danger-list literals, and known contact names (to role tokens); refuses entries flagged `contains_personal`; wraps output in an authenticated payload so downstream code cannot fake having been sanitized. Redaction is unconditional and runs before the payload is authenticated, so it does not depend on the caller setting the flag correctly. The pattern definitions are shared with M3 (`jscc/personal_data.py`), so the two egress points cannot drift on what counts as personal data.
 - **M6** Recording/demo workflow documented; UI shows a persistent "SYNTHETIC MODE" banner.
 - **M7** `profile.example.yaml` (tracked) vs. `profile.private.yaml` (gitignored) template pattern.
 
@@ -44,9 +44,13 @@ The migration also applies to personal dogfooding: drafter is draft-review only 
 
 ## D8 — Hard line on personal identity in LLM traffic
 
-No personal notes about identifiable individuals go to any LLM, by name, ever. Applies in synthetic and real mode. Enforced structurally by the M5 sanitizer.
+No personal notes about identifiable individuals go to any LLM, by name, ever. Applies in synthetic and real mode. Enforced structurally by the M5 sanitizer, which redacts unconditionally rather than relying on any caller-set flag.
 
-The portfolio narrative version: *"I built a management-adjacent tool that structurally cannot send identifiable person information to a third-party LLM."*
+**Scope of the guarantee, stated precisely.** M5 removes structured identifiers (email addresses, phone-shaped digit runs), every literal on the danger list, and any contact name supplied to it by a caller that holds contact records. It does *not* do free-text named-entity recognition: an unfamiliar person's name sitting in pasted prose, with nothing else to key on, is not detected. Closing that gap needs NER, not regex. The boundary is documented here rather than papered over, because an overstated safety claim is worse than a narrow one — the claim is the dangerous part.
+
+The portfolio narrative version: *"I built a management-adjacent tool where the LLM egress path structurally cannot carry contact identifiers — enforced by a choke point that redacts before it authenticates, sharing one pattern definition with the pre-commit scanner, so neither egress point can drift from the other."*
+
+Local storage is deliberately **not** redacted. D7 governs egress — what leaves for git or for a third-party model. The user's own SQLite record keeps what the user pasted.
 
 ## D9 — LLM stages are SPLIT (extract → score), scorer sees raw JD too
 

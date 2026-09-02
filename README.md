@@ -11,7 +11,7 @@ Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phas
 Three ideas being demonstrated at once:
 
 1. **Eval-driven agent design.** Every LLM stage is behind an eval suite. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
-2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, a pre-commit scanner, and an authenticated sanitizer wrapper on every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). *Phase A ships the wrapper + HMAC integrity + `send_to_llm` boundary; content redaction rules attach at `_transform` in Phase B.*
+2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, and two egress points that share one definition of "personal": a pre-commit scanner guarding git, and an authenticated, redacting sanitizer guarding every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). Redaction is unconditional and runs *before* the payload is authenticated, so no caller can opt out of it — including the ones that forget to. The guarantee's scope is stated narrowly and honestly in D8: structured identifiers and known names, not free-text NER.
 3. **Knowing when not to automate.** The drafter routes to a briefing card, not a prose draft, for anything non-routine ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)).
 
 ## Quick start
@@ -64,7 +64,8 @@ jscc/           library code
   storage.py    SQLite persistence with stamped mode marker
   models.py     pydantic domain models (Application, Contact, Interaction, ...)
   seed.py       deterministic synthetic fixture (evaluation infrastructure)
-  sanitizer.py  the LLM-egress choke point; HMAC-wrapped payloads
+  sanitizer.py  the LLM-egress choke point; redacts, then HMAC-wraps
+  personal_data.py  one definition of "personal" — shared by the scanner + sanitizer
   instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
   llm_client.py Anthropic client + StubExtractionClient fallback (no key configured yet)
@@ -72,10 +73,10 @@ jscc/           library code
   fetcher.py    requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (203 tests)
+tests/          pytest suite (229 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
-scripts/        pre-commit content scanner (danger-list + email/phone regex); smoke_fetch.py (real-URL smoke test, not CI-gated)
+scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
 decisions/      ADRs (see below)
 docs/           design-principles.md; smoke-test-results.md (smoke_fetch.py output snapshot)
 .github/        CI workflow

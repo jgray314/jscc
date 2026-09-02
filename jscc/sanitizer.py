@@ -28,9 +28,19 @@ A6 replaces that with:
    a refusal. Refusal is a system-fatal condition: the payload contains data
    that never should have reached this function, and continuing risks a leak.
 
-Actual redaction rules (name/email/phone scrubbing, per-role allowlists,
-truncation) land in Phase B when the first prompt is written. The
-`_transform` hook below is where they will attach; for A6 it's an identity.
+5. **Unconditional redaction** (added in the B5 hardening slice, closing gate
+   finding C1). A6 left `_transform` as an identity and deferred real redaction
+   to "Phase B, when the first prompt is written." Phase B then shipped a
+   prompt, two production call sites, and a pasted-text path without it, so
+   D7 M5's "redacts contact names to role tokens" and D8's "structurally
+   cannot send identifiable person information to a third-party LLM" were
+   both describing behavior that did not exist. `_transform` now rewrites
+   every personal-data-shaped span using the same pattern definitions as the
+   pre-commit scanner (`jscc/personal_data.py`), before the HMAC is computed.
+
+   The scope of that guarantee is stated narrowly and deliberately in
+   `personal_data.py`: structured identifiers and known names, not arbitrary
+   free-text name detection.
 
 See ADR-005 for the design record and rejected alternatives.
 """
@@ -41,9 +51,11 @@ import hashlib
 import hmac
 import json
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
+
+from .personal_data import default_danger_terms, redact
 
 # Process-scoped secret. Generated once per Python process; not persisted.
 # A SanitizedPayload authenticated under one process's secret will not
@@ -105,30 +117,86 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _transform(payload: dict[str, Any]) -> dict[str, Any]:
-    """Attach point for Phase B redaction rules. A6 was identity via `dict(payload)`,
-    but that was a shallow copy: nested lists / dicts inside the payload stayed
-    aliased to the caller's references. A caller that retained a handle to a
-    nested container could mutate it between `verify()` and the LLM send — the
-    authenticator would still match at verify time, but the bytes on the wire
-    would be whatever the caller wrote last. That was M-sanitizer-toctou-1 in
-    the A10 review.
+# Payload keys holding application-authored control values rather than user
+# content. `model` is excluded from redaction because model ids carry a
+# date-shaped digit run that the phone heuristic matches — redacting it would
+# rewrite the model name and break the call, and it is never user content.
+# (Same false-positive class documented in `llm_client.py`.) Deliberately as
+# small as possible: `system` is app-authored too but is left in scope, since
+# redacting it is a no-op today and a carve-out is how holes start.
+_CONTROL_KEYS = frozenset({"model"})
 
-    Snapshot the payload through the same canonical JSON both HMAC input and
-    `verify` use. This deep-copies every container, coerces to JSON-native
-    types up front, and forbids sharing any mutable object with the caller.
-    Any downstream mutation of the caller's original dict is now invisible
-    to `SanitizedPayload.data`.
+
+def _redact_tree(value: Any, key: str | None, danger_terms: list[str],
+                 name_roles: Mapping[str, str] | None) -> Any:
+    """Walk a JSON-native snapshot, rewriting every in-scope string."""
+    if isinstance(value, dict):
+        return {
+            k: _redact_tree(v, k, danger_terms, name_roles) for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_tree(v, key, danger_terms, name_roles) for v in value]
+    if isinstance(value, str) and key not in _CONTROL_KEYS:
+        return redact(value, danger_terms=danger_terms, name_roles=name_roles)
+    return value
+
+
+def _transform(
+    payload: dict[str, Any], name_roles: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Snapshot the payload, then redact it (D7 M5).
+
+    **Snapshot.** A6 was identity via `dict(payload)`, but that was a shallow
+    copy: nested lists / dicts stayed aliased to the caller's references, so a
+    caller holding a nested container could mutate it between `verify()` and
+    the LLM send — the authenticator would still match at verify time, but the
+    bytes on the wire would be whatever the caller wrote last. That was
+    M-sanitizer-toctou-1 in the A10 review. Routing through the same canonical
+    JSON that the HMAC and `verify` use deep-copies every container and
+    forbids sharing any mutable object with the caller.
+
+    **Redact.** Until the B5 hardening slice this function stopped at the
+    snapshot, so D7 M5's "redacts contact names to role tokens" and D8's
+    "structurally cannot send identifiable person information" described
+    behavior that did not exist — finding C1 of the Phase B gate. Redaction
+    now runs on every string in the payload, using the same pattern
+    definitions as the pre-commit scanner (`jscc/personal_data.py`).
+
+    Redaction is **unconditional**. It does not consult `contains_personal`,
+    and no caller can opt out. That is the difference between structural and
+    disciplinary: the guarantee must not depend on an upstream builder setting
+    a flag correctly, because `extract_jd` hardcodes that flag to False and a
+    pasted JD from a recruiter's email is exactly the case it would miss.
+
+    Redaction runs *before* the authenticator is computed, so the HMAC covers
+    the redacted bytes and there is no path that ships the original text.
     """
-    return json.loads(_stable_json(payload))
+    snapshot = json.loads(_stable_json(payload))
+    return _redact_tree(snapshot, None, default_danger_terms(), name_roles)
 
 
-def sanitize_for_llm(payload: dict[str, Any]) -> SanitizedPayload:
-    """Return an authenticated `SanitizedPayload` for LLM consumption.
+def sanitize_for_llm(
+    payload: dict[str, Any], *, name_roles: Mapping[str, str] | None = None
+) -> SanitizedPayload:
+    """Return an authenticated, redacted `SanitizedPayload` for LLM consumption.
 
-    Refuses (raises `SanitizerRefusal`) when the input payload has any truthy
-    `contains_personal` flag. Passes the payload through `_transform` (A6:
-    identity; Phase B: real redaction rules) and stamps a per-process HMAC.
+    Two independent protections, in this order:
+
+    1. **Refusal** — raises `SanitizerRefusal` on any truthy `contains_personal`
+       flag. An explicit upstream signal that the payload should never have
+       been built.
+    2. **Redaction** — `_transform` rewrites every personal-data-shaped span it
+       can detect, unconditionally, whether or not the flag was set.
+
+    (2) is the structural one. (1) depends on an upstream builder being right;
+    (2) does not, which is why it does not consult the flag.
+
+    `name_roles` is an optional mapping of known contact names to their roles
+    (e.g. `{"Dana Reyes": "recruiter"}` -> `[contact:recruiter]`). Callers that
+    hold contact records — Phase D's drafter — pass it to get D7 M5's role-token
+    substitution. Omitting it weakens nothing that the pattern rules already
+    cover; it only means unknown names in free prose stay as written, which is
+    the documented boundary in `personal_data.py`.
     """
     if not isinstance(payload, dict):
         raise TypeError(f"payload must be a dict, got {type(payload).__name__}")
@@ -139,7 +207,7 @@ def sanitize_for_llm(payload: dict[str, Any]) -> SanitizedPayload:
             "sending to the sanitizer (D7 M5, D8)."
         )
 
-    transformed = _transform(payload)
+    transformed = _transform(payload, name_roles)
     stamped_at = _utcnow_iso()
     auth = _compute_authenticator(transformed, stamped_at)
     return SanitizedPayload(data=transformed, sanitized_at=stamped_at, authenticator=auth)

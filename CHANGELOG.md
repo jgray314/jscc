@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### B5 — sanitizer redaction (Phase B gate finding C1)
+
+The Phase B → C gate opened with an adversarial finding against the project's headline safety claim, and this closes it.
+
+**The finding.** `sanitizer.py`'s `_transform` had been an identity snapshot since A6, deferring real redaction to "Phase B, when the first prompt is written." Phase B then shipped a prompt (B2a), two production call sites (B3a), and an arbitrary-pasted-text path (B4) without it. Meanwhile D7 M5 claimed the sanitizer "redacts contact names to role tokens" and D8 claimed the tool "structurally cannot send identifiable person information to a third-party LLM." Neither was true of the code. Demonstrated concretely: a string carrying a name, email address, and phone number was *blocked from git* by the D7 M3 pre-commit scanner and *forwarded verbatim to the LLM* by the D7 M5 sanitizer. Two mitigations named in the same principle, disagreeing completely about what counts as personal data.
+
+**The fix is one definition, two enforcement points.**
+
+- `jscc/personal_data.py` (new): the email/phone patterns, the digit-count filter, danger-list loading, a `find_personal()` detection half and a `redact()` rewrite half. `scripts/precommit_scan.py` now imports its rules from here instead of holding a second copy — the same single-sourcing that closed H-precommit-changelog-1 in A10, applied to the rules themselves rather than the exclude list. Adding a term to `.safety/danger-list.local.txt` now blocks it from both git and LLM traffic with one edit.
+- `_transform` snapshots as before (the M-sanitizer-toctou-1 deep-copy is unchanged), then redacts every string in the payload. Redaction runs **before** the authenticator is computed, so the HMAC covers the redacted bytes and no verified path can carry the original text.
+- Redaction is **unconditional** — it does not consult `contains_personal` and no caller can opt out. That flag is hardcoded `False` by `extract_jd`, so anything depending on it was disciplinary, not structural. `SanitizerRefusal` remains as a second, independent protection for callers that *do* flag a payload.
+- `sanitize_for_llm(payload, *, name_roles=...)` gives D7 M5's literal role-token substitution (`{"Dana Reyes": "recruiter"}` → `[contact:recruiter]`) to callers holding contact records — Phase D's drafter. Omitting it changes nothing the pattern rules already cover.
+- `model` is the single control key excluded from redaction: model ids carry a date-shaped digit run the phone heuristic matches, and rewriting it would break the call with an unroutable model name. A regression test pins this.
+
+**Scope, stated honestly.** This removes structured identifiers, danger-list literals, and supplied contact names. It does *not* do free-text NER — an unfamiliar name in pasted prose, with nothing else to key on, is not detected. D8 and `personal_data.py` now say so explicitly rather than implying a broader guarantee. An overstated safety claim is worse than a narrow one.
+
+Local storage is deliberately untouched: D7 governs egress, not the user's own records.
+
+- 26 new pytest cases (229 total): 18 in `tests/test_personal_data.py` (each redaction class, email-before-phone ordering, ISO dates surviving the digit filter, idempotence, danger-list and name-role substitution, and a property test that anything the scanner flags, `redact()` removes), 8 in `tests/test_sanitizer.py` (the C1 paste scenario end-to-end, redaction despite `contains_personal: False`, HMAC covering redacted bytes, nested containers, model-id preservation).
+
 ### B4 — JD paste-only path
 Per D6, this is the escape hatch for any site the fetcher can't crack at all — no URL, no fetch attempt, no DLQ detour, just pasted JD text straight to extraction and storage.
 

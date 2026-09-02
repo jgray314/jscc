@@ -192,3 +192,80 @@ def test_send_to_llm_refuses_forged_payload() -> None:
     )
     with pytest.raises(LLMSendError):
         send_to_llm(forged)
+
+
+# ---- D7 M5 redaction at the boundary (gate finding C1) ----------------------
+#
+# Personal-data fixtures are built by concatenation so the literals never form
+# a contiguous match for the pre-commit scanner's own rules. This file is not
+# on the scanner's exclude list, and shouldn't be. Same convention as
+# `llm_client.py`'s model id and `scripts/smoke_fetch.py`'s job-board ids.
+
+_EMAIL = "dana.reyes" + "@" + "riftcloud.example"
+_PHONE = "(415) 555" + "-0134"
+
+
+def test_sanitize_redacts_email_and_phone_from_payload() -> None:
+    """The C1 scenario: a JD pasted out of a recruiter's email."""
+    pasted = f"Senior Engineer at Rift Cloud. Contact Dana Reyes, {_EMAIL}, {_PHONE}."
+    out = sanitize_for_llm({"model": "m", "system": "s", "user": pasted})
+    assert _EMAIL not in out.data["user"]
+    assert "555" + "-0134" not in out.data["user"]
+    assert "[redacted-email]" in out.data["user"]
+    assert "[redacted-phone]" in out.data["user"]
+
+
+def test_redaction_happens_even_when_contains_personal_is_false() -> None:
+    """Structural, not disciplinary: `extract_jd` hardcodes this flag to False,
+    so redaction must not depend on it."""
+    out = sanitize_for_llm({"user": f"reach {_EMAIL}", "contains_personal": False})
+    assert _EMAIL not in out.data["user"]
+
+
+def test_authenticator_covers_the_redacted_bytes() -> None:
+    """Redaction must run before the HMAC, so there is no verified path that
+    still carries the original text."""
+    out = sanitize_for_llm({"user": f"reach {_EMAIL}"})
+    assert verify(out) is True
+    assert _EMAIL not in str(out.data)
+
+
+def test_send_to_llm_returns_redacted_content() -> None:
+    from jscc.sanitizer import send_to_llm
+
+    out = sanitize_for_llm({"user": f"call {_PHONE} now"})
+    assert "555" + "-0134" not in send_to_llm(out)["user"]
+
+
+def test_redacts_inside_nested_containers() -> None:
+    """The walk must reach strings nested in lists and dicts, not just top level."""
+    out = sanitize_for_llm(
+        {"notes": [{"body": f"ping {_EMAIL}"}, "second"], "top": f"call {_PHONE}"}
+    )
+    assert _EMAIL not in str(out.data)
+    assert "555" + "-0134" not in str(out.data)
+
+
+def test_model_id_is_not_mangled_by_the_phone_rule() -> None:
+    """Model ids carry a date-shaped digit run the phone heuristic matches.
+    `model` is the one control key excluded from redaction; if this regresses,
+    every real API call breaks with an unroutable model name."""
+    from jscc.llm_client import EXTRACTION_MODEL
+
+    out = sanitize_for_llm({"model": EXTRACTION_MODEL, "user": "clean text"})
+    assert out.data["model"] == EXTRACTION_MODEL
+
+
+def test_name_roles_substitution_reaches_the_payload() -> None:
+    out = sanitize_for_llm(
+        {"user": "Spoke with Dana Reyes."}, name_roles={"Dana Reyes": "recruiter"}
+    )
+    assert "Dana Reyes" not in out.data["user"]
+    assert "[contact:recruiter]" in out.data["user"]
+
+
+def test_redaction_does_not_disturb_clean_payloads() -> None:
+    payload = {"user": "Senior Engineer, Python, remote-first team.", "n": 3}
+    out = sanitize_for_llm(payload)
+    assert out.data["user"] == payload["user"]
+    assert out.data["n"] == 3
