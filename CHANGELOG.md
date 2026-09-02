@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### B5 — Phase B gate hardening (findings C1, H1)
+### B5 — Phase B gate hardening (findings C1, H1, H2, M1, M3)
 
-The Phase B → C two-lens gate opened with an adversarial finding against the project's headline safety claim, plus a confirmed crash in the fetch path. This closes both.
+Hardening slice from the Phase B → C two-lens gate, run ahead of B2b's live prompt iteration. C1 and H1 were the critical/high findings; H2, M1 and M3 are the three that would have distorted prompt iteration itself, so they land before that work rather than after it.
 
 **The finding.** `sanitizer.py`'s `_transform` had been an identity snapshot since A6, deferring real redaction to "Phase B, when the first prompt is written." Phase B then shipped a prompt (B2a), two production call sites (B3a), and an arbitrary-pasted-text path (B4) without it. Meanwhile D7 M5 claimed the sanitizer "redacts contact names to role tokens" and D8 claimed the tool "structurally cannot send identifiable person information to a third-party LLM." Neither was true of the code. Demonstrated concretely: a string carrying a name, email address, and phone number was *blocked from git* by the D7 M3 pre-commit scanner and *forwarded verbatim to the LLM* by the D7 M5 sanitizer. Two mitigations named in the same principle, disagreeing completely about what counts as personal data.
 
@@ -24,7 +24,13 @@ Local storage is deliberately untouched: D7 governs egress, not the user's own r
 
 Six regression tests, including a CLI-level one that drives the *real* fetcher through a mocked transport. The pre-existing `test_ingest_never_crashes_on_fetch_exception_shaped_failure` mocks `fetch_jd` itself, so it only ever proved the CLI handles a `FetchResult` — that gap is how this shipped. It has been renamed and re-docstringed to say which half of the DoD it covers.
 
-- 32 new pytest cases (235 total): 18 in `tests/test_personal_data.py` (each redaction class, email-before-phone ordering, ISO dates surviving the digit filter, idempotence, danger-list and name-role substitution, and a property test that anything the scanner flags, `redact()` removes), 8 in `tests/test_sanitizer.py` (the C1 paste scenario end-to-end, redaction despite `contains_personal: False`, HMAC covering redacted bytes, nested containers, model-id preservation).
+**H2 — the eval suite didn't grade `title` or `location`.** Both are specified by all 15 cases in `cases.json`, and the harness read those expectations and dropped them, because neither field appeared in any graded-field tuple. `title` is the only extracted field with a production consumer (`cli.py` names the Application with it), so the suite was not grading the one field the product reads. Each field now has the comparison rule its content warrants: `title` by normalized match (strict on wording, forgiving of case and whitespace); `location` by presence plus containment, so a remote role yielding null still fails but `"Denver"` vs `"Denver, CO"` passes while `"Denver"` vs `"Seattle"` fails; `must_have_skills` set-compared after normalization, so casing stops mattering but `"Postgres"` vs `"PostgreSQL"` still fails. A `_GRADED_FIELDS` tuple plus a test asserting it covers every `ExtractedJD` field means a field added later cannot be silently ignored the way these two were.
+
+**M3 — the eval harness graded safety failures as prompt failures.** `run_jd_extraction_evals` caught bare `Exception`, so a `SanitizerRefusal` or `LLMSendError` across all 15 cases reported as a routine `0/15 passed` — indistinguishable from a bad prompt, and directly against `sanitizer.py`'s instruction that callers must not catch and continue. Both now propagate and abort the run; ordinary extraction errors still grade as failed cases.
+
+**M1 — eval runs bypassed instrumentation entirely.** The eval command called `extract_jd` without a connection, on the reasoning that eval runs measure prompt quality rather than production cost. True, but it made prompt iteration the one phase with no cost record, while D5 claimed every LLM call was instrumented and D7 promised budget caps enforced through that instrumentation. `eval jd_extraction` now takes `--data-dir` and meters to the ledger under a separate `extraction_eval` feature, so iteration spend shows up in `jscc costs` without polluting the per-application figure. An unknown feature label raises rather than creating a phantom ledger category. D5 now states its real scope: CLI calls are instrumented, and the conn-less library path cannot be, because there is no ledger to write to.
+
+- 46 new pytest cases (249 total): 18 in `tests/test_personal_data.py` (each redaction class, email-before-phone ordering, ISO dates surviving the digit filter, idempotence, danger-list and name-role substitution, and a property test that anything the scanner flags, `redact()` removes), 8 in `tests/test_sanitizer.py` (the C1 paste scenario end-to-end, redaction despite `contains_personal: False`, HMAC covering redacted bytes, nested containers, model-id preservation).
 
 ### B4 — JD paste-only path
 Per D6, this is the escape hatch for any site the fetcher can't crack at all — no URL, no fetch attempt, no DLQ detour, just pasted JD text straight to extraction and storage.

@@ -617,3 +617,74 @@ def test_resolve_dlq_unknown_id_exits_nonzero(
         ],
     )
     assert result.exit_code != 0
+
+
+# ---- eval runs are metered (gate finding M1) --------------------------------
+
+
+def test_eval_command_records_calls_under_its_own_feature_label(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M1: the eval command used to call extract_jd without a conn, so prompt
+    iteration — the most token-hungry phase — was the one phase with no cost
+    record, while D5 claimed every LLM call was instrumented."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1, result.output  # stub fails every case, as expected
+    assert "0/15 passed" in result.output
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    calls = list_llm_calls(conn)
+    conn.close()
+
+    assert len(calls) == 15, "one ledger row per eval case"
+    assert {c.feature for c in calls} == {"extraction_eval"}
+
+
+def test_ingest_and_eval_traffic_stay_separable_in_the_ledger(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`jscc costs` is a portfolio artifact — eval spend must not inflate the
+    per-application figure."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
+    )
+    runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
+    )
+    runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    features = [c.feature for c in list_llm_calls(conn)]
+    conn.close()
+
+    assert features.count("extraction") == 1
+    assert features.count("extraction_eval") == 15
+
+
+def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
+    """A typo'd label must not silently create a phantom feature in the ledger."""
+    from jscc.extraction import extract_jd
+    from jscc.mode import Mode
+    from jscc.storage import open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        with pytest.raises(ValueError, match="unknown instrumentation feature"):
+            extract_jd("some jd text", conn=conn, feature="typo")
+    finally:
+        conn.close()

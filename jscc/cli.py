@@ -16,7 +16,7 @@ from .config import (
     resolve_profile_path,
 )
 from .evals import format_eval_summary, run_jd_extraction_evals
-from .extraction import extract_jd
+from .extraction import EXTRACTION_EVAL_FEATURE, extract_jd
 from .fetcher import fetch_jd
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import Application, DLQEntry, Resolution
@@ -298,13 +298,33 @@ def eval_group() -> None:
 
 
 @eval_group.command("jd_extraction")
-def eval_jd_extraction() -> None:
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
+)
+def eval_jd_extraction(data_dir: Path) -> None:
     """Run the JD-extraction eval suite against the current `extract_jd`.
 
-    Exits non-zero if any case fails, so it can gate CI once Slice B2 lands
-    a real prompt. Expected to fail every case until then (Slice B1 stub).
+    Exits non-zero if any case fails, so it can gate CI once B2b lands an
+    iterated prompt. Expected to fail every case against the stub client.
+
+    Calls are recorded to the `llm_calls` ledger under the `extraction_eval`
+    feature (D5), separate from production `extraction` traffic so prompt
+    iteration shows up in `jscc costs` without inflating per-application
+    cost. Gate finding M1 — this command previously bypassed instrumentation
+    entirely, leaving the most token-hungry phase of the project unmetered.
     """
-    summary = run_jd_extraction_evals(extract_jd)
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        summary = run_jd_extraction_evals(
+            lambda raw: extract_jd(raw, conn=conn, feature=EXTRACTION_EVAL_FEATURE)
+        )
+    finally:
+        conn.close()
     click.echo(format_eval_summary(summary))
     if summary.passed < summary.total:
         sys.exit(1)

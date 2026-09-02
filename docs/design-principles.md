@@ -24,6 +24,8 @@ BYOK live demos are deferred. The build story carries the signal; a hosted servi
 
 Every LLM call is instrumented from day one, via a decorator. Ledger and reporting come later (Phase C), but the data is captured from the first call. Retrofit-later would produce sparse data.
 
+**Scope, stated precisely.** Every call made through a CLI command is instrumented — `ingest` and `resolve-dlq` under the `extraction` feature, `eval jd_extraction` under `extraction_eval`. Eval traffic is labelled separately so prompt iteration is visible in `jscc costs` without inflating the per-application cost figure. The library API also permits a call with no database connection, for tests and embedded callers; that path cannot record, because there is no ledger to record to. Until the B5 hardening slice the eval command used that path, which left prompt iteration — the most token-hungry phase of the project — as the one phase with no cost record (gate finding M1).
+
 ## D6 — JD fetching is a real product problem
 
 Multi-strategy fetcher plus a dead-letter-queue for manual resurrection when a fetch fails. JD ingestion is not a happy-path assumption.

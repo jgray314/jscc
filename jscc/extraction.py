@@ -58,8 +58,7 @@ def _parse_response(text: str) -> ExtractedJD:
         raise ExtractionParseError(f"extraction response did not match ExtractedJD: {e}") from e
 
 
-@instrumented("extraction")
-def _extraction_call(
+def _raw_extraction_call(
     conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
 ) -> LLMResult:
     response = client.complete(model=model, system=system, user=prompt)
@@ -71,19 +70,48 @@ def _extraction_call(
     )
 
 
+# One pre-decorated variant per ledger feature. `@instrumented` fixes its label
+# at decoration time, so separating production traffic from eval traffic means
+# two wrappers over the same call, not a dynamic label. Keeping them apart
+# matters because `jscc costs` is a portfolio artifact (D5/C3) — prompt
+# iteration would otherwise inflate the per-application cost figure with runs
+# that never produced an application.
+EXTRACTION_FEATURE = "extraction"
+EXTRACTION_EVAL_FEATURE = "extraction_eval"
+
+_CALL_BY_FEATURE = {
+    EXTRACTION_FEATURE: instrumented(EXTRACTION_FEATURE)(_raw_extraction_call),
+    EXTRACTION_EVAL_FEATURE: instrumented(EXTRACTION_EVAL_FEATURE)(_raw_extraction_call),
+}
+
+
 def extract_jd(
     raw_text: str,
     *,
     conn: sqlite3.Connection | None = None,
     client: LLMClient | None = None,
+    feature: str = EXTRACTION_FEATURE,
 ) -> ExtractedJD:
     """Extract structured fields from a raw JD.
 
     `conn`, when passed, records the call to the `llm_calls` ledger (D5) via
-    `@instrumented`. The eval harness calls this without a `conn` — eval runs
-    measure prompt quality, not production cost, and there's no application
-    DB in that context. Real production call sites (the future `ingest`
-    command, Slice B3/B4) will always pass a `conn`.
+    `@instrumented`, under `feature`. Every CLI path supplies one — `ingest`
+    and `resolve-dlq` as `extraction`, `eval jd_extraction` as
+    `extraction_eval`.
+
+    Gate finding M1: the eval command used to call without a `conn` on the
+    reasoning that eval runs measure prompt quality, not production cost.
+    True, but it made prompt iteration — the phase that burns the most
+    tokens — the one phase with no cost record, while D5 claimed every LLM
+    call was instrumented and D7 promised budget caps enforced through that
+    same instrumentation. Eval runs are now metered under their own feature
+    label so they show up in `jscc costs` without polluting the
+    per-application figure.
+
+    The conn-less path remains for library and test callers, which have no
+    ledger to write to. That is the honest scope of D5's claim: calls made
+    through a CLI command are instrumented; an embedded caller that supplies
+    no database cannot be.
     """
     client = client or default_client()
 
@@ -105,7 +133,14 @@ def extract_jd(
     verified = send_to_llm(sanitized)
 
     if conn is not None:
-        return _extraction_call(
+        try:
+            call = _CALL_BY_FEATURE[feature]
+        except KeyError:
+            raise ValueError(
+                f"unknown instrumentation feature {feature!r}; "
+                f"expected one of {sorted(_CALL_BY_FEATURE)}"
+            ) from None
+        return call(
             conn, verified["model"], verified["user"], client=client, system=verified["system"]
         )
     response = client.complete(model=verified["model"], system=verified["system"], user=verified["user"])

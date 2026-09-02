@@ -16,17 +16,47 @@ from typing import Any, Callable
 from pydantic import BaseModel
 
 from .models import ExtractedJD
+from .sanitizer import LLMSendError, SanitizerRefusal
 
 JD_EXTRACTION_CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "jd_extraction" / "cases.json"
 
-# Structural fields graded by comparison rule. "level", "remote_policy" are
-# exact-match; "must_have_skills" is set-equality (order shouldn't matter);
-# "comp_band" is presence-only (exact dollar figures are too brittle to pin
-# a prompt to, per the eval strategy doc).
+# Structural fields, each with the comparison rule its content actually
+# warrants. Gate finding H2: `title` and `location` were absent from every
+# tuple below, so the harness read their expectations out of `cases.json`
+# (all 15 cases specify both) and silently dropped them. `title` is the only
+# extracted field with a production consumer -- `cli.py` uses it to name the
+# Application -- so the eval suite was not grading the one field the product
+# reads.
+#
+#   level, remote_policy  -- closed vocabularies, exact match
+#   title                 -- normalized match: strict on content, forgiving
+#                            on case and whitespace, which are formatting
+#                            noise rather than extraction errors
+#   must_have_skills      -- set equality over normalized strings, so order
+#                            and casing don't matter but wording still does
+#                            ("Postgres" vs "PostgreSQL" should fail; that's
+#                            a real difference to pin a prompt on)
+#   comp_band             -- presence only; exact dollar figures are too
+#                            brittle to pin a prompt to (eval strategy doc)
+#   location              -- presence, plus containment when both are present.
+#                            Presence carries real signal (a remote-only role
+#                            should yield null), but "Denver" vs "Denver, CO"
+#                            is not an extraction failure while "Denver" vs
+#                            "Seattle" is -- containment separates the two.
 _EXACT_FIELDS = ("level", "remote_policy")
+_NORMALIZED_FIELDS = ("title",)
 _SET_FIELDS = ("must_have_skills",)
 _PRESENCE_FIELDS = ("comp_band",)
+_LOCATION_FIELDS = ("location",)
 _PROSE_FIELDS = ("responsibilities_summary",)
+
+_GRADED_FIELDS = (
+    *_EXACT_FIELDS,
+    *_NORMALIZED_FIELDS,
+    *_SET_FIELDS,
+    *_PRESENCE_FIELDS,
+    *_LOCATION_FIELDS,
+)
 
 
 class EvalCase(BaseModel):
@@ -63,25 +93,41 @@ def load_cases(path: Path = JD_EXTRACTION_CASES_PATH) -> list[EvalCase]:
     return [EvalCase(**item) for item in raw]
 
 
+def _normalize(value: Any) -> str:
+    """Casefold and collapse whitespace. Formatting noise, not content."""
+    return " ".join(str(value).split()).casefold()
+
+
 def _grade_field(field: str, expected: Any, actual: Any) -> FieldDiff | None:
+    diff = FieldDiff(field=field, expected=expected, actual=actual)
+
     if field in _PRESENCE_FIELDS:
+        return diff if (expected is None) != (actual is None) else None
+
+    if field in _LOCATION_FIELDS:
         if (expected is None) != (actual is None):
-            return FieldDiff(field=field, expected=expected, actual=actual)
-        return None
+            return diff
+        if expected is None:
+            return None
+        exp, act = _normalize(expected), _normalize(actual)
+        return None if (exp in act or act in exp) else diff
+
     if field in _SET_FIELDS:
-        if set(expected or []) != set(actual or []):
-            return FieldDiff(field=field, expected=expected, actual=actual)
-        return None
+        exp_set = {_normalize(v) for v in (expected or [])}
+        act_set = {_normalize(v) for v in (actual or [])}
+        return diff if exp_set != act_set else None
+
+    if field in _NORMALIZED_FIELDS:
+        return diff if _normalize(expected) != _normalize(actual) else None
+
     # exact fields
-    if expected != actual:
-        return FieldDiff(field=field, expected=expected, actual=actual)
-    return None
+    return diff if expected != actual else None
 
 
 def grade_extraction(case: EvalCase, extracted: ExtractedJD) -> EvalCaseResult:
     actual = extracted.model_dump()
     diffs: list[FieldDiff] = []
-    for field in (*_EXACT_FIELDS, *_SET_FIELDS, *_PRESENCE_FIELDS):
+    for field in _GRADED_FIELDS:
         diff = _grade_field(field, case.expected.get(field), actual.get(field))
         if diff is not None:
             diffs.append(diff)
@@ -102,6 +148,15 @@ def run_jd_extraction_evals(
     for case in cases:
         try:
             extracted = extract_fn(case.raw_jd)
+        except (SanitizerRefusal, LLMSendError):
+            # Gate finding M3: these are D7/D8 boundary failures, not prompt
+            # quality signals. The generic handler below used to fold them
+            # into the pass/fail count, so a sanitizer refusal across all 15
+            # cases reported as a routine `0/15 passed` -- indistinguishable
+            # from a bad prompt, and directly against `sanitizer.py`'s own
+            # instruction that callers must not catch and continue. A safety
+            # failure during an eval run has to stop the run.
+            raise
         except Exception as e:  # extractor stub, prompt bugs, etc. — all count as a failed case
             results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
             continue

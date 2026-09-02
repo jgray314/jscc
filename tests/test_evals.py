@@ -122,3 +122,111 @@ def test_format_eval_summary_reports_pass_and_fail() -> None:
     text = format_eval_summary(summary)
     assert "0/15 passed" in text
     assert "[FAIL]" in text
+
+
+# ---- title + location grading (gate finding H2) ------------------------------
+#
+# Both fields are specified by all 15 cases in cases.json but were absent from
+# every graded-field tuple, so the harness read the expectations and dropped
+# them. `title` is the only extracted field with a production consumer.
+
+
+def test_title_mismatch_fails() -> None:
+    result = grade_extraction(
+        _case(title="Senior Backend Engineer"), _extracted(title="Staff Frontend Engineer")
+    )
+    assert not result.passed
+    assert any(d.field == "title" for d in result.diffs)
+
+
+def test_title_ignores_case_and_whitespace_noise() -> None:
+    """Formatting variance is not an extraction error; wording still is."""
+    result = grade_extraction(
+        _case(title="Senior Backend Engineer"),
+        _extracted(title="  senior   backend engineer "),
+    )
+    assert result.passed, result.diffs
+
+
+def test_location_presence_mismatch_fails() -> None:
+    """A remote-only role should yield null — presence carries real signal."""
+    result = grade_extraction(_case(location=None), _extracted(location="Austin, TX"))
+    assert not result.passed
+    assert any(d.field == "location" for d in result.diffs)
+
+
+def test_location_missing_when_expected_fails() -> None:
+    result = grade_extraction(_case(location="Austin, TX"), _extracted(location=None))
+    assert not result.passed
+
+
+def test_location_wrong_city_fails() -> None:
+    result = grade_extraction(_case(location="Denver"), _extracted(location="Seattle, WA"))
+    assert not result.passed
+
+
+def test_location_accepts_a_more_specific_answer() -> None:
+    """"Denver" vs "Denver, CO" is not an extraction failure."""
+    result = grade_extraction(_case(location="Denver"), _extracted(location="Denver, CO"))
+    assert result.passed, result.diffs
+
+
+def test_skills_set_ignores_casing_but_not_wording() -> None:
+    ok = grade_extraction(
+        _case(must_have_skills=["Python", "PostgreSQL"]),
+        _extracted(must_have_skills=["python", "postgresql"]),
+    )
+    assert ok.passed, ok.diffs
+
+    bad = grade_extraction(
+        _case(must_have_skills=["Python", "PostgreSQL"]),
+        _extracted(must_have_skills=["Python", "Postgres"]),
+    )
+    assert not bad.passed
+
+
+def test_every_extracted_jd_field_is_graded_or_explicitly_prose() -> None:
+    """Guards the H2 class of bug generally: a field added to ExtractedJD
+    later must be given a rule, not silently ignored."""
+    from jscc.evals import _GRADED_FIELDS, _PROSE_FIELDS
+
+    covered = set(_GRADED_FIELDS) | set(_PROSE_FIELDS)
+    assert set(ExtractedJD.model_fields) == covered
+
+
+# ---- safety exceptions must not be graded away (gate finding M3) -------------
+
+
+def test_sanitizer_refusal_propagates_instead_of_counting_as_a_failed_case() -> None:
+    import pytest
+
+    from jscc.sanitizer import SanitizerRefusal
+
+    def refusing(raw_text: str) -> ExtractedJD:
+        raise SanitizerRefusal("payload flagged contains_personal")
+
+    with pytest.raises(SanitizerRefusal):
+        run_jd_extraction_evals(refusing)
+
+
+def test_llm_send_error_propagates() -> None:
+    import pytest
+
+    from jscc.sanitizer import LLMSendError
+
+    def failing(raw_text: str) -> ExtractedJD:
+        raise LLMSendError("verify() failed at the send boundary")
+
+    with pytest.raises(LLMSendError):
+        run_jd_extraction_evals(failing)
+
+
+def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
+    """Only the D7/D8 boundary exceptions escape — prompt bugs still grade."""
+    def broken(raw_text: str) -> ExtractedJD:
+        raise ValueError("model returned nonsense")
+
+    summary = run_jd_extraction_evals(broken)
+    assert summary.total == 15
+    assert summary.passed == 0
+    assert all(r.error for r in summary.results)
