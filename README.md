@@ -2,17 +2,17 @@
 
 [![ci](https://github.com/jgray314/jscc/actions/workflows/ci.yml/badge.svg)](https://github.com/jgray314/jscc/actions/workflows/ci.yml)
 
-A pipeline tracker for a real job search. Ingests job descriptions, scores fit against a profile, drafts follow-ups for routine cases only, and surfaces stale opportunities. The eval-gated LLM stages ship in Phase B.
+A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, stores them, and surfaces stale opportunities. Fit scoring and the follow-up drafter are specified and not built — see [Status](#status) for the line between the two.
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) is complete; Phase B (evals + first LLM stage) is next. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) is complete; Phase B (evals + the first LLM stage) is in flight. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
 ## Why this project
 
 Three ideas being demonstrated at once:
 
-1. **Eval-driven agent design.** Every LLM stage is behind an eval suite. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
+1. **Eval-driven agent design.** Every LLM stage ships behind an eval suite whose bar lives in code (`PASS_THRESHOLD = 0.80`), not in prose. One stage exists so far. Its suite is not yet a CI gate, for a reason worth stating rather than hiding: with no API key configured the suite runs against a stub client and fails every case, so gating today would gate on 0/15 instead of on the prompt. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
 2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, and two egress points that share one definition of "personal": a pre-commit scanner guarding git, and an authenticated, redacting sanitizer guarding every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). Redaction is unconditional and runs *before* the payload is authenticated, so no caller can opt out of it — including the ones that forget to. The guarantee's scope is stated narrowly and honestly in D8: structured identifiers and known names, not free-text NER.
-3. **Knowing when not to automate.** The drafter routes to a briefing card, not a prose draft, for anything non-routine ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)).
+3. **Knowing when not to automate.** A locked principle, not shipped code: the drafter will route anything non-routine to a briefing card rather than a prose draft ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)). Deciding where automation stops is the design work; it is specified and unbuilt, and saying so is more useful than implying otherwise.
 
 ## Quick start
 
@@ -21,14 +21,14 @@ uv sync
 uv run python -m jscc validate-config
 uv run python -m jscc db init
 uv run python -m jscc seed --random-seed 42 --now 2026-08-28T12:00:00+00:00
-uv run python -m jscc report
+uv run python -m jscc report --now 2026-08-28T12:00:00+00:00
 ```
 
 Default mode is `synthetic`. Switch by env: `JSCC_DATA=real`. The real DB (`data/real.db`) is gitignored; the synthetic one is tracked as a portfolio-visible fixture.
 
 ## Sample output
 
-`uv run python -m jscc report` after the seed above:
+`uv run python -m jscc report --now 2026-08-28T12:00:00+00:00` after the seed above, reproduced verbatim:
 
 ```
 [mode: synthetic]
@@ -50,10 +50,18 @@ Stale alerts (13)
   applied           Rift Cloud         Director of Engineering, ML  overdue by 19d (last interaction 33d ago, threshold 14d)
   identified        Timber Motors      Director of Engineering, ML  overdue by 13d (last interaction 20d ago, threshold 7d)
   applied           Pinnacle Search    Director of Engineering, ML  overdue by 7d (last interaction 21d ago, threshold 14d)
-  ...
+  identified        Meridian Payments  Engineering Manager, Growth  overdue by 4d (last interaction 11d ago, threshold 7d)
+  recruiter_screen  Ceres Analytics    Director of Engineering, ML  overdue by 3d (last interaction 10d ago, threshold 7d)
+  identified        Gale Networks      Engineering Manager, Reliability  overdue by 3d (last interaction 10d ago, threshold 7d)
+  hm_screen         Xenon Retail       Staff MLE, Foundations  overdue by 2d (last interaction 9d ago, threshold 7d)
+  applied           Falcon Ledger      Staff Software Engineer, Infra  overdue by 1d (last interaction 15d ago, threshold 14d)
+  applied           Orbit Media        Staff MLE, Foundations  overdue by 1d (last interaction 15d ago, threshold 14d)
+  identified        Quartz Signals     Engineering Manager, Reliability  overdue by 1d (last interaction 8d ago, threshold 7d)
+  applied           Bluewave Systems   Staff MLE, Foundations  overdue by 0d (last interaction 14d ago, threshold 14d)
+  identified        Juno Labs          Engineering Manager, Platform  overdue by 0d (last interaction 7d ago, threshold 7d)
 ```
 
-Bit-reproducible for a pinned `--random-seed` and `--now`.
+Bit-reproducible, but only because **both** halves are pinned. Funnel counts depend on stored state alone. The stale block is measured against a reference instant, so `report` takes `--now` as well as `seed` — read against the wall clock instead, the same database drifts by a day per day and the block above stops matching tomorrow.
 
 ## Repo layout
 
@@ -110,7 +118,13 @@ The pre-commit scanner refuses commits that match email/phone patterns or entrie
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 304 pytest cases.
+**Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B so far: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay.
+
+**Not built.** Fit scoring (Phase C), the drafter and its routing (Phase D). Both are specified in the design principles and neither exists in code.
+
+**Immediately next: B2b.** No `ANTHROPIC_API_KEY` is configured yet, so extraction runs end-to-end against a stub client. B2b is live prompt iteration to the ≥80% bar, which is also what makes the eval suite worth wiring into CI.
+
+304 pytest cases.
 
 ## License
 

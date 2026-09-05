@@ -1,6 +1,6 @@
 # Evals
 
-Three suites, one per LLM stage (D9: extraction and scoring are split; D10 adds routing and composition in Phase D). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
+One suite per LLM stage. One stage exists today — `jd_extraction`. Scoring arrives in Phase C (D9 splits extraction from scoring so facts and judgment regress independently) and routing/composition in Phase D (D10). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
 
 ## jd_extraction (Slice B1)
 

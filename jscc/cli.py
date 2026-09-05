@@ -171,6 +171,27 @@ def db_init(data_dir: Path) -> None:
     )
 
 
+def _parse_now(now_str: str | None) -> datetime | None:
+    """Parse a pinned `--now`, or None to mean the wall clock.
+
+    Shared by `seed` and `report` deliberately. A fixture pinned to one instant
+    and a report read at another produce output that cannot be compared, and
+    the two commands disagreeing on the flag's format is the easy way to end up
+    with exactly that.
+    """
+    if now_str is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(now_str)
+    except ValueError as e:
+        raise click.UsageError(f"--now is not a valid ISO-8601 timestamp: {e}")
+    if parsed.tzinfo is None:
+        raise click.UsageError(
+            "--now must include a timezone offset (e.g. 2026-08-28T12:00:00+00:00)"
+        )
+    return parsed
+
+
 @cli.command("seed")
 @click.option(
     "--synthetic",
@@ -235,16 +256,7 @@ def seed(
     if mode_flag != "synthetic":
         raise click.UsageError(f"unsupported seed mode: {mode_flag}")
 
-    now_pinned: datetime | None = None
-    if now_str is not None:
-        try:
-            now_pinned = datetime.fromisoformat(now_str)
-        except ValueError as e:
-            raise click.UsageError(f"--now is not a valid ISO-8601 timestamp: {e}")
-        if now_pinned.tzinfo is None:
-            raise click.UsageError(
-                "--now must include a timezone offset (e.g. 2026-08-28T12:00:00+00:00)"
-            )
+    now_pinned = _parse_now(now_str)
 
     conn = _open_or_exit(active_mode, data_dir)
     try:
@@ -276,9 +288,25 @@ def seed(
     show_default=True,
     help="Directory containing stages.yaml.",
 )
-def report(data_dir: Path, config_dir: Path) -> None:
-    """Print pipeline funnel counts and stale-alert list for the active mode."""
+@click.option(
+    "--now",
+    "now_str",
+    type=str,
+    default=None,
+    help=(
+        "Measure staleness against this instant (UTC ISO-8601) instead of the "
+        "wall clock. Needed to reproduce the stale block of a pinned seed."
+    ),
+)
+def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
+    """Print pipeline funnel counts and stale-alert list for the active mode.
+
+    Funnel counts depend only on stored state. The stale block does not -- it is
+    measured against `now`, so without `--now` it drifts by a day per day and a
+    sample pasted into a README stops matching the day after it was pasted.
+    """
     mode = _resolve_mode_or_exit()
+    now = _parse_now(now_str)
     stages_cfg = load_stages(config_dir / "stages.yaml")
     conn = _open_or_exit(mode, data_dir)
     try:
@@ -286,7 +314,7 @@ def report(data_dir: Path, config_dir: Path) -> None:
     finally:
         conn.close()
     counts = funnel_counts(apps, stages_cfg)
-    alerts = detect_stale(apps, stages_cfg)
+    alerts = detect_stale(apps, stages_cfg, now=now)
     click.echo(f"[mode: {mode.value}]")
     click.echo(format_report(counts, alerts, stages_cfg))
 
@@ -369,8 +397,10 @@ def eval_jd_extraction(
 ) -> None:
     """Run the JD-extraction eval suite against the current `extract_jd`.
 
-    Exits non-zero if any case fails, so it can gate CI once B2b lands an
-    iterated prompt. Expected to fail every case against the stub client.
+    Exits non-zero when the pass *rate* falls below `--min-pass-rate`, which
+    defaults to `PASS_THRESHOLD`. Not a CI gate yet: against the stub client
+    every case fails, so wiring it in today would gate on 0/15 rather than on
+    the prompt.
 
     Calls are recorded to the `llm_calls` ledger under the `extraction_eval`
     feature (D5), separate from production `extraction` traffic so prompt

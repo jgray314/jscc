@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Single source of truth for the safety-scanner exclude list.
 #
-# The scanner blocks name/email/phone patterns from being committed (D7 M3).
+# The scanner blocks email/phone patterns and danger-list literals from being
+# committed (D7 M3). There is no name *pattern* -- names are covered by literals
+# on the danger lists, not by a regex.
 # Files that legitimately hold digit runs, placeholder email shapes, or the
 # scanner's own regex source are excluded:
 #   - scripts/precommit_scan.py         — self-match on the regex docstring

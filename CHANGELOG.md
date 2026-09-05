@@ -7,6 +7,68 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B10 — the prose pass
+
+The walkthrough lens found that almost all the remaining damage was prose: the
+repo described a system slightly better than the one that exists. Five items,
+none of them subtle once a cold reader hits them.
+
+**The sample output did not reproduce, directly under the words
+"Bit-reproducible."** Funnel counts depend only on stored state; the stale block
+is measured against a reference instant, and `report` had no `--now`, so it read
+the wall clock and drifted a day per day. The reviewer ran the printed quick
+start and got different numbers — the likeliest first action anyone takes.
+
+Fixed by making the claim true rather than by qualifying it: `report` now takes
+`--now`, sharing one parser with `seed` so the two halves of the quick start
+cannot disagree about the format. With both pinned, the published block
+reproduces verbatim, and the README now prints all thirteen rows so it can be
+diffed rather than trusted. Three tests pin the exact published figures, assert
+the unpinned path still drifts, and check the shared parser rejects a naive
+timestamp from either command.
+
+**Present-tense claims for a drafter and a scorer that do not exist.** The
+opening line said the tool "scores fit" and "drafts follow-ups"; signal #3 of
+three described the drafter's routing behaviour in the present tense. Both are
+design, not system. Restated as the locked principles they are, and `Status`
+now has an explicit **Not built** paragraph. The reviewer's read is the right
+one: stating a principle with the code unbuilt reads *more* senior, not less.
+
+**README status contradicted itself in the first screenful.** L5 and L7 said
+Phase B was *next* while L113 listed five shipped Phase B slices. This had been
+recorded once already, at a different line, and fixed there only — a finding can
+be closed at the location it was reported and still be live everywhere else.
+
+**Sanitizer docstrings still described Phase A.** The file a reviewer opens to
+check the headline safety claim opened *"Phase A6 hardened skeleton"* and said
+*"Phase B will replace the return with a real LLM call."* Phase B shipped, and
+it did not do that: `send_to_llm` stayed a verification gate and the network
+call went to `llm_client`. The docstring now says what shipped and why the
+split is the point — and names the honest limit, that the client underneath
+still takes bare strings, so the contract rests on `send_to_llm` being the only
+route to it.
+
+**D7 advertised "seven concrete mitigations"; two were not built.** M6's
+persistent "SYNTHETIC MODE" banner has no UI, and "LLM budget caps enforced via
+the A5 instrumentation" has no cap — metering is the prerequisite for a cap,
+not a cap. Both marked `(planned)`, with what *is* built stated alongside. Five
+of seven verifiable is a good number; seven claimed and five real is not.
+
+**Also:** `scan_tracked.sh` said the scanner blocks "name/email/phone patterns"
+— there is no name pattern, names are danger-list literals. `evals/README.md`
+opened "Three suites" and self-corrected eighteen lines later. The `eval`
+command's docstring still said it exits non-zero "if any case fails", which B7
+had changed to a pass *rate*.
+
+**One conflict, found and closed here.** B7 recorded that review-finding IDs
+were out of production code. One was left: `send_to_llm` still cited
+*"walkthrough finding #2 from the A10 gate."* The claim was in the CHANGELOG and
+the counter-example was in the file the claim was about.
+
+- 3 tests (307 total), verified by deleting the `now=` argument and watching
+  both the pinned and the drift assertions fail.
+
+
 ### B9 — decode responses correctly (M-2)
 
 `_read_body` decoded with `response.encoding or "utf-8"`. That fallback was

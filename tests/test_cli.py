@@ -211,6 +211,78 @@ def test_report_empty_db(
     assert result.exit_code == 0, result.output
 
 
+# The README pastes a sample `report` and calls it bit-reproducible. That was
+# true of the funnel and false of the stale block: staleness is measured against
+# a reference instant, so with `report` reading the wall clock the pasted numbers
+# drifted by a day per day and the first thing a reader does -- run the quick
+# start -- disagreed with the page. `--now` is what makes the claim true, so
+# these pin the exact figures the README publishes rather than a loose shape.
+
+_PINNED = "2026-08-28T12:00:00+00:00"
+
+
+def _seeded_report(runner: CliRunner, tmp_path: Path, *now: str) -> str:
+    runner.invoke(
+        cli,
+        ["seed", "--data-dir", str(tmp_path), "--random-seed", "42", "--now", _PINNED],
+    )
+    result = runner.invoke(
+        cli,
+        ["report", "--data-dir", str(tmp_path), "--config-dir", str(CONFIG_DIR)]
+        + [a for n in now for a in ("--now", n)],
+    )
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def test_pinned_report_reproduces_the_published_sample(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    out = _seeded_report(runner, tmp_path, _PINNED)
+    assert "  (total)             25" in out
+    assert "Stale alerts (13)" in out
+    assert (
+        "hm_screen         Yield Model Co     Director of Engineering, ML  "
+        "overdue by 25d (last interaction 32d ago, threshold 7d)" in out
+    )
+
+
+def test_unpinned_report_reads_the_wall_clock(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The drift is real, not hypothetical -- which is why the sample pins it.
+
+    Funnel counts come from stored state and must match either way; the stale
+    block is measured against `now` and must not.
+    """
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    pinned = _seeded_report(runner, tmp_path, _PINNED)
+    live = _seeded_report(runner, tmp_path)
+    assert "  (total)             25" in live
+    assert "Stale alerts (13)" not in live
+    assert pinned != live
+
+
+def test_report_rejects_a_now_without_a_timezone(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`seed` and `report` share one parser, so they reject the same inputs."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        [
+            "report",
+            "--data-dir", str(tmp_path),
+            "--config-dir", str(CONFIG_DIR),
+            "--now", "2026-08-28T12:00:00",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "timezone" in result.output
+
+
 # ---- costs ----------------------------------------------------------------------
 
 def test_costs_empty_ledger(

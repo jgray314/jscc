@@ -36,17 +36,17 @@ Multi-strategy fetcher plus a dead-letter-queue for manual resurrection when a f
 
 ## D7 — Dual-use data safety: structural, not disciplinary
 
-Real personal data and synthetic fixtures both flow through this tool. Safety is enforced by construction, not by user discipline. Seven concrete mitigations:
+Real personal data and synthetic fixtures both flow through this tool. Safety is enforced by construction, not by user discipline. Seven mitigations — five built, two marked `(planned)` below, because a safety list that quietly includes unbuilt items is the kind of overstatement D8 exists to avoid:
 
 - **M1** Two-instance DB separation: `data/synthetic.db` tracked, `data/real.db` gitignored, mode selected by env flag, application refuses to cross modes (stamped mode marker).
 - **M2** Belt-and-suspenders `.gitignore` with explicit real-data patterns (`data/*.db`, `!data/synthetic.db`, `*.private.*`, `profile.private.yaml`, `contacts.private.*`, `.env*`, `!.env.example`). The default data directory is anchored to the package, so a real DB lands inside the tree these patterns protect rather than wherever the process was started (rerun-gate M-3).
 - **M3** Pre-commit hook scanning staged files for real-data email/phone patterns and the danger lists. (There is no name *pattern* — names are covered by danger-list literals, and by the role-token map on the M5 side. Stated precisely because the rest of D7/D8 is careful about this and this line wasn't.)
 - **M4** Log-line hygiene: application code logs by ID, never by content.
 - **M5** Prompt sanitizer: cross-cutting choke point on every LLM call. Redacts email addresses, phone-shaped digit runs, danger-list literals, and known contact names (to role tokens); refuses entries flagged `contains_personal`; wraps output in an authenticated payload so downstream code cannot fake having been sanitized. Redaction is unconditional and runs before the payload is authenticated, so it does not depend on the caller setting the flag correctly. The pattern definitions are shared with M3 (`jscc/personal_data.py`), so the two egress points cannot drift on what counts as personal data. **Both the patterns and the danger-list location are anchored to the installed package** (`jscc/paths.py`), not to the process's working directory, and the scanner reads the same two lists the sanitizer does. Rerun-gate findings H-1 and its follow-on: the lists were CWD-relative, so the sanitizer silently loaded nothing outside the repo root while the scanner — which always runs from the root — kept working; and the scanner read only the tracked scaffold, so a term added to the local list blocked LLM traffic but not commits. Sharing the regexes is not enough on its own: the two points have to agree on *which files* define the terms and *where those files are*, or the same drift returns by another route.
-- **M6** Recording/demo workflow documented; UI shows a persistent "SYNTHETIC MODE" banner.
+- **M6** Recording/demo workflow documented. Mode is stamped in the DB and printed on every `report` (`[mode: synthetic]`), so the active mode is always visible at the point of use. The persistent "SYNTHETIC MODE" banner is **(planned)** — there is no UI yet to put one in.
 - **M7** `profile.example.yaml` (tracked) vs. `profile.private.yaml` (gitignored) template pattern.
 
-The migration also applies to personal dogfooding: drafter is draft-review only (no send); migrations tested on synthetic first; LLM budget caps enforced via the A5 instrumentation.
+The migration also applies to personal dogfooding: the drafter will be draft-review only (no send); migrations tested on synthetic first. **LLM budget caps are (planned)** — the A5 instrumentation meters every call and `jscc costs` reports the total, but nothing yet refuses a call for exceeding a cap. Metering is the prerequisite for a cap, not the cap.
 
 ## D8 — Hard line on personal identity in LLM traffic
 

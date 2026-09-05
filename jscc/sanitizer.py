@@ -1,17 +1,17 @@
-"""LLM payload sanitizer (D7 M5) — Phase A6 hardened skeleton.
+"""LLM payload sanitizer (D7 M5) — the single LLM-egress choke point.
 
-The sanitizer is the single choke point every LLM-bound payload passes through
-before it leaves the process. In A4.5b this was a pass-through with a plain
-`_sanitized_at` marker; the Phase A adversarial review flagged that marker as
-forgeable (any caller could stamp a dict and pretend it went through the
-choke point).
+Every LLM-bound payload passes through here before it leaves the process. An
+earlier version marked sanitized payloads with a plain `_sanitized_at` field,
+which any caller could stamp onto a dict to fake having passed through. A
+marker anyone can write is not a guarantee. What replaced it:
 
-A6 replaces that with:
-
-1. **A wrapper type** (`SanitizedPayload`) — Phase B code that sends to an LLM
-   MUST accept a `SanitizedPayload`, not a `dict`. That's a type-level contract:
-   you cannot pass a bare dict to the send-function without failing the type
-   check (at runtime via `isinstance`, at author-time via a type checker).
+1. **A wrapper type** (`SanitizedPayload`) — code that sends to an LLM MUST
+   accept a `SanitizedPayload`, not a `dict`. That's a type-level contract: you
+   cannot pass a bare dict to the send-function without failing the type check
+   (at runtime via `isinstance`, at author-time via a type checker). The
+   contract binds at `send_to_llm`; the HTTP client underneath it still takes
+   bare strings, so today the guarantee rests on `send_to_llm` being the only
+   route callers take to reach it.
 
 2. **A per-process HMAC** over the payload contents, keyed by a secret generated
    at import time. `verify()` recomputes and constant-time compares. A forged
@@ -228,8 +228,13 @@ class LLMSendError(Exception):
 
 
 def send_to_llm(payload: SanitizedPayload) -> dict[str, Any]:
-    """Phase A send boundary: verifies the wrapper, then returns the payload's
-    data snapshot. Phase B will replace the return with a real LLM call.
+    """The send boundary: verifies the wrapper, then returns its data snapshot
+    for the caller to hand to the model client.
+
+    The network call itself lives in `llm_client`, not here. Keeping this a
+    verification gate rather than growing it into the thing that opens a socket
+    means the check that a payload was really sanitized stays separable from
+    the transport it goes out over.
 
     The type annotation forces callers to pass `SanitizedPayload`, not `dict`.
     The runtime `verify()` check catches:
@@ -242,10 +247,9 @@ def send_to_llm(payload: SanitizedPayload) -> dict[str, Any]:
     continue — a failed verify at the send boundary is a system-fatal
     signal that the D8 guarantee is broken for this payload.
 
-    This function's whole purpose in Phase A is to make the type contract
-    have a callsite. Without it, `SanitizedPayload` is a wrapper nothing
-    consumes, and the D8 claim in the README is unenforced. See walkthrough
-    finding #2 from the A10 gate.
+    Without a callsite the type contract has no teeth: `SanitizedPayload`
+    would be a wrapper nothing consumes, and the D8 claim would be a comment.
+    This is the callsite.
     """
     if not verify(payload):
         raise LLMSendError(
