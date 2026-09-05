@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from jscc.mode import (
+    DEFAULT_DATA_DIR,
     DEFAULT_MODE,
     ENV_VAR,
     InvalidModeError,
@@ -252,3 +253,23 @@ def test_storage_public_surface_hides_bypass_primitives() -> None:
     assert "connect" not in storage.__all__
     assert "_connect" not in storage.__all__
     assert "open_for_mode" in storage.__all__
+
+
+# ---- defaults are anchored, not cwd-relative (rerun-gate M-3) ---------------
+
+
+def test_default_data_dir_is_absolute() -> None:
+    """M-3: `Path("data")` meant `JSCC_DATA=real` from any other directory
+    created a correctly-stamped real.db outside the .gitignore that is D7 M2 --
+    exit 0, success message, no warning. The mode marker worked fine; the file
+    just wasn't where the protections live."""
+    assert DEFAULT_DATA_DIR.is_absolute()
+
+
+def test_default_db_path_does_not_follow_the_working_directory(
+    tmp_path, monkeypatch
+) -> None:
+    before = resolve_db_path(Mode.real)
+    monkeypatch.chdir(tmp_path)
+    assert resolve_db_path(Mode.real) == before
+    assert tmp_path not in resolve_db_path(Mode.real).parents

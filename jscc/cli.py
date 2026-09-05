@@ -18,6 +18,7 @@ from .config import (
 from .evals import format_eval_summary, run_jd_extraction_evals
 from .extraction import EXTRACTION_EVAL_FEATURE, extract_jd
 from .fetcher import fetch_jd
+from .paths import PACKAGE_ROOT
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import Application, DLQEntry, Resolution
 from .report import detect_stale, format_report, funnel_counts
@@ -44,7 +45,10 @@ def _company_from_url(url: str) -> str:
     netloc = urlparse(url).netloc
     return netloc.removeprefix("www.") or url
 
-DEFAULT_CONFIG_DIR = Path("config")
+# Anchored like DEFAULT_DATA_DIR (rerun-gate M-3): a CWD-relative default made
+# `report` fail with a raw traceback from a foreign directory while `ingest`
+# quietly succeeded against a DB somewhere else entirely.
+DEFAULT_CONFIG_DIR = PACKAGE_ROOT / "config"
 
 
 def _resolve_mode_or_exit() -> Mode:

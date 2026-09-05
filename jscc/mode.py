@@ -12,6 +12,8 @@ from enum import Enum
 from os import environ
 from pathlib import Path
 
+from .paths import PACKAGE_ROOT
+
 
 ENV_VAR = "JSCC_DATA"
 
@@ -26,7 +28,17 @@ class InvalidModeError(ValueError):
 
 
 DEFAULT_MODE = Mode.synthetic
-DEFAULT_DATA_DIR = Path("data")
+
+# Anchored to the package, not to the process's working directory.
+#
+# Rerun-gate finding M-3: this was `Path("data")`, so `JSCC_DATA=real` run from
+# any other directory created a fresh, correctly-stamped `real.db` *there* --
+# outside the `.gitignore` that is D7 M2, with no warning and a success message.
+# The mode marker did its job; the file just wasn't where the protections are.
+# Two of D7's seven mitigations (M2's ignore patterns and M3's danger list, see
+# H-1) both keyed on the working directory, so one wrong `cd` disabled both at
+# once. `--data-dir` still overrides for anyone who means it.
+DEFAULT_DATA_DIR = PACKAGE_ROOT / "data"
 
 
 def resolve_mode(env_value: str | None = None) -> Mode:

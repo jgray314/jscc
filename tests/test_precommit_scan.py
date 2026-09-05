@@ -301,3 +301,22 @@ def test_synthetic_fixture_passes_scanner(tmp_path: Path) -> None:
     danger = _write(tmp_path / "danger.txt", "# empty\n")
     rc = precommit_scan.main([str(synth), "--danger-list", str(danger)])
     assert rc == 0, "synthetic.db tripped the pre-commit content scanner"
+
+
+def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
+    """Follow-on to rerun-gate H-1, found while fixing it.
+
+    The scanner defaulted to the *tracked* scaffold only, so a term added to
+    `.safety/danger-list.local.txt` -- the file a user actually edits -- was
+    honoured by the M5 sanitizer and ignored by the M3 scanner. A term added
+    there blocked LLM egress but not commits, which is the reverse of what the
+    C1 fix claims ("one edit blocks both"). Same drift, one file over.
+    """
+    safety = tmp_path / "safety"
+    safety.mkdir()
+    (safety / "danger-list.txt").write_text("# no tracked terms\n", encoding="utf-8")
+    (safety / "danger-list.local.txt").write_text("projectbluebird\n", encoding="utf-8")
+    monkeypatch.setenv("JSCC_SAFETY_DIR", str(safety))
+
+    f = _write(tmp_path / "notes.md", "the projectbluebird kickoff is monday\n")
+    assert precommit_scan.main([str(f)]) == 1

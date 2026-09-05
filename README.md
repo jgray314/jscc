@@ -66,6 +66,7 @@ jscc/           library code
   seed.py       deterministic synthetic fixture (evaluation infrastructure)
   sanitizer.py  the LLM-egress choke point; redacts, then HMAC-wraps
   personal_data.py  one definition of "personal" — shared by the scanner + sanitizer
+  paths.py      one definition of where this installation's files live (package-anchored, never cwd)
   instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
   llm_client.py Anthropic client + StubExtractionClient fallback (no key configured yet)
@@ -73,7 +74,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (267 tests)
+tests/          pytest suite (275 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -104,11 +105,11 @@ uv run pre-commit install  # enable the safety scanner
 uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
 
-The pre-commit scanner refuses commits that match name/email/phone patterns or entries in a local `.safety/danger-list.local.txt` (gitignored).
+The pre-commit scanner refuses commits that match email/phone patterns or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 267 pytest cases.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 275 pytest cases.
 
 ## License
 

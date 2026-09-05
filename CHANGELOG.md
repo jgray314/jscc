@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### B6 — rerun-gate criticals (findings H-1, M-3, and one follow-on)
+
+A second two-lens gate ran at `30c2a1e`, this time with both reviewers reading **cold** — neither was allowed to see the previous gate's findings until it had formed its own, then each labelled every finding NEW / REPEAT-OF / CONTRADICTS. That change immediately produced a CONTRADICTS against a fix from the slice under review, and both lenses independently found the same hole.
+
+**H-1 — the danger list resolved against the process working directory.** `DEFAULT_DANGER_LIST = Path(".safety/danger-list.txt")` is relative, so `default_danger_terms()` returned `[]` for any process not started from the repo root. Silently: email and phone redaction kept working, so nothing looked broken, while the user's list of real names and identifiers — the half of D8's guarantee the regexes explicitly cannot do — was simply absent.
+
+This is the load-bearing half of the C1 fix. The pre-commit scanner always runs from the repo root; the sanitizer runs wherever the user happens to be. **So the two D7 egress points drifted on what counts as personal after all** — not through the duplicated regexes C1 removed, but through path resolution. C1's argument was "structural, not disciplinary," and a control whose effectiveness depends on remembering to `cd` first is disciplinary.
+
+**A follow-on found while fixing it:** `precommit_scan.py` defaulted to the *tracked* scaffold only and never read `.safety/danger-list.local.txt` — the file a user actually edits. So a term added there blocked LLM egress and not commits, the reverse of C1's stated "one edit blocks both." Sharing the regexes was never sufficient on its own: the two enforcement points also have to agree on which files define the terms and where those files live.
+
+**M-3 — same root cause, one layer out.** `DEFAULT_DATA_DIR = Path("data")` meant `JSCC_DATA=real` from any other directory created a fresh, correctly-stamped `real.db` **outside the `.gitignore` that is D7 M2** — exit 0, success message, no warning. The mode marker did its job; the file just wasn't where the protections are. One wrong `cd` disabled two of D7's seven mitigations at once.
+
+**The fix is one definition of where things live.** `jscc/paths.py` holds `PACKAGE_ROOT`, and `mode.py`, `cli.py`, `personal_data.py` and `evals.py` all anchor to it. Three modules declaring their own copy of `Path(__file__).resolve().parent.parent` would be the same duplication that caused the bug — `evals.py` had already got this right alone, which is exactly how the inconsistency hid. Explicit overrides (`--data-dir`, `--config-dir`, `JSCC_SAFETY_DIR`) are untouched: a user saying where to look is a different thing from a default that quietly depends on where they were standing. `JSCC_SAFETY_DIR` pointing somewhere that does not exist now raises rather than defaulting, and a missing default directory warns — the silent-empty-list behaviour was the bug.
+
+- 8 tests (275 total). The path tests `chdir` for real rather than patching the path, because the bug *was* the real resolution depending on the real working directory — a test that mocks the path away cannot see it. That is the same gap this gate found in the M5 guard tests (H-4, still open).
+
+
 ### B5 — Phase B gate hardening (findings C1, H1, H2, M1, M2, M3, M4, M5)
 
 Hardening slice from the Phase B → C two-lens gate, run ahead of B2b's live prompt iteration. C1 and H1 were the critical/high findings; H2, M1 and M3 are the three that would have distorted prompt iteration itself, so they land before that work rather than after it. M2, M4 and M5 close out the medium tier: two ways the cost ledger could report a number that isn't true, and the fetcher's missing egress guards.

@@ -15,10 +15,11 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
+from .paths import PACKAGE_ROOT
 from .models import ExtractedJD
 from .sanitizer import LLMSendError, SanitizerRefusal
 
-JD_EXTRACTION_CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "jd_extraction" / "cases.json"
+JD_EXTRACTION_CASES_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "cases.json"
 
 # Structural fields, each with the comparison rule its content actually
 # warrants. Gate finding H2: `title` and `location` were absent from every

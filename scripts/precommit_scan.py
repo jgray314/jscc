@@ -38,7 +38,7 @@ from typing import Iterable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from jscc.personal_data import (  # noqa: E402
-    DEFAULT_DANGER_LIST,
+    default_danger_terms,
     find_personal,
     load_danger_list,
 )
@@ -145,8 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--danger-list",
         type=Path,
-        default=DEFAULT_DANGER_LIST,
-        help="Path to newline-delimited danger substring list.",
+        default=None,
+        help=(
+            "Path to a newline-delimited danger substring list. Omit to use the "
+            "package's .safety directory (both the tracked list and the local one)."
+        ),
     )
     parser.add_argument(
         "--exclude",
@@ -162,7 +165,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    danger_terms = load_danger_list(args.danger_list)
+    # Both lists, via the same loader the sanitizer uses.
+    #
+    # Rerun-gate follow-on to H-1: this defaulted to the *tracked* scaffold
+    # only, so `.safety/danger-list.local.txt` -- the file a user actually
+    # edits when they realize something needs blocking -- was honoured by the
+    # M5 sanitizer and ignored by the M3 scanner. A term added there blocked
+    # LLM egress but not commits, which is the opposite of what the C1 fix
+    # claims ("one edit blocks both"). Same drift as H-1, one file over.
+    danger_terms = (
+        load_danger_list(args.danger_list)
+        if args.danger_list is not None
+        else default_danger_terms()
+    )
     excludes: list[re.Pattern[str]] = [_compile_exclude(p) for p in args.exclude]
 
     cwd = Path.cwd()

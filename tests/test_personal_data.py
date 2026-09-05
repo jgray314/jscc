@@ -8,10 +8,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from jscc.personal_data import (
     DANGER_TOKEN,
     EMAIL_TOKEN,
     PHONE_TOKEN,
+    SAFETY_DIR_ENV_VAR,
+    SafetyConfigError,
+    default_danger_terms,
     find_personal,
     load_danger_list,
     redact,
@@ -142,3 +147,70 @@ def test_load_danger_list_skips_comments_and_blanks(tmp_path: Path) -> None:
 
 def test_load_danger_list_missing_file_is_empty(tmp_path: Path) -> None:
     assert load_danger_list(tmp_path / "nope.txt") == []
+
+
+# ---- paths are anchored, not cwd-relative (rerun-gate H-1) ------------------
+#
+# These chdir for real rather than mocking the path, because the bug was
+# precisely that the real resolution depended on the real working directory.
+# A test that patches the path away cannot see it -- the same shape of gap the
+# rerun gate found in the M5 guard tests.
+
+
+def test_danger_terms_load_from_outside_the_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """H-1: `default_danger_terms()` returned [] from any other directory,
+    silently, while email/phone redaction kept working so nothing looked wrong.
+    That is the load-bearing half of the C1 guarantee: the scanner runs from the
+    repo root, the sanitizer runs wherever the user is."""
+    monkeypatch.delenv(SAFETY_DIR_ENV_VAR, raising=False)
+    from_root = default_danger_terms()
+    monkeypatch.chdir(tmp_path)
+    assert default_danger_terms() == from_root
+
+
+def test_redaction_of_a_danger_term_survives_a_foreign_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The property that actually matters, asserted end to end."""
+    safety = tmp_path / "safety"
+    safety.mkdir()
+    (safety / "danger-list.txt").write_text("riftcloud\n", encoding="utf-8")
+    monkeypatch.setenv(SAFETY_DIR_ENV_VAR, str(safety))
+    monkeypatch.chdir(tmp_path)
+    terms = default_danger_terms()
+    assert redact("the riftcloud migration", danger_terms=terms) == "the [redacted] migration"
+
+
+def test_a_stray_dot_safety_in_the_cwd_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The old behaviour read whatever .safety happened to be underfoot, which
+    is how the scanner and the sanitizer could disagree about the same term."""
+    monkeypatch.delenv(SAFETY_DIR_ENV_VAR, raising=False)
+    stray = tmp_path / ".safety"
+    stray.mkdir()
+    (stray / "danger-list.txt").write_text("stray-term-that-must-not-load\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert "stray-term-that-must-not-load" not in default_danger_terms()
+
+
+def test_explicit_safety_dir_that_does_not_exist_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An override that does not resolve means the operator believes a list is
+    loaded when none is. Fail loudly -- silence is the bug being replaced."""
+    monkeypatch.setenv(SAFETY_DIR_ENV_VAR, str(tmp_path / "nope"))
+    with pytest.raises(SafetyConfigError):
+        default_danger_terms()
+
+
+def test_missing_default_safety_dir_warns_rather_than_going_quiet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(SAFETY_DIR_ENV_VAR, str(tmp_path))  # exists but empty -> no warning
+    assert default_danger_terms() == []
+    monkeypatch.setattr("jscc.personal_data.safety_dir", lambda: tmp_path / "gone")
+    with pytest.warns(RuntimeWarning, match="danger-list"):
+        assert default_danger_terms() == []

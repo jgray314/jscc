@@ -39,8 +39,12 @@ self-match.
 from __future__ import annotations
 
 import re
+import warnings
+from os import environ
 from pathlib import Path
 from typing import Iterable, Mapping
+
+from .paths import PACKAGE_ROOT
 
 # Deliberately over-broad: matches any non-whitespace token containing `@` with a
 # dot-separated tail. Covers ASCII, IDN local/domain parts, Punycode TLDs
@@ -59,8 +63,49 @@ PHONE_RE = re.compile(r"\+?\d[\d\-\s().]{7,14}\d")
 PHONE_DIGITS_MIN = 10
 PHONE_DIGITS_MAX = 15
 
-DEFAULT_DANGER_LIST = Path(".safety/danger-list.txt")
-LOCAL_DANGER_LIST = Path(".safety/danger-list.local.txt")
+# Anchored to the installed package, never to the process's working directory.
+#
+# Rerun-gate finding H-1: these were relative paths, so `default_danger_terms()`
+# returned `[]` for any process not started from the repo root -- silently, with
+# emails and phones still redacting so nothing looked broken. That is the
+# load-bearing half of the C1 fix: the pre-commit scanner always runs from the
+# repo root, the sanitizer runs wherever the user happens to be, so the two D7
+# egress points drifted on what counts as personal after all -- through path
+# resolution rather than through the duplicated regexes C1 removed. A control
+# whose effectiveness depends on remembering to `cd` first is disciplinary, and
+# D7's whole claim is that it is structural. `evals.py` already anchored this
+# way; this file should have.
+SAFETY_DIR_ENV_VAR = "JSCC_SAFETY_DIR"
+
+
+def safety_dir() -> Path:
+    """Directory holding the danger lists.
+
+    `JSCC_SAFETY_DIR` overrides, for installed use where the package does not
+    sit next to a checkout. Read per call rather than captured at import, for
+    the same reason `default_danger_terms()` re-reads the files themselves.
+    """
+    override = environ.get(SAFETY_DIR_ENV_VAR)
+    if override:
+        path = Path(override).expanduser()
+        if not path.is_dir():
+            raise SafetyConfigError(
+                f"{SAFETY_DIR_ENV_VAR}={override!r} is not a directory. Unset it to "
+                f"use the default ({PACKAGE_ROOT / '.safety'}), or point it at a "
+                "directory holding danger-list.txt / danger-list.local.txt."
+            )
+        return path
+    return PACKAGE_ROOT / ".safety"
+
+
+class SafetyConfigError(RuntimeError):
+    """The danger-list location is configured but unusable.
+
+    Raised rather than defaulted: an explicitly-set safety path that does not
+    resolve means the operator believes a list is loaded when none is. Failing
+    loudly is the whole point -- the silent-empty-list behaviour is the bug
+    this replaces.
+    """
 
 EMAIL_TOKEN = "[redacted-email]"
 PHONE_TOKEN = "[redacted-phone]"
@@ -86,8 +131,25 @@ def default_danger_terms() -> list[str]:
     Loaded fresh rather than cached at import: the local list is the file a
     user edits when they realize something needs blocking, and a cached
     module-level copy would silently ignore the edit until restart.
+
+    Warns if the directory is missing entirely. Both files being *empty* is
+    a normal state (the tracked scaffold ships with no terms); the directory
+    not existing means the lists are not where this process thinks they are,
+    which is the condition that used to pass unnoticed.
     """
-    return load_danger_list(DEFAULT_DANGER_LIST) + load_danger_list(LOCAL_DANGER_LIST)
+    directory = safety_dir()
+    if not directory.is_dir():
+        warnings.warn(
+            f"no danger-list directory at {directory}; name-based redaction is "
+            f"inactive (email and phone patterns still apply). Set "
+            f"{SAFETY_DIR_ENV_VAR} to point at one.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return []
+    return load_danger_list(directory / "danger-list.txt") + load_danger_list(
+        directory / "danger-list.local.txt"
+    )
 
 
 def _phone_digit_count(match: str) -> int:
