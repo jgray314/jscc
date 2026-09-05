@@ -128,3 +128,41 @@ def test_extract_jd_prompt_hash_does_not_leak_raw_jd(conn: sqlite3.Connection) -
     extract_jd("a raw JD containing sensitive-looking text", conn=conn, client=fake)
     row = conn.execute("SELECT prompt_hash FROM llm_calls").fetchone()
     assert "sensitive-looking" not in row["prompt_hash"]
+
+
+# ---- the ledger records billed calls that fail to parse (gate finding M2) ---
+#
+# `_parse_response` used to run inside the instrumented function, so an
+# unparseable response propagated before the ledger row was written: tokens
+# spent, nothing recorded. Malformed output is the likeliest failure during
+# prompt iteration, which is exactly when the cost figures are being read.
+
+
+def test_unparseable_response_still_records_the_ledger_row(conn: sqlite3.Connection) -> None:
+    client = _FakeClient("not json at all", input_tokens=1234, output_tokens=56, cost_usd=0.0042)
+    with pytest.raises(ExtractionParseError):
+        extract_jd("raw jd text", conn=conn, client=client)
+
+    calls = list_llm_calls(conn)
+    assert len(calls) == 1
+    assert calls[0].input_tokens == 1234
+    assert calls[0].output_tokens == 56
+    assert calls[0].cost_usd == pytest.approx(0.0042)
+
+
+def test_response_that_parses_as_json_but_not_ExtractedJD_also_records(
+    conn: sqlite3.Connection,
+) -> None:
+    """The other parse failure mode -- valid JSON, wrong shape -- takes the
+    same path, so it must not be a separate hole."""
+    client = _FakeClient(json.dumps({"title": "Engineer"}), input_tokens=10, output_tokens=2)
+    with pytest.raises(ExtractionParseError):
+        extract_jd("raw jd text", conn=conn, client=client)
+    assert len(list_llm_calls(conn)) == 1
+
+
+def test_conn_less_parse_failure_still_raises(conn: sqlite3.Connection) -> None:
+    """No ledger to write to, but the error must not be swallowed by the
+    reshuffle either."""
+    with pytest.raises(ExtractionParseError):
+        extract_jd("raw jd text", client=_FakeClient("not json at all"))

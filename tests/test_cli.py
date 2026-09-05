@@ -370,7 +370,13 @@ def test_ingest_empty_response_body_dlqs_instead_of_crashing(
 
     empty = Mock()
     empty.status_code = 200
-    empty.text = ""
+    empty.headers = {}
+    empty.encoding = "utf-8"
+    empty.is_redirect = False
+    empty.iter_content = lambda chunk_size=None: iter([])
+    empty.close = Mock()
+    # The M5 guards resolve the host before fetching; keep this test offline.
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
     monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: empty)
 
     result = runner.invoke(

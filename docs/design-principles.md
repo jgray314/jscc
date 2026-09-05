@@ -24,11 +24,15 @@ BYOK live demos are deferred. The build story carries the signal; a hosted servi
 
 Every LLM call is instrumented from day one, via a decorator. Ledger and reporting come later (Phase C), but the data is captured from the first call. Retrofit-later would produce sparse data.
 
+**The ledger records the call, not the outcome.** The instrumented function is the billed unit and nothing more: the response is recorded before it is parsed, so a model reply that fails to parse still leaves a row with its real token count and cost. Parse failures cluster during prompt iteration, which is exactly when the cost figures are being read, and a ledger that silently omits the calls that went wrong reports a number that is too good (gate finding M2). For the same reason an unpriced model is rejected *before* the request is sent rather than defaulted to a known rate while pricing the response — a wrong figure in a cost-transparency artifact is worse than a refusal (gate finding M4).
+
 **Scope, stated precisely.** Every call made through a CLI command is instrumented — `ingest` and `resolve-dlq` under the `extraction` feature, `eval jd_extraction` under `extraction_eval`. Eval traffic is labelled separately so prompt iteration is visible in `jscc costs` without inflating the per-application cost figure. The library API also permits a call with no database connection, for tests and embedded callers; that path cannot record, because there is no ledger to record to. Until the B5 hardening slice the eval command used that path, which left prompt iteration — the most token-hungry phase of the project — as the one phase with no cost record (gate finding M1).
 
 ## D6 — JD fetching is a real product problem
 
 Multi-strategy fetcher plus a dead-letter-queue for manual resurrection when a fetch fails. JD ingestion is not a happy-path assumption.
+
+**The fetcher is also a security boundary, not just a reliability one.** It takes a URL and forwards whatever comes back to a third-party model, so an unguarded `requests.get` is a server-side request forgery primitive with an LLM attached. Requests leave through one guarded path (`_get_guarded`): an http(s) scheme allowlist, rejection of any host that resolves to a non-public address, the same check re-run on every redirect hop rather than only on the URL the user typed, a redirect ceiling, and a streamed 5 MB body cap. Practical risk on a personal CLI is low — the user types the URL — but this repo's claim is structural safety, so the guarantee is enforced in code rather than assumed from the usage pattern (gate finding M5). Known residual: the opt-in Playwright fallback receives an already-checked URL, but the browser then follows its own redirects outside these guards.
 
 ## D7 — Dual-use data safety: structural, not disciplinary
 

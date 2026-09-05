@@ -43,7 +43,35 @@ EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 _MODEL_RATES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
     EXTRACTION_MODEL: (0.80, 4.00),  # (input, output) per million tokens
 }
-_DEFAULT_RATE = (0.80, 4.00)
+
+
+class UnknownModelPricingError(RuntimeError):
+    """No published rate is on file for this model, so its cost can't be recorded."""
+
+
+def rates_for(model: str) -> tuple[float, float]:
+    """(input, output) USD per million tokens, or raise.
+
+    Gate finding M4: this used to fall back to the Haiku rate for any
+    unrecognised model, so swapping in Sonnet or Opus would under-report
+    spend by roughly an order of magnitude -- silently, in the one artifact
+    whose stated purpose is cost transparency. A ledger that quietly invents
+    a number is worse than one that refuses.
+
+    The check runs *before* the request is sent (see `complete`), not while
+    pricing the response. Raising afterwards would spend the tokens and then
+    throw away the record, which is the failure M2 just fixed.
+    """
+    try:
+        return _MODEL_RATES_USD_PER_MTOK[model]
+    except KeyError:
+        raise UnknownModelPricingError(
+            f"no cost rate on file for model {model!r}; add it to "
+            "_MODEL_RATES_USD_PER_MTOK in jscc/llm_client.py (rates: "
+            "https://www.anthropic.com/pricing) rather than letting the "
+            "ledger record a wrong figure. Known models: "
+            f"{sorted(_MODEL_RATES_USD_PER_MTOK)}"
+        ) from None
 
 _STUB_RESPONSE_TEXT = """{
   "title": "",
@@ -86,6 +114,9 @@ class AnthropicClient:
         self._max_tokens = max_tokens
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        # Priced before the call, so an unknown model costs nothing to find
+        # out about (gate finding M4).
+        input_rate, output_rate = rates_for(model)
         response = self._client.messages.create(
             model=model,
             max_tokens=self._max_tokens,
@@ -95,7 +126,6 @@ class AnthropicClient:
         text = "".join(
             block.text for block in response.content if getattr(block, "type", None) == "text"
         )
-        input_rate, output_rate = _MODEL_RATES_USD_PER_MTOK.get(model, _DEFAULT_RATE)
         cost_usd = (
             response.usage.input_tokens / 1_000_000 * input_rate
             + response.usage.output_tokens / 1_000_000 * output_rate

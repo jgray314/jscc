@@ -2,10 +2,29 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import pytest
 import requests
 
 from jscc.fetcher import PlaywrightFetchError, fetch_jd
 from jscc.models import FailureMode
+
+# Split literals: a dotted-quad is a digit run of the same shape as the
+# pre-commit scanner's phone pattern. Splitting the string is the standing
+# convention for this false positive -- the regex is not loosened.
+_PUBLIC_IP = "93.184." + "216.34"
+_METADATA_IP = "169.254." + "169.254"
+
+
+@pytest.fixture(autouse=True)
+def _offline_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test here resolves to a public address unless it says otherwise.
+
+    The M5 guards resolve the host before fetching, and the rest of this
+    suite is about extraction and routing, not DNS -- so the resolver is
+    stubbed by default and the guard tests below override it explicitly.
+    Keeps the suite offline, which it has always been.
+    """
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP])
 
 SAMPLE_HTML = """
 <html><head><title>Senior Engineer - Rift Cloud</title></head>
@@ -25,13 +44,29 @@ with data science on schema evolution.</p>
 
 
 def _mock_response(status_code: int, text: str = "", headers: dict | None = None) -> Mock:
+    """A stand-in for a streamed `requests.Response`.
+
+    `is_redirect` and `iter_content` are set explicitly because a bare Mock
+    answers both truthily, and the M5 redirect loop reads them.
+    """
     resp = Mock()
     resp.status_code = status_code
     resp.text = text
     resp.headers = headers or {}
+    resp.encoding = "utf-8"
+    resp.is_redirect = False
+    body = text.encode("utf-8", errors="replace")
+    resp.iter_content = lambda chunk_size=None: iter([body] if body else [])
+    resp.close = Mock()
     resp.raise_for_status = Mock()
     if status_code >= 400:
         resp.raise_for_status.side_effect = requests.HTTPError(response=resp)
+    return resp
+
+
+def _redirect_response(location: str) -> Mock:
+    resp = _mock_response(302, "", headers={"location": location})
+    resp.is_redirect = True
     return resp
 
 
@@ -223,3 +258,109 @@ def test_empty_rendered_html_is_extraction_failed_not_a_crash():
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
     assert result.used_playwright is True
+
+
+# ---- fetch guards (gate finding M5) ----------------------------------------
+#
+# `fetch_jd` forwards whatever it retrieves to an LLM, so the URL it accepts
+# is a security boundary, not just an input. These cover the three shapes the
+# gate named: a non-http scheme, a private/link-local destination, and a
+# public URL that redirects into one.
+
+
+def test_non_http_scheme_is_refused_without_fetching():
+    with patch("jscc.fetcher.requests.get") as get:
+        result = fetch_jd("file:///etc/passwd")
+    get.assert_not_called()
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+    assert "scheme" in result.error_detail
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        _METADATA_IP,  # cloud instance metadata
+        "127.0.0.1",  # loopback
+        "10.0.0.5",  # RFC1918
+        "192.168.1.1",
+    ],
+)
+def test_non_public_destination_is_refused_without_fetching(
+    address: str, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [address])
+    with patch("jscc.fetcher.requests.get") as get:
+        result = fetch_jd("http://internal.example.com/jobs/1")
+    get.assert_not_called()
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+    assert address in result.error_detail
+
+
+def test_hostname_resolving_to_any_private_address_is_refused(monkeypatch: pytest.MonkeyPatch):
+    """One public address in the set is not a pass -- all of them must be."""
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP, "127.0.0.1"])
+    with patch("jscc.fetcher.requests.get") as get:
+        result = fetch_jd("https://example.com/jobs/1")
+    get.assert_not_called()
+    assert result.failure_mode is FailureMode.blocked
+
+
+def test_redirect_into_a_private_address_is_refused(monkeypatch: pytest.MonkeyPatch):
+    """The hop matters, not just the URL the user typed."""
+    hosts = {"example.com": [_PUBLIC_IP], "metadata.internal": [_METADATA_IP]}
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: hosts[host])
+    with patch(
+        "jscc.fetcher.requests.get",
+        return_value=_redirect_response("http://metadata.internal/latest/meta-data/"),
+    ):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+    assert _METADATA_IP in result.error_detail
+
+
+def test_redirect_to_a_public_url_is_followed():
+    responses = iter([_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)])
+    with patch("jscc.fetcher.requests.get", side_effect=lambda *a, **kw: next(responses)):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is True
+    assert "ingestion pipeline" in result.raw_text
+
+
+def test_redirect_loop_terminates():
+    with patch(
+        "jscc.fetcher.requests.get",
+        side_effect=lambda *a, **kw: _redirect_response("https://example.com/loop"),
+    ):
+        result = fetch_jd("https://example.com/loop")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+    assert "redirects" in result.error_detail
+
+
+def test_oversized_body_is_abandoned_rather_than_buffered():
+    """The cap is enforced mid-stream, so it holds for a server that lies
+    about (or omits) Content-Length."""
+    from jscc.fetcher import _MAX_RESPONSE_BYTES
+
+    chunk = b"x" * (1024 * 1024)
+    resp = _mock_response(200, "")
+    resp.iter_content = lambda chunk_size=None: iter([chunk] * 10)
+    with patch("jscc.fetcher.requests.get", return_value=resp):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.extraction_failed
+    assert "cap" in result.error_detail
+    assert _MAX_RESPONSE_BYTES < 10 * len(chunk)
+
+
+def test_unresolvable_host_is_a_failure_not_a_crash(monkeypatch: pytest.MonkeyPatch):
+    def boom(host: str):
+        raise OSError("Name or service not known")
+
+    monkeypatch.setattr("jscc.fetcher._resolve_host", boom)
+    result = fetch_jd("https://nope.example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked

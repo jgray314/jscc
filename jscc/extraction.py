@@ -61,9 +61,23 @@ def _parse_response(text: str) -> ExtractedJD:
 def _raw_extraction_call(
     conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
 ) -> LLMResult:
+    """The billed unit, and only the billed unit.
+
+    Gate finding M2: `_parse_response` used to run here, inside the
+    instrumented function, so an `ExtractionParseError` propagated before
+    `@instrumented` could write the ledger row -- the tokens were spent and
+    the ledger recorded nothing. A malformed response is the likeliest
+    failure while iterating on a prompt, which is exactly when the cost
+    figures matter most, and `jscc costs` is a portfolio artifact (D5/C3).
+
+    Parsing now happens in `extract_jd`, after the row is written. The rule
+    this encodes: nothing that can fail *after* the money is spent belongs
+    inside an instrumented function. It also makes the recorded latency the
+    network call alone rather than network + parse.
+    """
     response = client.complete(model=model, system=system, user=prompt)
     return LLMResult(
-        output=_parse_response(response.text),
+        output=response,
         input_tokens=response.input_tokens,
         output_tokens=response.output_tokens,
         cost_usd=response.cost_usd,
@@ -140,8 +154,11 @@ def extract_jd(
                 f"unknown instrumentation feature {feature!r}; "
                 f"expected one of {sorted(_CALL_BY_FEATURE)}"
             ) from None
-        return call(
+        response = call(
             conn, verified["model"], verified["user"], client=client, system=verified["system"]
         )
-    response = client.complete(model=verified["model"], system=verified["system"], user=verified["user"])
+    else:
+        response = client.complete(
+            model=verified["model"], system=verified["system"], user=verified["user"]
+        )
     return _parse_response(response.text)
