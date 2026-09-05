@@ -20,8 +20,7 @@ Rules:
 
 The patterns themselves live in `jscc/personal_data.py`, not here. That module
 is the single definition shared with the D7 M5 prompt sanitizer, so git egress
-(M3) and LLM egress (M5) cannot drift apart on what counts as personal data —
-they did drift before the B5 hardening slice, and the sanitizer lost.
+(M3) and LLM egress (M5) cannot drift apart on what counts as personal data.
 """
 
 from __future__ import annotations
@@ -55,11 +54,10 @@ def _compile_exclude(pattern: str) -> re.Pattern[str]:
       - ``?``      — one non-``/`` character.
       - literal ``.`` and other regex metachars are escaped.
 
-    `fnmatch` was rejected because it treats ``**`` as literal, giving
-    ``tests/**`` a silent hole where anything under ``tests/`` still got
-    scanned. That was M-exclude-1 in the A9 review. M-precommit-abs-paths-1
-    in the A10 review added the zero-match ``/`` handling so ``tests/**``
-    also covers the ``tests`` directory itself.
+    `fnmatch` was rejected because it treats ``**`` as literal, which gives
+    ``tests/**`` a silent hole where anything under ``tests/`` still gets
+    scanned. The zero-match ``/`` handling is why ``tests/**`` also covers the
+    ``tests`` directory itself.
     """
     out: list[str] = []
     i = 0
@@ -91,8 +89,8 @@ def _to_repo_relative_posix(p: Path, cwd: Path) -> str:
     Windows contributors invoking the scanner with absolute paths (or
     pre-commit's file-list resolution passing absolute paths) previously
     silently defeated `--exclude`: `PurePosixPath(*Path('C:/.../CHANGELOG.md').parts)`
-    yields `C:\\/Users/.../CHANGELOG.md`, and no natural glob `fullmatch`ed
-    that string. M-precommit-abs-paths-1 in the A10 review.
+    yields `C:\\/Users/.../CHANGELOG.md`, and no natural glob `fullmatch`es
+    that string.
 
     Falls back to the raw POSIX join for paths that live outside the tree —
     an intentional out-of-tree scan run should not silently drop excludes.
@@ -165,14 +163,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Both lists, via the same loader the sanitizer uses.
-    #
-    # Rerun-gate follow-on to H-1: this defaulted to the *tracked* scaffold
-    # only, so `.safety/danger-list.local.txt` -- the file a user actually
-    # edits when they realize something needs blocking -- was honoured by the
-    # M5 sanitizer and ignored by the M3 scanner. A term added there blocked
-    # LLM egress but not commits, which is the opposite of what the C1 fix
-    # claims ("one edit blocks both"). Same drift as H-1, one file over.
+    # Both lists, via the same loader the sanitizer uses. Reading only the
+    # tracked scaffold here would honour a term added to the local list on the
+    # LLM side and ignore it on the git side -- one edit has to block both, or
+    # the two egress points disagree about what counts as personal.
     danger_terms = (
         load_danger_list(args.danger_list)
         if args.danger_list is not None

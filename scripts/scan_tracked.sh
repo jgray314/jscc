@@ -16,9 +16,8 @@
 # Both CI (.github/workflows/ci.yml) and the pre-commit config
 # (.pre-commit-config.yaml, via `entry: bash scripts/scan_tracked.sh`)
 # invoke this script so the exclude list cannot drift between them.
-# H-precommit-changelog-1 in the A10 review — CI was excluding CHANGELOG.md,
-# the local pre-commit hook was not, so `pre-commit run --all-files` would
-# fail on a clean tree.
+# Two copies of the list means one of them excludes a file the other scans,
+# and `pre-commit run --all-files` fails on a tree CI accepts.
 set -euo pipefail
 
 EXCLUDES=(

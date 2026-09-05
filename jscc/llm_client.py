@@ -52,11 +52,10 @@ class UnknownModelPricingError(RuntimeError):
 def rates_for(model: str) -> tuple[float, float]:
     """(input, output) USD per million tokens, or raise.
 
-    Gate finding M4: this used to fall back to the Haiku rate for any
-    unrecognised model, so swapping in Sonnet or Opus would under-report
-    spend by roughly an order of magnitude -- silently, in the one artifact
-    whose stated purpose is cost transparency. A ledger that quietly invents
-    a number is worse than one that refuses.
+    Raises rather than falling back to a default rate: pricing an unknown
+    model at a known one under-reports spend by roughly an order of magnitude,
+    silently, in the one artifact whose stated purpose is cost transparency.
+    A ledger that quietly invents a number is worse than one that refuses.
 
     The check runs *before* the request is sent (see `complete`), not while
     pricing the response. Raising afterwards would spend the tokens and then
@@ -92,8 +91,8 @@ class LLMResponse(BaseModel):
     # Why the caller needs this: a response cut off at max_tokens is truncated
     # JSON, which fails to parse for a reason that has nothing to do with the
     # prompt. Without it, "the model wrote bad JSON" and "we didn't give the
-    # model room to finish" are the same error message during prompt iteration
-    # (rerun-gate H-2).
+    # model room to finish" are the same error message during prompt
+    # iteration.
     stop_reason: str | None = None
 
 
@@ -121,7 +120,7 @@ class AnthropicClient:
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
         # Priced before the call, so an unknown model costs nothing to find
-        # out about (gate finding M4).
+        # out about.
         input_rate, output_rate = rates_for(model)
         response = self._client.messages.create(
             model=model,

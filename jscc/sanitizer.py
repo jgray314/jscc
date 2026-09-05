@@ -28,15 +28,13 @@ A6 replaces that with:
    a refusal. Refusal is a system-fatal condition: the payload contains data
    that never should have reached this function, and continuing risks a leak.
 
-5. **Unconditional redaction** (added in the B5 hardening slice, closing gate
-   finding C1). A6 left `_transform` as an identity and deferred real redaction
-   to "Phase B, when the first prompt is written." Phase B then shipped a
-   prompt, two production call sites, and a pasted-text path without it, so
-   D7 M5's "redacts contact names to role tokens" and D8's "structurally
-   cannot send identifiable person information to a third-party LLM" were
-   both describing behavior that did not exist. `_transform` now rewrites
-   every personal-data-shaped span using the same pattern definitions as the
-   pre-commit scanner (`jscc/personal_data.py`), before the HMAC is computed.
+5. **Unconditional redaction.** `_transform` rewrites every
+   personal-data-shaped span using the same pattern definitions as the
+   pre-commit scanner (`jscc/personal_data.py`), *before* the HMAC is
+   computed — so the authenticator covers the redacted bytes and no verified
+   path can carry the original text. This is what backs D7 M5 and D8; an
+   authenticated payload that was never rewritten would be a signature over
+   a leak.
 
    The scope of that guarantee is stated narrowly and deliberately in
    `personal_data.py`: structured identifiers and known names, not arbitrary
@@ -150,17 +148,14 @@ def _transform(
     copy: nested lists / dicts stayed aliased to the caller's references, so a
     caller holding a nested container could mutate it between `verify()` and
     the LLM send — the authenticator would still match at verify time, but the
-    bytes on the wire would be whatever the caller wrote last. That was
-    M-sanitizer-toctou-1 in the A10 review. Routing through the same canonical
-    JSON that the HMAC and `verify` use deep-copies every container and
-    forbids sharing any mutable object with the caller.
+    bytes on the wire would be whatever the caller wrote last. Routing through
+    the same canonical JSON that the HMAC and `verify` use deep-copies every
+    container and forbids sharing any mutable object with the caller.
 
-    **Redact.** Until the B5 hardening slice this function stopped at the
-    snapshot, so D7 M5's "redacts contact names to role tokens" and D8's
-    "structurally cannot send identifiable person information" described
-    behavior that did not exist — finding C1 of the Phase B gate. Redaction
-    now runs on every string in the payload, using the same pattern
-    definitions as the pre-commit scanner (`jscc/personal_data.py`).
+    **Redact.** Every string in the payload is rewritten using the same
+    pattern definitions as the pre-commit scanner (`jscc/personal_data.py`).
+    Stopping at the snapshot would leave D7 M5 and D8 describing behavior the
+    code does not have.
 
     Redaction is **unconditional**. It does not consult `contains_personal`,
     and no caller can opt out. That is the difference between structural and

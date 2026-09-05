@@ -63,17 +63,11 @@ def _raw_extraction_call(
 ) -> LLMResult:
     """The billed unit, and only the billed unit.
 
-    Gate finding M2: `_parse_response` used to run here, inside the
-    instrumented function, so an `ExtractionParseError` propagated before
-    `@instrumented` could write the ledger row -- the tokens were spent and
-    the ledger recorded nothing. A malformed response is the likeliest
-    failure while iterating on a prompt, which is exactly when the cost
-    figures matter most, and `jscc costs` is a portfolio artifact (D5/C3).
-
-    Parsing now happens in `extract_jd`, after the row is written. The rule
-    this encodes: nothing that can fail *after* the money is spent belongs
-    inside an instrumented function. It also makes the recorded latency the
-    network call alone rather than network + parse.
+    Nothing that can fail *after* the money is spent belongs in here: the
+    ledger row is written when this returns, so parsing lives in `extract_jd`.
+    A malformed response is the likeliest failure while iterating on a prompt,
+    which is exactly when the cost figures are being read. Keeping the
+    boundary here also makes recorded latency the network call alone.
     """
     response = client.complete(model=model, system=system, user=prompt)
     return LLMResult(
@@ -113,14 +107,10 @@ def extract_jd(
     and `resolve-dlq` as `extraction`, `eval jd_extraction` as
     `extraction_eval`.
 
-    Gate finding M1: the eval command used to call without a `conn` on the
-    reasoning that eval runs measure prompt quality, not production cost.
-    True, but it made prompt iteration — the phase that burns the most
-    tokens — the one phase with no cost record, while D5 claimed every LLM
-    call was instrumented and D7 promised budget caps enforced through that
-    same instrumentation. Eval runs are now metered under their own feature
-    label so they show up in `jscc costs` without polluting the
-    per-application figure.
+    Eval runs are metered under their own feature label. Prompt iteration
+    burns the most tokens of any phase, so leaving it off the ledger would
+    make D5's claim and D7's budget caps both untrue; folding it into
+    `extraction` would inflate the per-application cost figure.
 
     The conn-less path remains for library and test callers, which have no
     ledger to write to. That is the honest scope of D5's claim: calls made
@@ -139,8 +129,7 @@ def extract_jd(
         # and a JD forwarded from a recruiter's email carries their name,
         # address, and number in the signature. The sanitizer redacts every
         # payload unconditionally regardless of this flag (D7 M5) — that is
-        # the guarantee. Gate finding C1: before the B5 slice it did not, and
-        # this comment's reasoning was the whole defense.
+        # the guarantee, and this comment's reasoning is not.
         "contains_personal": False,
     }
     sanitized = sanitize_for_llm(payload)

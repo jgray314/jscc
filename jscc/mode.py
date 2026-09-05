@@ -29,15 +29,11 @@ class InvalidModeError(ValueError):
 
 DEFAULT_MODE = Mode.synthetic
 
-# Anchored to the package, not to the process's working directory.
-#
-# Rerun-gate finding M-3: this was `Path("data")`, so `JSCC_DATA=real` run from
-# any other directory created a fresh, correctly-stamped `real.db` *there* --
-# outside the `.gitignore` that is D7 M2, with no warning and a success message.
-# The mode marker did its job; the file just wasn't where the protections are.
-# Two of D7's seven mitigations (M2's ignore patterns and M3's danger list, see
-# H-1) both keyed on the working directory, so one wrong `cd` disabled both at
-# once. `--data-dir` still overrides for anyone who means it.
+# Anchored to the package, not to the process's working directory. A relative
+# default puts `real.db` wherever the CLI was started -- outside the
+# `.gitignore` patterns that are D7 M2, and with no warning, because the mode
+# marker travels with the file. `--data-dir` still overrides for anyone who
+# means it.
 DEFAULT_DATA_DIR = PACKAGE_ROOT / "data"
 
 

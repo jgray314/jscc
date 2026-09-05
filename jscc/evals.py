@@ -9,25 +9,32 @@ on its structural fields.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable
 
 from pydantic import BaseModel
 
-from .paths import PACKAGE_ROOT
+from .llm_client import LLMResponse
 from .models import ExtractedJD
+from .paths import PACKAGE_ROOT
 from .sanitizer import LLMSendError, SanitizerRefusal
 
 JD_EXTRACTION_CASES_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "cases.json"
+JD_EXTRACTION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "recorded.json"
+
+# The bar the suite is held to. It lives here rather than in prose so it is a
+# property of the object: a threshold in a README is a promise about a
+# document, and the command has to enforce the same rule the docs claim.
+PASS_THRESHOLD = 0.80
 
 # Structural fields, each with the comparison rule its content actually
-# warrants. Gate finding H2: `title` and `location` were absent from every
-# tuple below, so the harness read their expectations out of `cases.json`
-# (all 15 cases specify both) and silently dropped them. `title` is the only
-# extracted field with a production consumer -- `cli.py` uses it to name the
-# Application -- so the eval suite was not grading the one field the product
-# reads.
+# warrants. Every field a case can specify must appear in one of these tuples:
+# a field missing from all of them is read out of `cases.json` and silently
+# dropped, grading the prompt against fewer expectations than the case author
+# wrote. `_GRADED_FIELDS` and its coverage test make that impossible rather
+# than merely unlikely.
 #
 #   level, remote_policy  -- closed vocabularies, exact match
 #   title                 -- normalized match: strict on content, forgiving
@@ -140,6 +147,77 @@ def grade_extraction(case: EvalCase, extracted: ExtractedJD) -> EvalCaseResult:
     return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
 
 
+class RecordingMissing(RuntimeError):
+    """Replay was requested but no recorded response exists for a case."""
+
+
+def load_recording(path: Path = JD_EXTRACTION_RECORDING_PATH) -> dict[str, str]:
+    """Prompt hash -> the raw model response captured on a live run.
+
+    Replay exists so CI can gate on the eval suite without an API key, spend,
+    or the flakiness of scoring a nondeterministic model on every push. Be
+    precise about what that buys: replay pins the harness, the parser, and the
+    prompt's output *contract*. It does not measure the model's judgment --
+    only a live run does that, and its result is what gets published. Calling
+    replay "eval-gated" without that distinction would be the same kind of
+    overclaim D8 is careful to avoid.
+    """
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_recording(
+    responses: dict[str, str], path: Path = JD_EXTRACTION_RECORDING_PATH
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(responses, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _prompt_key(user: str) -> str:
+    """Recordings are keyed by a hash of the prompt the client actually
+    receives -- i.e. post-sanitizer. Keying on the case id instead would let a
+    recording keep replaying after the prompt or the redaction rules changed
+    underneath it, which is the failure mode that makes recorded suites lie."""
+    return hashlib.sha256(user.encode("utf-8")).hexdigest()
+
+
+class RecordingClient:
+    """Wraps a real client and captures each response for later replay."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.captured: dict[str, str] = {}
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        response = self._inner.complete(model=model, system=system, user=user)
+        self.captured[_prompt_key(user)] = response.text
+        return response
+
+
+class ReplayClient:
+    """Serves recorded responses. Opens no socket and spends nothing, so the
+    zero usage figures it reports are accurate rather than a placeholder."""
+
+    def __init__(self, recorded: dict[str, str]) -> None:
+        self._recorded = recorded
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        key = _prompt_key(user)
+        try:
+            text = self._recorded[key]
+        except KeyError:
+            raise RecordingMissing(
+                "no recorded response for this prompt. The prompt or the "
+                "redaction rules changed since the recording was made -- "
+                "re-record with `eval jd_extraction --record` against a live "
+                "key rather than editing the recording by hand."
+            ) from None
+        return LLMResponse(
+            text=text, input_tokens=0, output_tokens=0, cost_usd=0.0, stop_reason="end_turn"
+        )
+
+
 def run_jd_extraction_evals(
     extract_fn: Callable[[str], ExtractedJD],
     cases_path: Path = JD_EXTRACTION_CASES_PATH,
@@ -150,13 +228,10 @@ def run_jd_extraction_evals(
         try:
             extracted = extract_fn(case.raw_jd)
         except (SanitizerRefusal, LLMSendError):
-            # Gate finding M3: these are D7/D8 boundary failures, not prompt
-            # quality signals. The generic handler below used to fold them
-            # into the pass/fail count, so a sanitizer refusal across all 15
-            # cases reported as a routine `0/15 passed` -- indistinguishable
-            # from a bad prompt, and directly against `sanitizer.py`'s own
-            # instruction that callers must not catch and continue. A safety
-            # failure during an eval run has to stop the run.
+            # D7/D8 boundary failures, not prompt-quality signals. Folded
+            # into the pass/fail count they are indistinguishable from a bad
+            # prompt, and `sanitizer.py` instructs callers not to catch and
+            # continue. A safety failure during an eval run stops the run.
             raise
         except Exception as e:  # extractor stub, prompt bugs, etc. — all count as a failed case
             results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))

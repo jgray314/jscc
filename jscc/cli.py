@@ -15,10 +15,18 @@ from .config import (
     load_stages,
     resolve_profile_path,
 )
-from .evals import format_eval_summary, run_jd_extraction_evals
+from .evals import (
+    PASS_THRESHOLD,
+    RecordingClient,
+    ReplayClient,
+    format_eval_summary,
+    load_recording,
+    run_jd_extraction_evals,
+    save_recording,
+)
 from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
 from .fetcher import fetch_jd
-from .llm_client import UnknownModelPricingError
+from .llm_client import UnknownModelPricingError, default_client
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import Application, DLQEntry, FailureMode, Resolution
 from .paths import PACKAGE_ROOT
@@ -46,9 +54,8 @@ def _company_from_url(url: str) -> str:
     netloc = urlparse(url).netloc
     return netloc.removeprefix("www.") or url
 
-# Anchored like DEFAULT_DATA_DIR (rerun-gate M-3): a CWD-relative default made
-# `report` fail with a raw traceback from a foreign directory while `ingest`
-# quietly succeeded against a DB somewhere else entirely.
+# Anchored like DEFAULT_DATA_DIR: config lives with the package, not wherever
+# the process happened to start.
 DEFAULT_CONFIG_DIR = PACKAGE_ROOT / "config"
 
 
@@ -57,7 +64,7 @@ def _resolve_mode_or_exit() -> Mode:
         return resolve_mode()
     except InvalidModeError as e:
         click.echo(str(e), err=True)
-        sys.exit(2)
+        sys.exit(EXIT_USAGE)
 
 
 def _open_or_exit(mode: Mode, data_dir: Path):
@@ -65,12 +72,38 @@ def _open_or_exit(mode: Mode, data_dir: Path):
         return open_for_mode(mode, data_dir)
     except ModeMismatchError as e:
         click.echo(str(e), err=True)
-        sys.exit(2)
+        sys.exit(EXIT_USAGE)
+
+
+# Exit codes are a contract, not an afterthought. D6 treats a failed fetch as
+# an expected product state rather than an error -- the DLQ *is* the feature --
+# so a run that queues work is not the same outcome as a run that broke, and a
+# script looping over URLs has to be able to tell them apart. Folding both into
+# 1 erases exactly the distinction the queue exists to make; leaving the queued
+# case at 0 tells a caller that an Application was created when none was.
+EXIT_OK = 0
+EXIT_UNEXPECTED = 1
+EXIT_USAGE = 2
+EXIT_QUEUED = 3
 
 
 @click.group()
 def cli() -> None:
-    """JSCC command line."""
+    """JSCC command line.
+
+    Exit codes for the commands that create records (`ingest`, `resolve-dlq`):
+
+      0  the record was created
+      3  handled failure -- a DLQ entry was written; nothing is lost, retry
+         with `resolve-dlq`
+      2  usage or configuration error; nothing was attempted
+      1  unexpected
+
+    The check commands (`validate-config`, `eval`) use the conventional 0/1
+    for pass/fail. Splitting the two conventions is deliberate: "did the check
+    pass" and "what happened to the work" are different questions, and a
+    single scale would have to answer both badly.
+    """
 
 
 @cli.group()
@@ -198,7 +231,7 @@ def seed(
             f"Synthetic seeding is only allowed in synthetic mode.",
             err=True,
         )
-        sys.exit(2)
+        sys.exit(EXIT_USAGE)
     if mode_flag != "synthetic":
         raise click.UsageError(f"unsupported seed mode: {mode_flag}")
 
@@ -310,7 +343,30 @@ def eval_group() -> None:
     show_default=True,
     help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
 )
-def eval_jd_extraction(data_dir: Path) -> None:
+@click.option(
+    "--record",
+    "record",
+    is_flag=True,
+    default=False,
+    help="Capture each live response to evals/jd_extraction/recorded.json.",
+)
+@click.option(
+    "--replay",
+    "replay",
+    is_flag=True,
+    default=False,
+    help="Serve recorded responses instead of calling the model. No key, no spend.",
+)
+@click.option(
+    "--min-pass-rate",
+    type=float,
+    default=PASS_THRESHOLD,
+    show_default=True,
+    help="Fail below this pass rate.",
+)
+def eval_jd_extraction(
+    data_dir: Path, record: bool, replay: bool, min_pass_rate: float
+) -> None:
     """Run the JD-extraction eval suite against the current `extract_jd`.
 
     Exits non-zero if any case fails, so it can gate CI once B2b lands an
@@ -319,19 +375,44 @@ def eval_jd_extraction(data_dir: Path) -> None:
     Calls are recorded to the `llm_calls` ledger under the `extraction_eval`
     feature (D5), separate from production `extraction` traffic so prompt
     iteration shows up in `jscc costs` without inflating per-application
-    cost. Gate finding M1 — this command previously bypassed instrumentation
-    entirely, leaving the most token-hungry phase of the project unmetered.
+    cost.
     """
+    if record and replay:
+        raise click.UsageError("--record and --replay are mutually exclusive")
+
+    client = None
+    if replay:
+        recorded = load_recording()
+        if not recorded:
+            click.echo(
+                "no recordings yet; run once with --record against a live key", err=True
+            )
+            sys.exit(EXIT_USAGE)
+        client = ReplayClient(recorded)
+    elif record:
+        client = RecordingClient(default_client())
+
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
         summary = run_jd_extraction_evals(
-            lambda raw: extract_jd(raw, conn=conn, feature=EXTRACTION_EVAL_FEATURE)
+            lambda raw: extract_jd(
+                raw, conn=conn, client=client, feature=EXTRACTION_EVAL_FEATURE
+            )
         )
     finally:
         conn.close()
+
+    if record and client is not None:
+        save_recording(client.captured)
+        click.echo(f"recorded {len(client.captured)} responses")
+
     click.echo(format_eval_summary(summary))
-    if summary.passed < summary.total:
+    if summary.pass_rate < min_pass_rate:
+        click.echo(
+            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
+            err=True,
+        )
         sys.exit(1)
 
 
@@ -359,13 +440,9 @@ def _extract_and_create_application(
         source_raw=raw_text,
         title=extracted.title or fallback_title or "(untitled)",
         company=company,
-        # Rerun-gate H-3: every field but `title` used to be computed, paid
-        # for, instrumented, and dropped -- `extracted_jd` was None on every
-        # row production wrote, and `seed.py` was the only writer of the column
-        # anywhere. D9's second justification for the whole split-call
-        # architecture is that the intermediate output has independent product
-        # value; storing nothing made that argument false about the code, and
-        # left D9's caching rationale with nothing to cache.
+        # The whole extraction, not just the field the title comes from: D9
+        # splits extract from score because the intermediate output has
+        # independent product value, and caching it needs it stored.
         extracted_jd=extracted.model_dump(),
         stage=FIRST_STAGE,
     )
@@ -448,7 +525,7 @@ def ingest(
                 click.echo(
                     f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})"
                 )
-                return
+                sys.exit(EXIT_QUEUED)
             raw_text = result.raw_text
             source_url: str | None = url
             company_val = company or _company_from_url(url)
@@ -457,7 +534,7 @@ def ingest(
             raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
             if not raw_text.strip():
                 click.echo("no JD text provided (empty stdin/file)", err=True)
-                sys.exit(2)
+                sys.exit(EXIT_USAGE)
             source_url = None
             company_val = company or "(pasted)"
             fallback_title = None
@@ -471,13 +548,9 @@ def ingest(
                 fallback_title=fallback_title,
             )
         except ExtractionParseError as e:
-            # Rerun-gate H-2. This used to escape as an unhandled traceback:
-            # exit 1, no Application, no DLQ entry, nothing to retry from. A
-            # model that wraps its JSON in prose or a ``` fence is the normal
-            # case, not an exotic one, so the moment B2b sets a real key this
-            # was the first thing that would happen. B3a's DoD is "produces
-            # Application OR DLQEntry, never crashes" -- H1 restored that for
-            # the fetch stage only, and this is the same bug class one layer up.
+            # A model that wraps its JSON in prose or a ``` fence is the
+            # normal case, not an exotic one. "Produces an Application or a
+            # DLQEntry, never crashes" covers this stage too, not just fetch.
             entry = DLQEntry(
                 source_url=source_url or PASTED_SOURCE,
                 failure_mode=FailureMode.extraction_failed,
@@ -486,7 +559,7 @@ def ingest(
             entry_id = create_dlq_entry(conn, entry)
             click.echo(f"extraction failed; added to DLQ ({entry_id})")
             click.echo(f"  {e}", err=True)
-            return
+            sys.exit(EXIT_QUEUED)
         except UnknownModelPricingError as e:
             # Deliberately *not* DLQ'd, unlike the reviewer's suggested shape.
             # An unpriced model is a misconfiguration, not a bad JD: every
@@ -494,7 +567,7 @@ def ingest(
             # that re-fail on resolve would bury the one thing worth reading.
             # Nothing was billed either -- the check runs before the request.
             click.echo(f"configuration error: {e}", err=True)
-            sys.exit(2)
+            sys.exit(EXIT_USAGE)
         click.echo(f"created application {app_id}: {app.title}")
     finally:
         conn.close()
@@ -562,7 +635,7 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
         entry = next((e for e in entries if e.id == entry_id), None)
         if entry is None:
             click.echo(f"no DLQ entry with id {entry_id}", err=True)
-            sys.exit(2)
+            sys.exit(EXIT_USAGE)
 
         company = (
             "(pasted)"
@@ -580,10 +653,10 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
         except ExtractionParseError as e:
             # No new DLQ entry here -- one already exists and stays unresolved,
             # which is the correct record. Creating a second would duplicate the
-            # queue on every retry (see also finding M-1 on re-resolution).
+            # queue on every retry.
             click.echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
             click.echo(f"  {e}", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_QUEUED)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste)
         click.echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:

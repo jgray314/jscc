@@ -74,7 +74,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (285 tests)
+tests/          pytest suite (293 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -101,6 +101,7 @@ The ten locked design principles behind them are in [docs/design-principles.md](
 ```bash
 uv sync
 uv run pytest              # ~seconds
+uv run python -m jscc eval jd_extraction --replay   # eval suite, no API key
 uv run pre-commit install  # enable the safety scanner
 uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
@@ -109,7 +110,7 @@ The pre-commit scanner refuses commits that match email/phone patterns or entrie
 
 ## Status
 
-Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 285 pytest cases.
+Phase A hardening complete: three rounds of adversarial + reviewer-walkthrough gates, structural fixes for every critical + high finding, 5 ADRs. Phase B in flight: B1 (eval suite), B2a (extraction prompt + client plumbing), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), and B4 (JD paste-only path) shipped. No `ANTHROPIC_API_KEY` is configured yet, so extraction runs against a stub client end-to-end — live prompt iteration to the ≥80% eval bar (B2b) is next once a key is available. 293 pytest cases.
 
 ## License
 

@@ -7,12 +7,11 @@ D7 names two mitigations that must agree on what counts as personal data:
 - **M5** — the prompt sanitizer (`jscc/sanitizer.py`): blocks it from leaving
   the process toward an LLM.
 
-Before the B5 hardening slice these were not the same definition — M3 had
-real regexes and M5 had an identity `_transform` that redacted nothing. A
-string carrying a name, email, and phone was refused by the scanner and
-forwarded verbatim by the sanitizer. That was finding C1 of the Phase B gate.
+Two enforcement points with two copies of the rules is a leak waiting for
+one of them to fall behind: a string the scanner refuses must not be a string
+the sanitizer forwards.
 
-This module is now the one definition. The scanner imports the patterns to
+This module is the one definition. The scanner imports the patterns to
 *detect*; the sanitizer imports `redact` to *rewrite*. Adding a term to
 `.safety/danger-list.local.txt` now blocks it from both git and LLM traffic
 with one edit, which is the property D7 M3/M5 were supposed to have all along.
@@ -64,17 +63,12 @@ PHONE_DIGITS_MIN = 10
 PHONE_DIGITS_MAX = 15
 
 # Anchored to the installed package, never to the process's working directory.
-#
-# Rerun-gate finding H-1: these were relative paths, so `default_danger_terms()`
-# returned `[]` for any process not started from the repo root -- silently, with
-# emails and phones still redacting so nothing looked broken. That is the
-# load-bearing half of the C1 fix: the pre-commit scanner always runs from the
-# repo root, the sanitizer runs wherever the user happens to be, so the two D7
-# egress points drifted on what counts as personal after all -- through path
-# resolution rather than through the duplicated regexes C1 removed. A control
-# whose effectiveness depends on remembering to `cd` first is disciplinary, and
-# D7's whole claim is that it is structural. `evals.py` already anchored this
-# way; this file should have.
+# A relative path here loads no terms at all outside the repo root -- silently,
+# since the email and phone rules keep firing. The scanner always runs from the
+# root and the sanitizer runs wherever the user is, so a cwd-relative list is a
+# way for the two D7 egress points to disagree about what counts as personal.
+# A control that depends on remembering to `cd` first is disciplinary; D7's
+# claim is that it is structural.
 SAFETY_DIR_ENV_VAR = "JSCC_SAFETY_DIR"
 
 

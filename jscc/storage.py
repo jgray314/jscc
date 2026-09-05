@@ -300,8 +300,7 @@ def open_for_mode(
         # on a WAL sidecar I/O failure) would replace the original exception
         # — including the safety-critical ModeMismatchError — with a generic
         # disk error, and the developer would have no idea their JSCC_DATA was
-        # pointed at the wrong file. M-storage-except-baseexception-1 in the
-        # A10 review.
+        # pointed at the wrong file.
         try:
             conn.close()
         except Exception:

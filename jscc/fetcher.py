@@ -11,7 +11,7 @@ network- or content-shaped failures -- only for programmer error.
 
 Requests leave here through `_get_guarded`, which enforces an http(s)
 scheme allowlist, rejects hosts resolving to non-public addresses,
-re-checks every redirect hop, and caps the body size (gate finding M5).
+re-checks every redirect hop, and caps the body size.
 Known residual: the Playwright fallback is handed an already-checked URL,
 but the browser then follows its own redirects without those guards. It is
 off by default and opt-in per config.
@@ -34,8 +34,8 @@ _MIN_CONTENT_CHARS = 200
 _BLOCKED_STATUS_CODES = {401, 403, 429, 451}
 _PAYWALL_STATUS_CODES = {402}
 
-# Gate finding M5. `fetch_jd` takes a URL and hands whatever comes back to an
-# LLM, which makes it a fetch primitive: without guards, the cloud
+# `fetch_jd` takes a URL and hands whatever comes back to an LLM, which makes
+# it a fetch primitive: without guards, the cloud
 # instance-metadata endpoint on the link-local range, `http://localhost:8080/`,
 # `file:///etc/passwd`, or any public URL that 302s to one of those, is fetched
 # and its contents forwarded. (Metadata and loopback addresses are described
@@ -155,10 +155,9 @@ def _extract(html: str) -> tuple[str, str]:
     **Never raises.** Both readability and lxml throw on input they can't
     parse -- `lxml.html.fromstring("")` raises `ParserError: Document is
     empty`, and an empty-body `200` is a routine bot-block response, not an
-    exotic case. Before the B5 hardening slice that exception escaped
-    `fetch_jd` and crashed `python -m jscc ingest` with exit 1 and no DLQ
-    entry, breaking both this module's never-raises contract and B3a's DoD
-    ("produces Application OR DLQEntry, never crashes"). Gate finding H1.
+    exotic case -- so letting that exception escape would break both this
+    module's never-raises contract and the CLI's "produces an Application or a
+    DLQEntry, never crashes".
 
     A parse failure is a content-shaped failure, so it degrades to empty
     text and lets the thin-content path route it: `extraction_failed` when

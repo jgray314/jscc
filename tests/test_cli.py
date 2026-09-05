@@ -336,7 +336,7 @@ def test_ingest_url_failure_creates_dlq_entry_not_application(
     result = runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/2", "--data-dir", str(tmp_path)]
     )
-    assert result.exit_code == 0, result.output
+    _assert_queued(result)
     assert "dlq" in result.output.lower()
 
     from jscc.mode import Mode
@@ -382,8 +382,8 @@ def test_ingest_empty_response_body_dlqs_instead_of_crashing(
     result = runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/9", "--data-dir", str(tmp_path)]
     )
-    assert result.exit_code == 0, result.output
-    assert result.exception is None
+
+    _assert_queued(result)
 
     from jscc.mode import Mode
     from jscc.storage import list_applications, list_dlq_entries, open_for_mode
@@ -397,11 +397,17 @@ def test_ingest_empty_response_body_dlqs_instead_of_crashing(
     assert entries[0].failure_mode.value == "extraction_failed"
 
 
-def test_ingest_never_crashes_on_fetch_exception_shaped_failure(
+def test_ingest_converts_a_fetchresult_failure_to_a_dlq_entry(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """CLI-side half of the DoD: a returned FetchResult failure becomes a DLQ
-    entry, not an exception. The fetcher-side half is the test above."""
+    entry, not an exception. The fetcher-side half is the test above.
+
+    Renamed from `test_ingest_never_crashes_on_fetch_exception_shaped_failure`,
+    which overclaimed: it mocks `fetch_jd` itself, so it never tested that the
+    fetcher does not crash -- and the fetcher did (H1). It also asserted only
+    on the exit code while its docstring described a DLQ entry it never
+    queried."""
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
@@ -418,7 +424,13 @@ def test_ingest_never_crashes_on_fetch_exception_shaped_failure(
     result = runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/3", "--data-dir", str(tmp_path)]
     )
-    assert result.exit_code == 0, result.output
+    _assert_queued(result)
+
+    apps, entries = _rows(tmp_path)
+    assert apps == []
+    assert len(entries) == 1
+    assert entries[0].failure_mode.value == "timeout"
+    assert entries[0].source_url == "https://example.com/jobs/3"
 
 
 def test_ingest_paste_stdin_creates_application_same_shape_as_url(
@@ -738,6 +750,14 @@ def _ingest_with_client(runner, tmp_path, monkeypatch, client, argv=None):
     )
 
 
+
+def _assert_queued(result) -> None:
+    """Handled failure: a DLQ entry was written. Exit 3, and nothing escaped
+    as a real exception -- CliRunner reports the SystemExit itself here."""
+    assert result.exit_code == 3, result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
 def _rows(tmp_path):
     from jscc.mode import Mode
     from jscc.storage import list_applications, list_dlq_entries, open_for_mode
@@ -756,7 +776,7 @@ def test_fenced_json_response_dlqs_instead_of_crashing(
     edge case -- this is what B2b's first live call is most likely to hit."""
     client = _CannedClient('Here is the JSON:\n```json\n{"title": "X"}\n```')
     result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
-    assert result.exception is None
+    _assert_queued(result)
     apps, entries = _rows(tmp_path)
     assert apps == []
     assert len(entries) == 1
@@ -771,7 +791,7 @@ def test_truncated_response_is_reported_as_truncation_not_bad_json(
     JSONDecodeError. Told apart, or prompt iteration chases the wrong bug."""
     client = _CannedClient('{"title": "Staff Engi', stop_reason="max_tokens")
     result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
-    assert result.exception is None
+    _assert_queued(result)
     _apps, entries = _rows(tmp_path)
     assert len(entries) == 1
     assert "truncated" in entries[0].error_detail
@@ -784,7 +804,7 @@ def test_valid_json_of_the_wrong_shape_also_dlqs(
     """The other parse-failure mode takes the same route."""
     client = _CannedClient('{"title": "X"}')  # missing required fields
     result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
-    assert result.exception is None
+    _assert_queued(result)
     _apps, entries = _rows(tmp_path)
     assert len(entries) == 1
 
@@ -823,7 +843,7 @@ def test_failed_resolve_does_not_create_a_second_dlq_entry(
         cli,
         ["resolve-dlq", entries[0].id, "--paste-text", "a jd", "--data-dir", str(tmp_path)],
     )
-    assert result.exit_code == 1
+    _assert_queued(result)
     _apps, after = _rows(tmp_path)
     assert len(after) == 1
     assert after[0].resolution.value == "unresolved"
@@ -852,7 +872,7 @@ def test_url_path_extraction_failure_keeps_the_url_on_the_dlq_entry(
     result = runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/7", "--data-dir", str(tmp_path)]
     )
-    assert result.exception is None
+    _assert_queued(result)
     _apps, entries = _rows(tmp_path)
     assert len(entries) == 1
     assert entries[0].source_url == "https://example.com/jobs/7"
@@ -982,3 +1002,131 @@ def test_resolve_dlq_also_stores_the_extracted_fields(
     assert result.exit_code == 0, result.output
     apps, _entries = _rows(tmp_path)
     assert apps[0].extracted_jd == payload
+
+
+# ---- exit-code contract ----------------------------------------------------
+#
+# D6 treats a queued failure as an expected product state, so "the work was
+# queued" and "the tool broke" must not share an exit code -- that distinction
+# is the DLQ's whole reason for existing. Pinned here because an exit code is
+# an interface: it is the one part of a CLI a script depends on and no test
+# notices when it changes.
+
+
+def test_exit_code_constants_match_the_documented_contract() -> None:
+    from jscc.cli import EXIT_OK, EXIT_QUEUED, EXIT_UNEXPECTED, EXIT_USAGE
+
+    assert (EXIT_OK, EXIT_UNEXPECTED, EXIT_USAGE, EXIT_QUEUED) == (0, 1, 2, 3)
+
+
+def test_usage_error_and_queued_failure_are_different_codes(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Empty input is the caller's mistake and nothing was attempted; a
+    parse failure produced a retryable record. Same command, different
+    outcomes, so different codes."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    empty = runner.invoke(
+        cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n"
+    )
+    assert empty.exit_code == 2
+
+    queued = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient("not json"))
+    assert queued.exit_code == 3
+
+
+# ---- eval threshold, record and replay -------------------------------------
+
+
+def _eval_paths(tmp_path, monkeypatch):
+    from jscc import evals
+
+    recording = tmp_path / "recorded.json"
+    monkeypatch.setattr("jscc.cli.load_recording", lambda: evals.load_recording(recording))
+    monkeypatch.setattr("jscc.cli.save_recording", lambda r: evals.save_recording(r, recording))
+    return recording
+
+
+def test_eval_fails_below_the_threshold_and_says_the_number(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bar used to live only in README prose, while the command actually
+    failed if *any* case failed -- a different rule from the one claimed."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "80%" in result.output
+
+
+def test_eval_passes_when_the_bar_is_lowered(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["eval", "jd_extraction", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+
+
+def test_record_then_replay_round_trips(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replay is what lets CI gate the suite with no key and no spend."""
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    recording = _eval_paths(tmp_path, monkeypatch)
+
+    rec = runner.invoke(
+        cli,
+        ["eval", "jd_extraction", "--record", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+    )
+    assert rec.exit_code == 0, rec.output
+    assert recording.exists()
+    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 15
+
+    play = runner.invoke(
+        cli,
+        ["eval", "jd_extraction", "--replay", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+    )
+    assert play.exit_code == 0, play.output
+    assert "15" in play.output
+
+
+def test_replay_without_a_recording_is_a_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    _eval_paths(tmp_path, monkeypatch)
+    result = runner.invoke(
+        cli, ["eval", "jd_extraction", "--replay", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 2
+
+
+def test_record_and_replay_are_mutually_exclusive(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli, ["eval", "jd_extraction", "--record", "--replay", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0
+
+
+def test_replay_refuses_a_prompt_it_has_no_recording_for(tmp_path: Path) -> None:
+    """Keyed on the prompt, not the case id, so a recording cannot keep
+    replaying after the prompt or the redaction rules moved underneath it."""
+    from jscc.evals import RecordingMissing, ReplayClient
+
+    client = ReplayClient({"some-other-hash": '{"title": "X"}'})
+    with pytest.raises(RecordingMissing):
+        client.complete(model="m", system="s", user="a prompt never recorded")

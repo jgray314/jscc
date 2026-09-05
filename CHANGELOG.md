@@ -2,6 +2,54 @@
 
 ## [Unreleased]
 
+### B7 — three decisions, and a narration trim
+
+**Exit codes are now a contract.** `ingest` and `resolve-dlq` return 0 when a
+record was created, **3** when a handled failure wrote a DLQ entry, 2 for a
+usage or configuration error, and 1 for anything unexpected. D6 treats a
+queued failure as an expected product state rather than an error, so a script
+looping over URLs has to be able to tell "this is waiting for you" from "the
+tool broke" — folding both into 1 erases the distinction the queue exists to
+make, and leaving the queued case at 0 claims an Application that does not
+exist. The check commands (`validate-config`, `eval`) keep the conventional
+0/1: "did the check pass" and "what happened to the work" are different
+questions and one scale answers both badly.
+
+This also removed an inconsistency: the same parse failure exited 0 from
+`ingest` and 1 from `resolve-dlq`.
+
+**The eval suite has a threshold, and can run without a key.** `PASS_THRESHOLD
+= 0.80` now lives in `evals.py` with a `--min-pass-rate` override, and the
+command fails below the rate rather than on any single failing case — which is
+what the README always claimed. `eval jd_extraction --record` captures live
+responses to `evals/jd_extraction/recorded.json`; `--replay` serves them with
+no key, no spend and no network.
+
+Recordings are keyed by a hash of the prompt the *client* receives, i.e. after
+sanitization. Keying on the case id would let a recording keep replaying after
+the prompt or the redaction rules moved underneath it, which is how a recorded
+suite starts lying. Be precise about what replay buys: it pins the harness, the
+parser and the prompt's output contract; it does not measure the model's
+judgment. Only a live run does that. CI wiring waits for B2b, since replaying
+stub responses would gate on 0/15.
+
+**Narration trimmed.** Production code no longer carries review-finding IDs or
+the remediation history behind each fix — no `gate finding M2`, no
+`M-sanitizer-toctou-1 in the A10 review`. The *rules* stay, because they are
+what a reader needs ("nothing that can fail after the money is spent belongs
+inside an instrumented function"); the bookkeeping moved here, where an audit
+trail belongs. Code that narrates its own remediation history reads as
+over-produced, and the ID is meaningless to anyone without the gate doc open.
+
+Also renamed `test_ingest_never_crashes_on_fetch_exception_shaped_failure` to
+`test_ingest_converts_a_fetchresult_failure_to_a_dlq_entry` and gave it the
+DLQ assertions its docstring always described. **The B5 entry below claimed
+this rename had happened; it had not — only the docstring changed.** Now it
+has.
+
+- 8 tests (293 total).
+
+
 ### B6 — rerun-gate criticals (findings H-1, M-3, H-2, H-3, and one follow-on)
 
 **H-3 — the extraction result was thrown away.** `_extract_and_create_application` used `extracted.title` and nothing else; `level`, `comp_band`, `location`, `remote_policy`, `must_have_skills` and `responsibilities_summary` were computed, billed, instrumented, and dropped. `Application.extracted_jd` was `None` on every row production wrote — `seed.py` was the only writer of that column anywhere in the repo.

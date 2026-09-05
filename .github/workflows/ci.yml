@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-# Actions are SHA-pinned with the release tag in a trailing comment
-# (M-ci-actions-pinning-1 in the A10 review). A floating major-tag pin (@v4,
+# Actions are SHA-pinned with the release tag in a trailing comment.
+# A floating major-tag pin (@v4,
 # @v6) can be silently repointed upstream — either by an accidental release
 # retag or a compromised maintainer — and would execute arbitrary code with
 # access to the checkout and GITHUB_TOKEN. Phase B introduces API-key secrets
@@ -31,7 +31,7 @@ jobs:
 
       - name: Sync dependencies
         # --frozen refuses to update the lockfile — CI must match what
-        # the developer committed. M-uvlock-untracked-1 in the A10 review.
+        # the developer committed.
         run: uv sync --all-extras --frozen
 
       - name: Run pytest
@@ -40,5 +40,5 @@ jobs:
       - name: Run precommit safety scanner on tracked files
         # scan_tracked.sh is the single source of truth for the exclude list;
         # .pre-commit-config.yaml calls the same script so CI and local hooks
-        # cannot drift (H-precommit-changelog-1 in the A10 review).
+        # cannot drift.
         run: bash scripts/scan_tracked.sh
