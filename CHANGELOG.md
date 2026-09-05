@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### B6 — rerun-gate criticals (findings H-1, M-3, H-2, H-3, and one follow-on)
+
+**H-3 — the extraction result was thrown away.** `_extract_and_create_application` used `extracted.title` and nothing else; `level`, `comp_band`, `location`, `remote_policy`, `must_have_skills` and `responsibilities_summary` were computed, billed, instrumented, and dropped. `Application.extracted_jd` was `None` on every row production wrote — `seed.py` was the only writer of that column anywhere in the repo.
+
+D9's second justification for the whole split-call architecture is that *"intermediate output has independent product value."* The column, the model field, the JSON serializer and the seed fixture all existed to hold data nothing ever stored, and D9's caching rationale had nothing to cache. One line to fix; the interesting part is that a reviewer running `ingest` and then querying the DB finds the LLM stage produced nothing durable, which is a worse impression than the missing feature itself.
+
+Both writers (`ingest` and `resolve-dlq`) go through the shared helper, and the tests assert that rather than assuming it. A coverage test pins `extracted_jd`'s keys to `ExtractedJD.model_fields`, so a field added later cannot be silently dropped on the way to the DB — the same class-level guard the eval suite got for the same reason (finding H2). The pre-existing "same shape as the URL path" test now checks the extracted fields too; asserting only on `source_url` and `company` was checking the wrapper, not the thing the LLM stage produced.
+
+- 3 tests (285 total).
+
 ### B6 — rerun-gate criticals (findings H-1, M-3, H-2, and one follow-on)
 
 **H-2 — an extraction failure crashed `ingest` with a raw traceback and no DLQ entry.** `ExtractionParseError` had no handler between `_extract_and_create_application` and `main()`. A model that wraps its JSON in prose or a ``` fence — the *normal* behaviour, not an exotic one — produced exit 1, no Application, no DLQ row, and nothing to retry from. B3a's DoD is "produces Application OR DLQEntry, never crashes"; H1 restored that for the fetch stage only, and this is the same bug class one layer up, in the layer that goes live the moment B2b sets a key.

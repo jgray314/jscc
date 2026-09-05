@@ -359,6 +359,14 @@ def _extract_and_create_application(
         source_raw=raw_text,
         title=extracted.title or fallback_title or "(untitled)",
         company=company,
+        # Rerun-gate H-3: every field but `title` used to be computed, paid
+        # for, instrumented, and dropped -- `extracted_jd` was None on every
+        # row production wrote, and `seed.py` was the only writer of the column
+        # anywhere. D9's second justification for the whole split-call
+        # architecture is that the intermediate output has independent product
+        # value; storing nothing made that argument false about the code, and
+        # left D9's caching rationale with nothing to cache.
+        extracted_jd=extracted.model_dump(),
         stage=FIRST_STAGE,
     )
     app_id = create_application(conn, app)

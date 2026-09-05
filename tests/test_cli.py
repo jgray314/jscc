@@ -446,6 +446,9 @@ def test_ingest_paste_stdin_creates_application_same_shape_as_url(
     assert apps[0].source_url is None
     assert apps[0].company == "(pasted)"
     assert apps[0].source_raw.startswith("Senior Engineer at Rift Cloud.")
+    # "Same shape" has to include the extracted fields, or the assertion is
+    # about the wrapper and not the thing the LLM stage produced (H-3).
+    assert apps[0].extracted_jd is not None
 
 
 def test_ingest_paste_file_reads_from_file_not_stdin(
@@ -873,3 +876,109 @@ def test_unpriced_model_is_a_config_error_not_a_dlq_entry(
     apps, entries = _rows(tmp_path)
     assert apps == []
     assert entries == []
+
+
+# ---- the extraction result is stored, not discarded (rerun-gate H-3) --------
+
+
+def test_ingest_stores_every_extracted_field_not_just_the_title(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`title` had a production consumer; the other six fields were computed,
+    billed, instrumented and dropped. D9's second justification for the
+    split-call architecture is that the intermediate output has independent
+    product value -- which was false of the code until this landed."""
+    import json
+
+    from jscc.models import ExtractedJD
+
+    payload = {
+        "title": "Staff Backend Engineer",
+        "level": "staff",
+        "comp_band": "$200,000-$240,000",
+        "location": "Denver, CO",
+        "remote_policy": "hybrid",
+        "must_have_skills": ["Python", "PostgreSQL"],
+        "responsibilities_summary": "Owns the ingestion pipeline.",
+    }
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)))
+    assert result.exit_code == 0, result.output
+
+    apps, _entries = _rows(tmp_path)
+    stored = apps[0].extracted_jd
+    assert stored == payload
+    # Round-trips back into the model the eval suite grades against.
+    assert ExtractedJD(**stored).must_have_skills == ["Python", "PostgreSQL"]
+
+
+def test_every_extracted_jd_field_survives_storage(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Closes the class rather than the instance: a field added to ExtractedJD
+    later must not be silently dropped on the way to the DB, which is the shape
+    of bug H-3 was. Mirrors the _GRADED_FIELDS coverage test the eval suite got
+    for the same reason (finding H2)."""
+    import json
+
+    from jscc.models import ExtractedJD
+
+    payload = {
+        "title": "T",
+        "level": "senior",
+        "comp_band": "band",
+        "location": "Denver",
+        "remote_policy": "remote",
+        "must_have_skills": ["x"],
+        "responsibilities_summary": "s",
+    }
+    assert set(payload) == set(ExtractedJD.model_fields), "test payload is stale"
+
+    _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)))
+    apps, _entries = _rows(tmp_path)
+    assert set(apps[0].extracted_jd) == set(ExtractedJD.model_fields)
+
+
+def test_resolve_dlq_also_stores_the_extracted_fields(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both writers go through the shared helper; assert it, don't assume it."""
+    import json
+
+    from unittest.mock import Mock
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
+    blocked = Mock()
+    blocked.status_code = 403
+    blocked.headers = {}
+    blocked.encoding = "utf-8"
+    blocked.is_redirect = False
+    blocked.iter_content = lambda chunk_size=None: iter([])
+    blocked.close = Mock()
+    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: blocked)
+    runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/3", "--data-dir", str(tmp_path)]
+    )
+    _apps, entries = _rows(tmp_path)
+    assert len(entries) == 1
+
+    payload = {
+        "title": "Director of Engineering",
+        "level": "director",
+        "comp_band": None,
+        "location": None,
+        "remote_policy": "remote",
+        "must_have_skills": [],
+        "responsibilities_summary": "Leads the platform org.",
+    }
+    monkeypatch.setattr(
+        "jscc.extraction.default_client", lambda: _CannedClient(json.dumps(payload))
+    )
+    result = runner.invoke(
+        cli,
+        ["resolve-dlq", entries[0].id, "--paste-text", "a jd", "--data-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert apps[0].extracted_jd == payload
