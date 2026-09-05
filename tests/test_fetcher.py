@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from unittest.mock import Mock, patch
 
 import pytest
@@ -364,3 +365,87 @@ def test_unresolvable_host_is_a_failure_not_a_crash(monkeypatch: pytest.MonkeyPa
     result = fetch_jd("https://nope.example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
+
+
+# ---- the guards must be detectable by their absence -------------------------
+#
+# Everything above patches `requests.get` wholesale, which means the guard
+# itself -- the `allow_redirects=False, stream=True` arguments -- is invisible
+# to the suite: flip either one and every test above still passes. A test that
+# cannot fail when the thing it covers is deleted is not covering it. These
+# assert on the call, and on the behaviour the call produces.
+
+
+def _real_response(status: int, headers: dict | None = None, body: bytes = b"") -> requests.Response:
+    """A genuine `requests.Response`, so the redirect machinery behaves as it
+    does in production rather than as a Mock permits."""
+    resp = requests.Response()
+    resp.status_code = status
+    resp.headers.update(headers or {})
+    resp.raw = io.BytesIO(body)
+    resp.encoding = "utf-8"
+    return resp
+
+
+def test_fetch_passes_the_guard_arguments_to_requests():
+    """`allow_redirects=False` is what makes the per-hop check reachable, and
+    `stream=True` is what makes the size cap a cap rather than a check after
+    the fact. Neither has any other observable effect at this level."""
+    with patch(
+        "jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)
+    ) as get:
+        fetch_jd("https://example.com/jobs/1")
+    kwargs = get.call_args.kwargs
+    assert kwargs["allow_redirects"] is False
+    assert kwargs["stream"] is True
+
+
+def test_a_redirect_is_never_followed_below_the_guard(monkeypatch: pytest.MonkeyPatch):
+    """The behavioural version, one layer lower than `requests.get`.
+
+    With `allow_redirects=True`, requests resolves the hop internally: the
+    second URL is fetched without `_check_url` ever seeing it, and `fetch_jd`
+    receives the final response as though it had been the first. So the thing
+    to assert is that exactly one request leaves the process, and that the
+    destination host was checked -- both observable from here, and both false
+    the moment the guard is removed.
+    """
+    hosts = {"example.com": [_PUBLIC_IP], "metadata.internal": [_METADATA_IP]}
+    checked: list[str] = []
+
+    def resolve(host: str):
+        checked.append(host)
+        return hosts[host]
+
+    monkeypatch.setattr("jscc.fetcher._resolve_host", resolve)
+
+    sent: list[str] = []
+
+    def fake_send(self, request, **kwargs):
+        sent.append(request.url)
+        if len(sent) == 1:
+            resp = _real_response(
+                302, {"location": "http://metadata.internal/latest/meta-data/"}
+            )
+        else:
+            resp = _real_response(
+                200, {"content-type": "text/html"}, b"<html>secrets</html>"
+            )
+        # requests reads `.request` off the response even when it is not
+        # following the redirect -- it resolves one hop with
+        # `yield_requests=True` to populate `Response.next`, which prepares a
+        # request without sending it. That is why one send here is the correct
+        # expectation rather than an artifact of the fake.
+        resp.request = request
+        resp.url = request.url
+        return resp
+
+    monkeypatch.setattr("requests.adapters.HTTPAdapter.send", fake_send)
+
+    result = fetch_jd("https://example.com/jobs/1")
+
+    assert len(sent) == 1, f"the redirect was followed below the guard: {sent}"
+    assert checked == ["example.com", "metadata.internal"]
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+    assert _METADATA_IP in result.error_detail

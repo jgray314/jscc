@@ -7,6 +7,50 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B8 — regression protection for the two guards that had none (H-4, M-4)
+
+Both fixes worked. Neither was defended: delete the guard and the suite stayed
+green, which is the state C1 was in for three slices.
+
+**H-4 — the M5 fetch guards were invisible to their own tests.** Every guard
+test patched `requests.get` wholesale, so the guard itself — the
+`allow_redirects=False, stream=True` arguments — was never observed. Flipping
+`allow_redirects` to `True` left all 30 fetcher tests passing, including
+`test_redirect_into_a_private_address_is_refused`. With redirects followed
+internally, requests resolves the second hop itself: `_check_url` never sees
+that URL, and `fetch_jd` receives the final response as though it had been the
+first. The test that named the property could not observe the property.
+
+Two tests now cover it. One asserts the arguments. The better one drops a layer
+lower, patching `HTTPAdapter.send`, and asserts that **exactly one request
+leaves the process** for a 302 into a private address, and that both hostnames
+reached the resolver. That is the behaviour rather than the implementation, and
+it is false the moment the guard is removed.
+
+A detail worth recording: requests calls `resolve_redirects` even when
+`allow_redirects=False`, once, with `yield_requests=True` to populate
+`Response.next`. That prepares a request without sending it — so "one send" is
+the correct expectation and not an artifact of the fake.
+
+**M-4 — nothing proved redaction reached the client.** `test_sanitizer.py`
+proves `sanitize_for_llm` redacts; no test proved the redacted value is what
+`extract_jd` actually hands over. Rewiring the call to pass `raw_text` instead
+of `verified["user"]` left the whole suite green — and C1 was exactly "the
+sanitizer was a no-op and nobody noticed for three slices." Three tests now
+drive a spy client with a JD carrying an email and a phone: both branches of
+`extract_jd` (with and without a ledger connection) must hand over the redacted
+text, and the caller's own string must come back untouched, since D7 governs
+egress and not the user's local records.
+
+**Each of these was verified by deletion, not by passing.** Flip
+`allow_redirects`, flip `stream`, or rewire the payload, and the specific tests
+fail. A test that cannot fail when the thing it covers is removed is not
+covering it — which is the whole finding, and was worth proving rather than
+asserting.
+
+- 5 tests (298 total).
+
+
 ### B7 — three decisions, and a narration trim
 
 **Exit codes are now a contract.** `ingest` and `resolve-dlq` return 0 when a

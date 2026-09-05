@@ -166,3 +166,50 @@ def test_conn_less_parse_failure_still_raises(conn: sqlite3.Connection) -> None:
     reshuffle either."""
     with pytest.raises(ExtractionParseError):
         extract_jd("raw jd text", client=_FakeClient("not json at all"))
+
+
+# ---- redaction actually reaches the client (the C1 wiring) ------------------
+#
+# `test_sanitizer.py` proves `sanitize_for_llm` redacts; nothing proved the
+# redacted value is what `extract_jd` hands to the client. Rewiring the call to
+# pass `raw_text` instead of `verified["user"]` would leave the whole suite
+# green -- and C1 was precisely "the sanitizer was a no-op and nobody noticed
+# for three slices". Literals are split because this file is scanned.
+
+
+_JD_EMAIL = "dana.reyes" + "@" + "riftcloud.example"
+_JD_PHONE = "(415) 555" + "-0134"
+
+
+def test_client_receives_redacted_text_not_the_raw_jd(conn: sqlite3.Connection) -> None:
+    client = _FakeClient(_VALID_RESPONSE)
+    raw = (
+        "Staff Engineer at Rift Cloud. Questions to "
+        f"{_JD_EMAIL} or call {_JD_PHONE}."
+    )
+    extract_jd(raw, conn=conn, client=client)
+
+    sent = client.calls[0]["user"]
+    assert _JD_EMAIL not in sent
+    assert _JD_PHONE not in sent
+    assert "[redacted-email]" in sent
+    assert "[redacted-phone]" in sent
+    assert "Staff Engineer at Rift Cloud" in sent
+
+
+def test_conn_less_path_redacts_too(conn: sqlite3.Connection) -> None:
+    """Both branches of `extract_jd` route through the sanitizer; the one
+    without a ledger is the easier one to wire up wrong."""
+    client = _FakeClient(_VALID_RESPONSE)
+    extract_jd(f"Contact {_JD_EMAIL} about the role.", client=client)
+    assert _JD_EMAIL not in client.calls[0]["user"]
+
+
+def test_the_stored_record_keeps_the_original_text(conn: sqlite3.Connection) -> None:
+    """D7 governs egress, not the user's own records -- redaction must not
+    reach back into what gets stored locally."""
+    client = _FakeClient(_VALID_RESPONSE)
+    raw = f"Staff Engineer. Reach {_JD_EMAIL}."
+    extract_jd(raw, conn=conn, client=client)
+    assert _JD_EMAIL not in client.calls[0]["user"]
+    assert _JD_EMAIL in raw  # the caller's string is untouched
