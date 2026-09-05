@@ -54,7 +54,10 @@ def _mock_response(status_code: int, text: str = "", headers: dict | None = None
     resp.status_code = status_code
     resp.text = text
     resp.headers = headers or {}
-    resp.encoding = "utf-8"
+    # Derived exactly as requests derives it -- which means ISO-8859-1 for a
+    # bare `text/html`. Hard-coding "utf-8" here made the fake kinder than the
+    # library and hid the decoding bug from the test written to catch it.
+    resp.encoding = requests.utils.get_encoding_from_headers(resp.headers)
     resp.is_redirect = False
     body = text.encode("utf-8", errors="replace")
     resp.iter_content = lambda chunk_size=None: iter([body] if body else [])
@@ -449,3 +452,76 @@ def test_a_redirect_is_never_followed_below_the_guard(monkeypatch: pytest.Monkey
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
     assert _METADATA_IP in result.error_detail
+
+
+# ---- decoding ---------------------------------------------------------------
+#
+# `requests` sets `response.encoding` to ISO-8859-1 for any `text/*` response
+# with no charset parameter -- an HTTP/1.1 default that RFC 7231 removed. At the
+# attribute, "the server said Latin-1" and "the server said nothing" are
+# indistinguishable, so trusting it turns every undeclared UTF-8 page into
+# mojibake. That corrupted text is both what reaches the model and what is
+# stored as `source_raw`, and during prompt iteration it reads as a bad prompt
+# rather than a decoding bug.
+
+_ACCENTED = "Se\u00f1ior Engineer \u2014 Z\u00fcrich"
+
+
+def _body_response(body: bytes, content_type: str = "text/html") -> Mock:
+    resp = _mock_response(200, "", headers={"content-type": content_type})
+    assert resp.encoding == "ISO-8859-1" or "charset" in content_type, (
+        "the fake must reproduce requests' Latin-1 default, or these tests "
+        "cannot see the bug they exist for"
+    )
+    resp.iter_content = lambda chunk_size=None: iter([body])
+    return resp
+
+
+def _fetch_body(body: bytes, content_type: str = "text/html") -> str:
+    padded = (
+        b"<html><body><article><p>"
+        + body
+        + b" "
+        + b"Senior engineer role with real responsibilities. " * 12
+        + b"</p></article></body></html>"
+    )
+    with patch(
+        "jscc.fetcher.requests.get", return_value=_body_response(padded, content_type)
+    ):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is True, result.error_detail
+    return result.raw_text
+
+
+def test_undeclared_utf8_is_not_decoded_as_latin1():
+    assert _ACCENTED in _fetch_body(_ACCENTED.encode("utf-8"))
+
+
+def test_declared_charset_is_honoured_over_utf8():
+    body = _ACCENTED.replace("\u2014", "-").encode("cp1252")
+    assert "Se\u00f1ior" in _fetch_body(body, "text/html; charset=windows-1252")
+
+
+def test_meta_charset_is_used_when_the_header_declares_nothing():
+    """A page that knows its own encoding, served by a host that doesn't."""
+    body = b'<meta charset="windows-1252">' + "caf\u00e9 society".encode("cp1252")
+    assert "caf\u00e9" in _fetch_body(body)
+
+
+def test_a_charset_python_does_not_know_falls_through_rather_than_crashing():
+    assert _ACCENTED in _fetch_body(_ACCENTED.encode("utf-8"), "text/html; charset=x-nonsense")
+
+
+def test_undecodable_bytes_are_replaced_not_raised():
+    """Last resort: legacy bytes that are not valid UTF-8 still produce text."""
+    body = b"salary \xa399,000 \xff\xfe"
+    out = _fetch_body(body)
+    assert "salary" in out
+
+
+def test_decoding_never_raises_for_any_of_these():
+    from jscc.fetcher import _decode_body
+
+    for body in (b"", b"\xff\xfe\x00", "\u00e9".encode("utf-8"), b"plain"):
+        for ct in ("", "text/html", "text/html; charset=utf-8", "text/html; charset=bogus"):
+            assert isinstance(_decode_body(body, ct), str)

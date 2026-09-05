@@ -7,6 +7,50 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B9 — decode responses correctly (M-2)
+
+`_read_body` decoded with `response.encoding or "utf-8"`. That fallback was
+dead code: `requests` fills `encoding` in with **ISO-8859-1** for any `text/*`
+response carrying no charset parameter, following an HTTP/1.1 default that RFC
+7231 removed. At the attribute, "the server said Latin-1" and "the server said
+nothing" are indistinguishable — so every undeclared UTF-8 page, which is to say
+most of the modern web, came through as mojibake. The docstring claimed "the
+declared charset, else UTF-8", which described a code path that could not run.
+
+The corrupted text is both what goes to the model and what is stored as
+`source_raw`. Accented names, em-dashes and smart quotes are ubiquitous in job
+postings, so during B2b this would have degraded extraction quality while
+looking exactly like a bad prompt.
+
+Decoding now follows the order the HTML standard actually specifies: the charset
+the server declared (parsed from the raw header, so "declared nothing" stays
+distinguishable), then a `<meta charset>` in the first 4KB, then UTF-8 **strict**
+so failure is detectable rather than silently mangled, then cp1252 with
+replacement as a last resort rather than a first assumption.
+
+**A second defect fell out of the same line.** An unrecognised charset name
+raised `LookupError` straight out of `fetch_jd` — an uncaught exception from the
+module whose contract is that it never raises for content-shaped failures, the
+same class as H1. An unknown name now falls through to the next strategy.
+
+**Known limit, written down rather than guessed at:** a legacy page in a
+non-Latin encoding that declares nothing anywhere still decodes wrong.
+Statistical detection would cover it, at the cost of a direct dependency on a
+charset-detection library. Not worth it for job postings.
+
+**The test fake was hiding the bug.** The first version of these tests passed
+against the *old* decoder, because `_mock_response` hard-coded
+`encoding="utf-8"` — kinder than the library, and precisely the property under
+test. The fake now derives `.encoding` through
+`requests.utils.get_encoding_from_headers`, exactly as requests does, with an
+assertion in the helper that it really does yield Latin-1 for a bare
+`text/html`. Same lesson as H-4, one layer over: a fake that is more reasonable
+than the real thing makes the bug invisible to the test written to catch it.
+
+- 6 tests (304 total), verified by reverting the decoder and watching the
+  headline case fail.
+
+
 ### B8 — regression protection for the two guards that had none (H-4, M-4)
 
 Both fixes worked. Neither was defended: delete the guard and the suite stayed

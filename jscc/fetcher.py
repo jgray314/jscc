@@ -19,6 +19,7 @@ off by default and opt-in per config.
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from urllib.parse import urljoin, urlsplit
 
@@ -109,18 +110,64 @@ def _get_guarded(url: str, timeout: float) -> requests.Response:
     raise _UrlRejected(f"more than {_MAX_REDIRECTS} redirects")
 
 
+_CHARSET_RE = re.compile(rb"""charset["'\s=]+([a-zA-Z0-9_:.+-]+)""", re.I)
+_META_SNIFF_BYTES = 4096
+
+
+def _header_charset(content_type: str) -> str | None:
+    """The charset the *server* declared, or None if it declared none.
+
+    Deliberately parsed from the raw header rather than read off
+    `response.encoding`: requests fills that field in with ISO-8859-1 for any
+    `text/*` response with no charset parameter, following an HTTP/1.1 default
+    that RFC 7231 removed. That default is indistinguishable, at the attribute,
+    from a server that really did say ISO-8859-1 -- and treating "said nothing"
+    as "said Latin-1" is how a UTF-8 page becomes mojibake.
+    """
+    _, _, params = content_type.partition(";")
+    if "charset=" not in params.lower():
+        return None
+    match = _CHARSET_RE.search(params.encode("ascii", "ignore"))
+    return match.group(1).decode("ascii") if match else None
+
+
+def _decode_body(body: bytes, content_type: str) -> str:
+    """Bytes to text, in the order the HTML standard actually specifies.
+
+    1. The charset the server declared, if it declared one.
+    2. A `<meta charset>` in the head, which is where a page that knows its own
+       encoding but is served by a misconfigured host says so.
+    3. UTF-8, strict -- the modern default, and strict so that failure is
+       detectable rather than silently mangled.
+    4. cp1252 with replacement, for genuinely legacy bytes. This is the last
+       resort, not the first assumption.
+
+    Known limit: a legacy page in a non-Latin encoding that declares nothing
+    anywhere decodes wrong. Statistical detection would cover it, at the cost
+    of a direct dependency on a charset-detection library; not worth it for
+    job postings, and better to have the boundary written down than guessed at.
+    """
+    declared = _header_charset(content_type)
+    if declared is None:
+        meta = _CHARSET_RE.search(body[:_META_SNIFF_BYTES])
+        declared = meta.group(1).decode("ascii", "ignore") if meta else None
+    if declared:
+        try:
+            return body.decode(declared, errors="replace")
+        except LookupError:
+            pass  # a charset name Python doesn't know; fall through
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError:
+        return body.decode("cp1252", errors="replace")
+
+
 def _read_body(response: requests.Response) -> str:
-    """Read the body with a hard size cap.
+    """Read the body with a hard size cap, then decode it.
 
     Streamed rather than taking `response.text`, because a cap that only
     checks Content-Length after buffering the whole body is not a cap --
     the header is optional and can lie.
-
-    Decoding is deliberately simple: the declared charset, else UTF-8, with
-    undecodable bytes replaced. `response.text` would fall back to charset
-    sniffing here; for a document that is about to be reduced to plain text
-    and handed to a model, replacement characters are a better failure than
-    a guessed codec.
     """
     chunks: list[bytes] = []
     total = 0
@@ -131,7 +178,7 @@ def _read_body(response: requests.Response) -> str:
                 f"response exceeded the {_MAX_RESPONSE_BYTES // (1024 * 1024)} MB cap"
             )
         chunks.append(chunk)
-    return b"".join(chunks).decode(response.encoding or "utf-8", errors="replace")
+    return _decode_body(b"".join(chunks), response.headers.get("content-type", ""))
 
 
 class FetchResult(BaseModel):
