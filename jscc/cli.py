@@ -16,11 +16,12 @@ from .config import (
     resolve_profile_path,
 )
 from .evals import format_eval_summary, run_jd_extraction_evals
-from .extraction import EXTRACTION_EVAL_FEATURE, extract_jd
+from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
 from .fetcher import fetch_jd
-from .paths import PACKAGE_ROOT
+from .llm_client import UnknownModelPricingError
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
-from .models import Application, DLQEntry, Resolution
+from .models import Application, DLQEntry, FailureMode, Resolution
+from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
@@ -334,6 +335,13 @@ def eval_jd_extraction(data_dir: Path) -> None:
         sys.exit(1)
 
 
+# A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
+# sentinel keeps the paste path's failures visible in `dlq list` rather than
+# silently unrecoverable; `resolve-dlq` recognises it and skips URL-derived
+# company inference. Same "(pasted)" spelling the company default already uses.
+PASTED_SOURCE = "(pasted)"
+
+
 def _extract_and_create_application(
     conn,
     *,
@@ -446,13 +454,39 @@ def ingest(
             company_val = company or "(pasted)"
             fallback_title = None
 
-        app_id, app = _extract_and_create_application(
-            conn,
-            raw_text=raw_text,
-            source_url=source_url,
-            company=company_val,
-            fallback_title=fallback_title,
-        )
+        try:
+            app_id, app = _extract_and_create_application(
+                conn,
+                raw_text=raw_text,
+                source_url=source_url,
+                company=company_val,
+                fallback_title=fallback_title,
+            )
+        except ExtractionParseError as e:
+            # Rerun-gate H-2. This used to escape as an unhandled traceback:
+            # exit 1, no Application, no DLQ entry, nothing to retry from. A
+            # model that wraps its JSON in prose or a ``` fence is the normal
+            # case, not an exotic one, so the moment B2b sets a real key this
+            # was the first thing that would happen. B3a's DoD is "produces
+            # Application OR DLQEntry, never crashes" -- H1 restored that for
+            # the fetch stage only, and this is the same bug class one layer up.
+            entry = DLQEntry(
+                source_url=source_url or PASTED_SOURCE,
+                failure_mode=FailureMode.extraction_failed,
+                error_detail=str(e),
+            )
+            entry_id = create_dlq_entry(conn, entry)
+            click.echo(f"extraction failed; added to DLQ ({entry_id})")
+            click.echo(f"  {e}", err=True)
+            return
+        except UnknownModelPricingError as e:
+            # Deliberately *not* DLQ'd, unlike the reviewer's suggested shape.
+            # An unpriced model is a misconfiguration, not a bad JD: every
+            # ingest would fail identically, so filling the queue with entries
+            # that re-fail on resolve would bury the one thing worth reading.
+            # Nothing was billed either -- the check runs before the request.
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(2)
         click.echo(f"created application {app_id}: {app.title}")
     finally:
         conn.close()
@@ -522,13 +556,26 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(2)
 
-        app_id, _app = _extract_and_create_application(
-            conn,
-            raw_text=paste_text,
-            source_url=entry.source_url,
-            company=_company_from_url(entry.source_url),
-            fallback_title=None,
+        company = (
+            "(pasted)"
+            if entry.source_url == PASTED_SOURCE
+            else _company_from_url(entry.source_url)
         )
+        try:
+            app_id, _app = _extract_and_create_application(
+                conn,
+                raw_text=paste_text,
+                source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
+                company=company,
+                fallback_title=None,
+            )
+        except ExtractionParseError as e:
+            # No new DLQ entry here -- one already exists and stays unresolved,
+            # which is the correct record. Creating a second would duplicate the
+            # queue on every retry (see also finding M-1 on re-resolution).
+            click.echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
+            click.echo(f"  {e}", err=True)
+            sys.exit(1)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste)
         click.echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:

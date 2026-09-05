@@ -2,7 +2,21 @@
 
 ## [Unreleased]
 
-### B6 — rerun-gate criticals (findings H-1, M-3, and one follow-on)
+### B6 — rerun-gate criticals (findings H-1, M-3, H-2, and one follow-on)
+
+**H-2 — an extraction failure crashed `ingest` with a raw traceback and no DLQ entry.** `ExtractionParseError` had no handler between `_extract_and_create_application` and `main()`. A model that wraps its JSON in prose or a ``` fence — the *normal* behaviour, not an exotic one — produced exit 1, no Application, no DLQ row, and nothing to retry from. B3a's DoD is "produces Application OR DLQEntry, never crashes"; H1 restored that for the fetch stage only, and this is the same bug class one layer up, in the layer that goes live the moment B2b sets a key.
+
+Both `ingest` paths now route a parse failure to `FailureMode.extraction_failed` with the error detail on the entry. A pasted JD has no URL and `DLQEntry.source_url` is NOT NULL, so those entries carry a `(pasted)` sentinel and `resolve-dlq` recognises it rather than inferring a company from it. A failed `resolve-dlq` deliberately creates no second entry — the existing one stays unresolved, which is already the correct record, and duplicating the queue on every retry is the neighbouring finding M-1.
+
+**Truncation is now distinguishable from bad JSON.** `AnthropicClient` passes `max_tokens=1024` and never looked at `stop_reason`, so a long JD produced incomplete JSON and a `JSONDecodeError` identical to the one a badly-worded prompt gives. `LLMResponse` now carries `stop_reason` and `extract_jd` raises with a message naming truncation and the output-token count. The check runs *after* the ledger row is written, not inside the instrumented call — the tokens were spent, and finding M2 was exactly this mistake.
+
+**Deliberately not DLQ'd:** an `UnknownModelPricingError` exits 2 with a configuration message instead. Every ingest would fail identically on a misconfigured model, so filling the queue with entries that re-fail on resolve would bury the one message worth reading — and nothing was billed, since M4's price check runs before the request. `SanitizerRefusal` and `LLMSendError` still propagate uncaught, per `sanitizer.py`'s instruction that callers must not catch and continue.
+
+- 7 tests (282 total), driving the real `extract_jd` through a stubbed client rather than mocking the helper — mocking the thing under test is how the original gap survived a suite that claimed to cover it (finding H-4).
+
+**Note for the next reader:** both failure paths return **exit 0** after writing a DLQ entry, matching the pre-existing fetch-failure convention. That symmetry was the point, but "handled failure exits 0" is worth a deliberate decision rather than an inherited one.
+
+### B6 (cont.) — rerun-gate H-1, M-3, and one follow-on
 
 A second two-lens gate ran at `30c2a1e`, this time with both reviewers reading **cold** — neither was allowed to see the previous gate's findings until it had formed its own, then each labelled every finding NEW / REPEAT-OF / CONTRADICTS. That change immediately produced a CONTRADICTS against a fix from the slice under review, and both lenses independently found the same hole.
 

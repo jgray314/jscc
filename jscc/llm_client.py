@@ -89,6 +89,12 @@ class LLMResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    # Why the caller needs this: a response cut off at max_tokens is truncated
+    # JSON, which fails to parse for a reason that has nothing to do with the
+    # prompt. Without it, "the model wrote bad JSON" and "we didn't give the
+    # model room to finish" are the same error message during prompt iteration
+    # (rerun-gate H-2).
+    stop_reason: str | None = None
 
 
 class LLMClient(Protocol):
@@ -135,6 +141,7 @@ class AnthropicClient:
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
             cost_usd=cost_usd,
+            stop_reason=getattr(response, "stop_reason", None),
         )
 
 
@@ -142,7 +149,13 @@ class StubExtractionClient:
     """No API key configured. See module docstring."""
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
-        return LLMResponse(text=_STUB_RESPONSE_TEXT, input_tokens=0, output_tokens=0, cost_usd=0.0)
+        return LLMResponse(
+            text=_STUB_RESPONSE_TEXT,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            stop_reason="end_turn",
+        )
 
 
 def default_client() -> LLMClient:

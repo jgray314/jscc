@@ -161,4 +161,15 @@ def extract_jd(
         response = client.complete(
             model=verified["model"], system=verified["system"], user=verified["user"]
         )
+    if response.stop_reason == "max_tokens":
+        # Checked here, not inside the instrumented call: the tokens were
+        # spent, so the ledger row must be written first (finding M2). Raised
+        # as a parse error because that is what it is downstream -- incomplete
+        # JSON -- but the message says truncation so prompt iteration does not
+        # chase a prompt bug that is really a max_tokens ceiling.
+        raise ExtractionParseError(
+            f"extraction response was truncated at the model's max_tokens limit "
+            f"after {response.output_tokens} output tokens; the JSON is incomplete. "
+            "Raise max_tokens on the client, or shorten what the prompt asks for."
+        )
     return _parse_response(response.text)

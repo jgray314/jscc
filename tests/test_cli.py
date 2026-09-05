@@ -694,3 +694,182 @@ def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
             extract_jd("some jd text", conn=conn, feature="typo")
     finally:
         conn.close()
+
+
+# ---- extraction failures reach the DLQ, not a traceback (rerun-gate H-2) ----
+#
+# B3a's DoD is "produces Application OR DLQEntry, never crashes". H1 restored
+# that for the fetch stage; the extraction stage had no route to
+# `extraction_failed` at all, so an unparseable model response exited 1 with a
+# raw traceback, no Application and nothing to retry from. These tests drive
+# the real `extract_jd` through a stubbed client rather than mocking the
+# helper, for the reason H-4 exists: mocking the thing under test is how the
+# original gap survived a suite that claimed to cover it.
+
+
+class _CannedClient:
+    def __init__(self, text: str, stop_reason: str = "end_turn") -> None:
+        self.text = text
+        self.stop_reason = stop_reason
+
+    def complete(self, *, model: str, system: str, user: str):
+        from jscc.llm_client import LLMResponse
+
+        return LLMResponse(
+            text=self.text,
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=0.001,
+            stop_reason=self.stop_reason,
+        )
+
+
+def _ingest_with_client(runner, tmp_path, monkeypatch, client, argv=None):
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: client)
+    return runner.invoke(
+        cli,
+        argv or ["ingest", "--paste", "--company", "C", "--data-dir", str(tmp_path)],
+        input="a job description",
+    )
+
+
+def _rows(tmp_path):
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, list_dlq_entries, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        return list_applications(conn), list_dlq_entries(conn, unresolved_only=False)
+    finally:
+        conn.close()
+
+
+def test_fenced_json_response_dlqs_instead_of_crashing(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A model that prefaces or fences its JSON is the normal case, not an
+    edge case -- this is what B2b's first live call is most likely to hit."""
+    client = _CannedClient('Here is the JSON:\n```json\n{"title": "X"}\n```')
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
+    assert result.exception is None
+    apps, entries = _rows(tmp_path)
+    assert apps == []
+    assert len(entries) == 1
+    assert entries[0].failure_mode.value == "extraction_failed"
+    assert entries[0].error_detail
+
+
+def test_truncated_response_is_reported_as_truncation_not_bad_json(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`max_tokens` truncation and a badly-worded prompt produce the same
+    JSONDecodeError. Told apart, or prompt iteration chases the wrong bug."""
+    client = _CannedClient('{"title": "Staff Engi', stop_reason="max_tokens")
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
+    assert result.exception is None
+    _apps, entries = _rows(tmp_path)
+    assert len(entries) == 1
+    assert "truncated" in entries[0].error_detail
+    assert "max_tokens" in entries[0].error_detail
+
+
+def test_valid_json_of_the_wrong_shape_also_dlqs(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other parse-failure mode takes the same route."""
+    client = _CannedClient('{"title": "X"}')  # missing required fields
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
+    assert result.exception is None
+    _apps, entries = _rows(tmp_path)
+    assert len(entries) == 1
+
+
+def test_pasted_dlq_entry_round_trips_through_resolve(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A paste-path failure has no URL, so the entry carries a sentinel.
+    `resolve-dlq` must not then try to infer a company from it."""
+    from jscc.llm_client import StubExtractionClient
+
+    _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient("not json"))
+    _apps, entries = _rows(tmp_path)
+    entry_id = entries[0].id
+    assert entries[0].source_url == "(pasted)"
+
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: StubExtractionClient())
+    result = runner.invoke(
+        cli, ["resolve-dlq", entry_id, "--paste-text", "a jd", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert len(apps) == 1
+    assert apps[0].company == "(pasted)"
+    assert apps[0].source_url is None
+
+
+def test_failed_resolve_does_not_create_a_second_dlq_entry(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The existing entry stays unresolved -- that is already the right record.
+    A second would duplicate the queue on every retry."""
+    _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient("not json"))
+    _apps, entries = _rows(tmp_path)
+    result = runner.invoke(
+        cli,
+        ["resolve-dlq", entries[0].id, "--paste-text", "a jd", "--data-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    _apps, after = _rows(tmp_path)
+    assert len(after) == 1
+    assert after[0].resolution.value == "unresolved"
+
+
+def test_url_path_extraction_failure_keeps_the_url_on_the_dlq_entry(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The URL path must stay recoverable: the entry has to name what failed."""
+    from unittest.mock import Mock
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
+    body = ("<html><body><article><p>" + "Senior engineer role. " * 30 + "</p></article></body></html>")
+    resp = Mock()
+    resp.status_code = 200
+    resp.headers = {}
+    resp.encoding = "utf-8"
+    resp.is_redirect = False
+    resp.iter_content = lambda chunk_size=None: iter([body.encode("utf-8")])
+    resp.close = Mock()
+    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: resp)
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _CannedClient("not json"))
+
+    result = runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/7", "--data-dir", str(tmp_path)]
+    )
+    assert result.exception is None
+    _apps, entries = _rows(tmp_path)
+    assert len(entries) == 1
+    assert entries[0].source_url == "https://example.com/jobs/7"
+    assert entries[0].failure_mode.value == "extraction_failed"
+
+
+def test_unpriced_model_is_a_config_error_not_a_dlq_entry(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deliberately different from a parse failure: every ingest would fail
+    identically, so queueing them buries the one message worth reading. And
+    nothing was billed -- the price check runs before the request."""
+    from jscc.llm_client import UnknownModelPricingError
+
+    class _Unpriced:
+        def complete(self, *, model: str, system: str, user: str):
+            raise UnknownModelPricingError("no rate on file for 'some-model'")
+
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, _Unpriced())
+    assert result.exit_code == 2
+    apps, entries = _rows(tmp_path)
+    assert apps == []
+    assert entries == []
