@@ -7,6 +7,68 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B11 — the synthetic fixture stops being a tracked file (W9)
+
+`eval jd_extraction` wrote ledger rows into `data/synthetic.db`, a checked-in
+file, so the demo command dirtied the repo. During B2b, which is dozens of eval
+runs, that would have been every iteration. Two things underneath it turned out
+to be worse than the symptom.
+
+**`reset_tables` listed four of the six tables.** It hardcoded `interactions`,
+`dlq_entries`, `contacts` and `applications`, and silently skipped `llm_calls`.
+So ledger rows survived a reseed, and the "deterministic fixture" was
+deterministic only in the tables someone had remembered to add to a list. The
+list is now read from `sqlite_master`, with `meta` — the mode stamp whose
+survival is the D7 M1 guarantee — exempt by name. A list kept in sync with the
+schema by hand drifts from it; asking the database what it contains cannot.
+
+**A reseed does not restore the file anyway.** Verified: seed, run an eval,
+reseed with identical arguments, and the bytes differ — SQLite page allocation
+does not reproduce for identical rows. So the tracked fixture could not be
+returned to its committed state by *any* command. "Reseed before committing"
+was never available, and the file was permanently dirty after any write.
+
+**So it is no longer tracked.** It was already vestigial: the quick start runs
+`db init`, `seed`, `report`, which overwrites the fixture at step three, so
+nothing as shipped ever read the committed bytes. The `.gitignore` negation
+`!data/synthetic.db` is gone with it, which removes the one carve-out in the
+D7 M2 rules that had to be got right. The safety substance of M1 is two
+instances and a stamped marker, not which one is in git — that is unchanged.
+This also closes the wider version of the same finding, which W9 only named for
+evals: `ingest` in the default synthetic mode dirtied it identically, and that
+is the primary workflow.
+
+**The test that was supposed to prove the fixture was scrubbed could not fail.**
+`test_synthetic_fixture_passes_scanner` ran the pre-commit scanner over the
+committed `.db`. `scan_file` reads UTF-8 and returns no hits on
+`UnicodeDecodeError` — a whole-file skip, which a SQLite header triggers
+immediately. It asserted a return code that could not have been anything but
+zero. Its docstring described a per-region skip the scanner does not implement,
+and it was cited as closing two findings from the A10 review. Same class as
+L-1: an assertion whose subject cannot produce the failure it checks for.
+
+Replaced by three tests. One dumps the fixture's text columns and scans *that*,
+across three seeds, so the claim is about the generator's name pool rather than
+about one frozen output. One pins the binary-skip limit explicitly, with the
+same string caught in a text file to prove the miss is the skip and not a hole
+in the email pattern. One re-runs the fixture scan with a single address
+appended, so if the real assertion ever goes vacuous again it says so instead of
+staying green. Verified by poisoning `notes` with an email and watching the old
+test pass and the new one fail.
+
+Scoping the dump to non-identifier columns was necessary and is a rule, not a
+convenience: `uuid4()` primary keys contain digit runs that trip the phone
+pattern, which is the sixth appearance of that false-positive class. The
+pattern stayed untouched, as it always does.
+
+D7 M3 now records the binary limit: a green scan over a `.db` means the file
+was skipped, and databases are protected by M1/M2 keeping them untracked, never
+by M3 having looked.
+
+- 2 tests net (311 total), verified by deletion in both directions — poisoning
+  the fixture, and reverting the reset fix.
+
+
 ### B10 — the prose pass
 
 The walkthrough lens found that almost all the remaining damage was prose: the

@@ -14,7 +14,6 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.db-journal
-!data/synthetic.db
 *.private.*
 profile.private.yaml
 contacts.private.*

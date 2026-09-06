@@ -490,10 +490,31 @@ def build_seed(
     return apps, contacts, interactions, dlq
 
 
+# `meta` holds the mode stamp -- the marker that makes a synthetic DB refuse to
+# be opened as a real one (D7 M1). Clearing it would strip that guarantee off
+# the file as a side effect of reseeding, so it is exempt by name.
+_RESET_EXEMPT_TABLES = frozenset({"meta"})
+
+
 def reset_tables(conn: sqlite3.Connection) -> None:
-    """Delete all rows from every JSCC table. Preserves schema."""
-    for table in ("interactions", "dlq_entries", "contacts", "applications"):
-        conn.execute(f"DELETE FROM {table}")
+    """Delete all rows from every JSCC table except the mode stamp.
+
+    The table list is read from the schema rather than hardcoded. The hardcoded
+    version listed four of the six tables and silently skipped `llm_calls`, so
+    ledger rows survived a reseed and the "deterministic fixture" was only
+    deterministic in the tables someone had remembered to add. A list that has
+    to be kept in sync with the schema by hand will drift from it; asking the
+    database what it contains cannot.
+    """
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+    for table in sorted(tables - _RESET_EXEMPT_TABLES):
+        conn.execute(f"DELETE FROM {table}")  # noqa: S608 -- names from sqlite_master
     conn.commit()
 
 

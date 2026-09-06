@@ -283,24 +283,130 @@ def test_exclude_with_absolute_windows_style_path(tmp_path: Path, monkeypatch) -
     assert rc == 0
 
 
-def test_synthetic_fixture_passes_scanner(tmp_path: Path) -> None:
-    """Walkthrough #3 + L-doc-drift-synthetic-db-1 (A10 review): the tracked
-    portfolio-visible fixture `data/synthetic.db` must itself be scrubbed —
-    the pre-commit rule that protects prose applies to the fixture too.
+def _dump_text_values(db_path: Path) -> str:
+    """Every TEXT value in every table, one per line.
 
-    This test runs the scanner over the actual committed SQLite file (opened
-    as text; the scanner falls back to skip on UnicodeDecodeError, so pure-
-    binary regions are ignored, but any UTF-8-decodable region containing a
-    name / email / phone / danger-list hit would surface). The fixture is
-    generated from a synthetic name pool by design; this test proves it.
+    The scanner reads files as UTF-8 and skips the whole file on
+    UnicodeDecodeError, which a SQLite file always triggers on its header. So
+    pointing it at a `.db` scans nothing -- see
+    `test_scanning_a_db_file_directly_finds_nothing`. Scanning the *logical*
+    content is what actually answers the question the fixture has to answer.
     """
-    repo_root = Path(__file__).resolve().parents[1]
-    synth = repo_root / "data" / "synthetic.db"
-    if not synth.exists():
-        pytest.skip("data/synthetic.db not present; run `jscc seed` first")
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    try:
+        tables = [
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name NOT LIKE 'sqlite_%'"
+            )
+        ]
+        lines: list[str] = []
+        for table in tables:
+            columns = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+            # Identifier columns hold uuid4()s, opaque by construction and
+            # carrying no fixture prose. They are excluded by *rule*, not
+            # because they happen to fail: random hex contains digit runs, so
+            # asking the phone pattern about them is asking a question the
+            # values cannot meaningfully answer -- and that noise is exactly
+            # what pushes someone toward loosening the pattern to quiet it.
+            # The pattern is the load-bearing part. The scan's scope is not.
+            wanted = [c for c in columns if c != "id" and not c.endswith("_id")]
+            if not wanted:
+                continue
+            select = ", ".join(wanted)
+            for row in conn.execute(f"SELECT {select} FROM {table}"):  # noqa: S608
+                lines.extend(str(v) for v in row if isinstance(v, str))
+    finally:
+        conn.close()
+    return "\n".join(lines) + "\n"
+
+
+def _seed_fixture(tmp_path: Path, random_seed: int) -> Path:
+    from jscc.mode import Mode
+    from jscc.seed import seed_synthetic
+    from jscc.storage import open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        seed_synthetic(conn, random_seed=random_seed)
+    finally:
+        conn.close()
+    return tmp_path / "synthetic.db"
+
+
+def test_scanning_a_db_file_directly_finds_nothing(tmp_path: Path) -> None:
+    """Pins the limit that made the previous version of the fixture test vacuous.
+
+    `scan_file` reads UTF-8 and returns no hits on UnicodeDecodeError -- a
+    whole-file skip, not the per-region one the old docstring described. A
+    SQLite file trips it on the header, so a `.db` passed to the scanner is
+    silently not scanned, however much plaintext sits inside it.
+
+    That is a defensible scope decision (binary blobs belong to .gitattributes
+    filters, not a line scanner) but it is only safe while it is *known*. The
+    protection for a database is that no `.db` is tracked at all -- D7 M1/M2 --
+    and this test exists so the next person to point the scanner at a binary
+    and see a green tick knows what that tick means.
+    """
+    import sqlite3
+
+    db = tmp_path / "x.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE t (a TEXT)")
+    conn.execute("INSERT INTO t VALUES ('reach me at probe@example.com')")
+    conn.commit()
+    conn.close()
+
     danger = _write(tmp_path / "danger.txt", "# empty\n")
-    rc = precommit_scan.main([str(synth), "--danger-list", str(danger)])
-    assert rc == 0, "synthetic.db tripped the pre-commit content scanner"
+    assert precommit_scan.main([str(db), "--danger-list", str(danger)]) == 0
+
+    # The same string in a text file is caught, so the miss above is the binary
+    # skip and not a hole in the email pattern.
+    plain = _write(tmp_path / "note.txt", "reach me at probe@example.com\n")
+    assert precommit_scan.main([str(plain), "--danger-list", str(danger)]) == 1
+
+
+@pytest.mark.parametrize("random_seed", [42, 7, 1234])
+def test_generated_synthetic_fixture_is_clean(tmp_path: Path, random_seed: int) -> None:
+    """The synthetic fixture's *content* must be scanner-clean.
+
+    Two changes from the version this replaces, both of which it needed:
+
+    It generates the fixture instead of reading `data/synthetic.db` from the
+    repo. The old test skipped when that file was absent, so it was inert
+    wherever the fixture had not been committed, and it made a claim about one
+    frozen output rather than about the generator. Seeding across several seeds
+    proves the *name pool* is clean, which is the property that has to hold.
+
+    And it scans the dumped text rather than the `.db`. Passing the database
+    file to the scanner scans nothing at all -- the old test asserted a return
+    code that could not have been anything but zero, and its docstring
+    described a per-region skip the scanner does not implement. Verified by
+    poisoning `notes` with an email address and watching this test fail and
+    the old one pass.
+    """
+    db = _seed_fixture(tmp_path, random_seed)
+    dump = _write(tmp_path / "fixture-dump.txt", _dump_text_values(db))
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    rc = precommit_scan.main([str(dump), "--danger-list", str(danger)])
+    assert rc == 0, "the generated synthetic fixture tripped the content scanner"
+
+
+def test_the_fixture_scan_can_actually_fail(tmp_path: Path) -> None:
+    """Guards the test above against becoming vacuous the way its ancestor did.
+
+    Same seeding, same dump, same scanner call -- with one email added to the
+    dumped text. If this stops failing, the assertion above has stopped meaning
+    anything, and it will say so here rather than staying quietly green.
+    """
+    db = _seed_fixture(tmp_path, 42)
+    poisoned = _dump_text_values(db) + "reach me at probe@example.com\n"
+    dump = _write(tmp_path / "poisoned-dump.txt", poisoned)
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    assert precommit_scan.main([str(dump), "--danger-list", str(danger)]) == 1
 
 
 def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
