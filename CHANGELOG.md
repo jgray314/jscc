@@ -7,6 +7,27 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B12 - correct the Haiku rates before any real spend
+
+The ledger priced extraction at $0.80 / $4.00 per MTok. The published rates are
+$1.00 / $5.00, so every recorded cost was 20% under the truth.
+
+This is the failure mode `rates_for` was built to prevent, arriving by the one
+route that guard cannot see. Refusing an unknown model stops cost being invented
+when something is *missing*; a wrong rate for a model that is present passes
+every check, because nothing is missing. The comment above the table already
+said to verify before trusting the figures -- which is a note to a reader, not a
+mechanism.
+
+Rates verified 2026-09-05 against the published pricing page, with the date and
+the source recorded beside them so the next check has somewhere to start.
+
+Found while working out how to cap spend on a real key. It matters more there
+than in the ledger: a budget sized from these numbers would have been set 20%
+low against real billing, so the cap would bite before the spend it was sized
+for.
+
+
 ### B11 — the synthetic fixture stops being a tracked file (W9)
 
 `eval jd_extraction` wrote ledger rows into `data/synthetic.db`, a checked-in
