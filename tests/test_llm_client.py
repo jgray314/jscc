@@ -56,7 +56,7 @@ def test_anthropic_client_accepts_explicit_key() -> None:
 
 
 def test_rates_for_known_model() -> None:
-    assert rates_for(EXTRACTION_MODEL) == (0.80, 4.00)
+    assert rates_for(EXTRACTION_MODEL) == (1.00, 5.00)
 
 
 def test_rates_for_unknown_model_raises_and_names_the_fix() -> None:
@@ -99,4 +99,4 @@ def test_complete_returns_text_blocks_and_the_priced_cost() -> None:
     assert response.text == "hello"  # the non-text block is dropped
     assert response.input_tokens == 1_000_000
     assert response.output_tokens == 1_000_000
-    assert response.cost_usd == pytest.approx(0.80 + 4.00)
+    assert response.cost_usd == pytest.approx(1.00 + 5.00)

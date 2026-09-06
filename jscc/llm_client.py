@@ -37,11 +37,18 @@ from pydantic import BaseModel
 # what tripped CI on this line the first time; describe the shape instead.)
 EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 
-# Rates as of authoring (Claude Haiku family). Verify at
-# https://www.anthropic.com/pricing before trusting these for real budget
-# tracking — they are not re-checked at runtime and will go stale.
+# Published rates, verified 2026-09-05 against
+# https://platform.claude.com/docs/en/about-claude/pricing
+#
+# These are a hand-copied constant, not a runtime lookup, so they go stale
+# silently -- and they had: the figures here were 20% under the published ones
+# until this check, which meant the ledger under-reported every call while
+# looking exactly as authoritative as a correct one. `rates_for` refuses an
+# unknown model precisely so cost is never invented; a wrong rate for a *known*
+# model slips past that guard entirely, because nothing is missing. Re-verify
+# against the link above whenever the model changes or a bill looks off.
 _MODEL_RATES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
-    EXTRACTION_MODEL: (0.80, 4.00),  # (input, output) per million tokens
+    EXTRACTION_MODEL: (1.00, 5.00),  # (input, output) USD per million tokens
 }
 
 
