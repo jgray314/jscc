@@ -20,8 +20,18 @@ with one edit, which is the property D7 M3/M5 were supposed to have all along.
 
 - Email-shaped tokens are removed.
 - Phone-shaped digit runs (10-15 digits, E.164 range) are removed.
+- Anthropic API keys (`sk-ant-…`) are removed.
 - Every literal on the danger list is removed, case-insensitively.
 - Any name in a supplied `name_roles` mapping becomes its role token.
+
+**A credential is not personal data**, and it is deliberately not filed as
+though it were. It carries its own reason label (`credential-pattern`) and its
+own token, so D8's claim — which is about personal *identity* — neither widens
+nor blurs by its presence here. What the two share is the boundary: this module
+is what the D7 egress points agree must not cross one, and a leaked key is the
+other obvious member of that set. Filing it under "personal" to reuse the
+plumbing would trade a precise safety claim for a few saved lines, which is the
+trade D7 and D8 exist to refuse.
 
 **What it does not guarantee:** arbitrary person names in free text are not
 detected. That needs NER, not regex, and pretending a regex does it would be
@@ -55,6 +65,18 @@ EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().]{2,}")
 # whitespace, parens (US area-code grouping), dots (international dotted
 # format). Real disambiguation from noise happens in the digit-count filter.
 PHONE_RE = re.compile(r"\+?\d[\d\-\s().]{7,14}\d")
+
+# Anthropic API keys. Narrow on purpose: the `sk-ant-` prefix plus a long
+# key body is distinctive enough that a false positive is close to impossible,
+# and a pattern that tried to catch "any high-entropy string" would fire on
+# hashes, UUIDs and base64 blobs until someone turned it off. A rule people
+# switch off protects nothing.
+#
+# This does not cover other vendors' key formats. That is a real limit rather
+# than an oversight: this repo talks to one API, and a list of half-remembered
+# prefixes for services it does not use would read as broader coverage than it
+# has -- the same overstatement D8 is careful to avoid about names.
+CREDENTIAL_RE = re.compile(r"sk-ant-[A-Za-z0-9_-]{16,}")
 
 # Phone matches must contain a plausible number of digits. Real phone numbers
 # have 10-15 digits (E.164). This is what disqualifies ISO dates from the
@@ -102,6 +124,7 @@ class SafetyConfigError(RuntimeError):
     """
 
 EMAIL_TOKEN = "[redacted-email]"
+CREDENTIAL_TOKEN = "[redacted-credential]"
 PHONE_TOKEN = "[redacted-phone]"
 DANGER_TOKEN = "[redacted]"
 
@@ -156,6 +179,8 @@ def find_personal(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str
     The detection half, used by the pre-commit scanner (D7 M3).
     """
     hits: list[tuple[str, str]] = []
+    for m in CREDENTIAL_RE.finditer(line):
+        hits.append(("credential-pattern", m.group(0)))
     for m in EMAIL_RE.finditer(line):
         hits.append(("email-pattern", m.group(0)))
     for m in PHONE_RE.finditer(line):
@@ -190,15 +215,27 @@ def redact(
     danger_terms: Iterable[str] = (),
     name_roles: Mapping[str, str] | None = None,
 ) -> str:
-    """Rewrite every personal-data-shaped span in `text` to a stable token.
+    """Rewrite every span this module blocks to a stable token.
 
-    The rewrite half, used by the sanitizer (D7 M5). Order matters: emails go
-    first, because a long numeric local-part would otherwise be eaten by the
-    phone rule and leave a mangled address the email rule no longer matches.
+    The rewrite half, used by the sanitizer (D7 M5). Order matters, for the same
+    reason twice: a rule that rewrites *part* of a longer match leaves a mangled
+    string the owning rule no longer recognises.
+
+    Credentials go first. A key body is alphanumeric with dashes, so the phone
+    rule can match a digit run inside one and replace it with a phone token,
+    leaving a key that is still most of a key and no longer matches
+    `CREDENTIAL_RE`. Emails go second, ahead of phones, because a long numeric
+    local-part is eaten the same way.
+
+    Note the asymmetry with the scanner: this *redacts* a credential where the
+    scanner *blocks* it. That is deliberate. Blocking is the half that matters
+    for a key -- a committed key is the damage -- while the sanitizer's contract
+    is to rewrite unconditionally and never refuse work it can make safe.
     """
     if not text:
         return text
-    out = EMAIL_RE.sub(EMAIL_TOKEN, text)
+    out = CREDENTIAL_RE.sub(CREDENTIAL_TOKEN, text)
+    out = EMAIL_RE.sub(EMAIL_TOKEN, out)
     out = _redact_phones(out)
     for term in danger_terms:
         out = _replace_case_insensitive(out, term, DANGER_TOKEN)

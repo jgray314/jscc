@@ -7,6 +7,54 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B13 - the scanner learns what an API key looks like
+
+Nothing in either egress point would have stopped an Anthropic API key. The
+scanner matches email and phone shapes and danger-list literals; a key matches
+none of them. `.env` is gitignored, so the obvious path was covered, but a key
+pasted into a note, a fixture, or a config file committed cleanly. Worth fixing
+before a real key exists on the machine rather than after.
+
+`CREDENTIAL_RE` lives in `personal_data.py`, so one edit reached both egress
+points -- which is the property that module exists to have, and the scanner test
+asserts the git half actually arrived rather than assuming it.
+
+**A credential is not personal data, and it is not filed as though it were.**
+It carries its own reason label and its own token, so D8's claim -- which is
+about personal *identity* -- neither widens nor blurs. What it shares with the
+rest of the module is the boundary: this is what must not cross an egress point.
+Reusing the "personal" label to save a few lines would have traded a precise
+safety claim for plumbing, which is the trade D7 and D8 exist to refuse.
+
+**Redaction order turned out to be load-bearing again.** A key body is
+alphanumeric with dashes, so a digit run inside one sits squarely in the phone
+rule's window. With phones running first, the run becomes a phone token and
+leaves a string that is still most of a key and no longer matches
+`CREDENTIAL_RE` -- a partial redaction that reads exactly like a complete one.
+Credentials now run first, ahead of emails, for the same reason emails already
+ran ahead of phones. Verified by reordering and watching the test fail.
+
+The two halves behave differently on purpose: the scanner **blocks**, the
+sanitizer **redacts**. Blocking is the half that matters for a key, because a
+committed key is the damage; the sanitizer's contract is to rewrite
+unconditionally and never refuse work it can make safe.
+
+Deliberately narrow: the `sk-ant-` prefix plus a long body, no attempt at
+"any high-entropy string" -- that would fire on hashes, UUIDs and base64 until
+someone switched it off, and a rule people switch off protects nothing. It does
+not cover other vendors' formats, which is a stated limit rather than an
+oversight: this repo talks to one API, and a list of half-remembered prefixes
+would read as broader coverage than it has.
+
+Key-shaped fixtures are assembled at runtime rather than written as literals.
+Both test files are on the exclude list today, but a fixture that depends on
+staying excluded breaks the day the list is tidied -- and these tests exist
+precisely because a key-shaped string should not survive a commit.
+
+- 6 tests (317 total), verified by deletion in both halves: reordering the
+  substitution, and dropping the rule from the detection path.
+
+
 ### B12 - correct the Haiku rates before any real spend
 
 The ledger priced extraction at $0.80 / $4.00 per MTok. The published rates are

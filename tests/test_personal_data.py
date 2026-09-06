@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from jscc.personal_data import (
+    CREDENTIAL_TOKEN,
     DANGER_TOKEN,
     EMAIL_TOKEN,
     PHONE_TOKEN,
@@ -21,6 +22,19 @@ from jscc.personal_data import (
     load_danger_list,
     redact,
 )
+
+# Key-shaped fixtures are assembled at runtime rather than written as literals.
+# This file is on the scanner's exclude list today, but a fixture that depends
+# on staying excluded is a fixture that breaks the day the list is tidied -- and
+# the whole point of these tests is that a key-shaped string does not survive a
+# commit. Same convention the model id in `llm_client` follows, for the same
+# reason.
+_KEY_PREFIX = "sk-" + "ant-"
+FAKE_KEY = _KEY_PREFIX + "api03-" + "A" * 40
+FAKE_ADMIN_KEY = _KEY_PREFIX + "admin01-" + "B" * 40
+# A key whose body carries a phone-length digit run -- the collision that makes
+# redaction order load-bearing.
+FAKE_KEY_WITH_DIGITS = _KEY_PREFIX + "api03-" + "123456789012" + "xyz"
 
 RECRUITER_EMAIL = "dana.reyes@riftcloud.example"
 RECRUITER_PHONE = "(415) 555-0134"
@@ -214,3 +228,56 @@ def test_missing_default_safety_dir_warns_rather_than_going_quiet(
     monkeypatch.setattr("jscc.personal_data.safety_dir", lambda: tmp_path / "gone")
     with pytest.warns(RuntimeWarning, match="danger-list"):
         assert default_danger_terms() == []
+
+
+# ---- credentials ------------------------------------------------------------
+#
+# A credential is not personal data, and these tests keep that distinction
+# visible: it has its own reason label and its own token. What it shares with
+# the rest of this module is the boundary -- it must not cross an egress point.
+# The prompt for adding it was concrete: a real API key was about to exist on
+# this machine, and nothing here would have stopped it being committed.
+
+
+def test_an_api_key_is_flagged_with_its_own_reason() -> None:
+    hits = find_personal(f"export ANTHROPIC_API_KEY={FAKE_KEY}", [])
+    assert ("credential-pattern", FAKE_KEY) in hits
+
+
+def test_admin_keys_are_covered_too() -> None:
+    """Admin keys open more doors than a workspace key, not fewer."""
+    hits = find_personal(f"key: {FAKE_ADMIN_KEY}", [])
+    assert [reason for reason, _ in hits] == ["credential-pattern"]
+
+
+def test_an_api_key_is_redacted() -> None:
+    assert redact(f"use {FAKE_KEY} to authenticate") == (
+        f"use {CREDENTIAL_TOKEN} to authenticate"
+    )
+
+
+def test_a_key_body_with_a_phone_shaped_run_is_not_mangled_by_the_phone_rule() -> None:
+    """Why credentials are redacted before phones.
+
+    A key body is alphanumeric with dashes, so a digit run inside one sits in
+    the phone rule's window. If phones went first the run would become a phone
+    token and leave a string that is still most of a key and no longer matches
+    `CREDENTIAL_RE` -- a partial redaction that reads as a successful one.
+    Verified by moving the credential substitution after `_redact_phones` and
+    watching this fail.
+    """
+    out = redact(f"key {FAKE_KEY_WITH_DIGITS} here")
+    assert out == f"key {CREDENTIAL_TOKEN} here"
+    assert PHONE_TOKEN not in out
+
+
+def test_the_credential_rule_does_not_fire_on_ordinary_text() -> None:
+    """Narrow on purpose. A rule that cries wolf is a rule someone turns off."""
+    for benign in (
+        "the sk-ant- prefix identifies an Anthropic key",
+        "sk-ant-short",
+        "scikit-learn and pandas",
+        "",
+    ):
+        assert not [r for r, _ in find_personal(benign, []) if r == "credential-pattern"]
+        assert redact(benign) == benign

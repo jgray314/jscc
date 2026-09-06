@@ -114,7 +114,7 @@ uv run pre-commit install  # enable the safety scanner
 uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
 
-The pre-commit scanner refuses commits that match email/phone patterns or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
+The pre-commit scanner refuses commits that match email/phone patterns, an Anthropic API key, or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
 
 ## Status
 

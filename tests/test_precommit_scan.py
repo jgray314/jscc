@@ -426,3 +426,17 @@ def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
 
     f = _write(tmp_path / "notes.md", "the projectbluebird kickoff is monday\n")
     assert precommit_scan.main([str(f)]) == 1
+
+
+def test_a_staged_file_holding_an_api_key_is_blocked(tmp_path: Path) -> None:
+    """End-to-end proof the shared definition reaches the scanner.
+
+    `personal_data.py` is one definition for two egress points, so a rule added
+    there is supposed to arrive at both without a second edit. This asserts the
+    git half actually did -- the half that matters for a credential, since a
+    committed key is the damage.
+    """
+    key = "sk-" + "ant-" + "api03-" + "C" * 40
+    target = _write(tmp_path / "notes.md", f"my key is {key}\n")
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    assert precommit_scan.main([str(target), "--danger-list", str(danger)]) == 1
