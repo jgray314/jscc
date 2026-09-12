@@ -15,3 +15,19 @@ repos:
         # causing `pre-commit run --all-files` to fail on a clean tree that
         # CI accepted.
         types_or: [text]
+      - id: ruff-lint
+        name: ruff lint
+        entry: uv run ruff check .
+        language: system
+        # Whole-tree, not staged-files-only: matches CI (ci.yml runs the same
+        # command), and pass_filenames: false keeps pre-commit from passing a
+        # partial file list that ruff would resolve against a different set
+        # of excludes than CI's full-repo run.
+        pass_filenames: false
+        types_or: [python]
+      - id: ruff-format
+        name: ruff format check
+        entry: uv run ruff format --check .
+        language: system
+        pass_filenames: false
+        types_or: [python]

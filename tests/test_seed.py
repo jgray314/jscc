@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -17,8 +17,7 @@ from jscc.storage import (
     list_interactions,
 )
 
-
-FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
 
 
 @pytest.fixture()
@@ -72,10 +71,8 @@ def test_seed_counts_and_distribution() -> None:
 
 def test_seed_produces_fresh_and_stale_mix() -> None:
     apps, *_ = build_seed(now=FIXED_NOW)
-    ages_days = [
-        (FIXED_NOW - a.last_interaction_at).days for a in apps if a.last_interaction_at
-    ]
-    assert min(ages_days) <= 3   # at least one fresh
+    ages_days = [(FIXED_NOW - a.last_interaction_at).days for a in apps if a.last_interaction_at]
+    assert min(ages_days) <= 3  # at least one fresh
     assert max(ages_days) >= 20  # at least one stale under any reasonable threshold
 
 
@@ -112,7 +109,7 @@ def test_interactions_are_chronologically_ordered(conn: sqlite3.Connection) -> N
     seed_synthetic(conn, now=FIXED_NOW)
     for app in list_applications(conn):
         chain = list_interactions(conn, app.id)
-        for prev, curr in zip(chain, chain[1:]):
+        for prev, curr in zip(chain, chain[1:], strict=False):
             assert prev.occurred_at <= curr.occurred_at, (
                 f"chain out of order for {app.company}: {prev.type} @ {prev.occurred_at} "
                 f"followed by {curr.type} @ {curr.occurred_at}"
@@ -129,9 +126,7 @@ def test_hm_contact_referenced_by_screen_or_onsite(conn: sqlite3.Connection) -> 
             continue
         chain = list_interactions(conn, app.id)
         linked = [i for i in chain if i.contact_id in hm_ids]
-        assert linked, (
-            f"HM contact on {app.company} but no interaction references it"
-        )
+        assert linked, f"HM contact on {app.company} but no interaction references it"
 
 
 def test_extracted_jd_responsibilities_vary_across_apps() -> None:

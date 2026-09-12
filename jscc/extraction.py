@@ -16,6 +16,7 @@ L-15 -- this docstring used to say live iteration was simply "blocked until
 a key is set", which stopped being true the day B2b closed). See README's
 Status section for the current figure and CHANGELOG for the breakdown.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,7 @@ from pydantic import ValidationError
 from .instrumentation import LLMResult, instrumented
 from .llm_client import EXTRACTION_MODEL, LLMClient, default_client
 from .models import ExtractedJD
-from .sanitizer import send_to_llm, sanitize_for_llm
+from .sanitizer import sanitize_for_llm, send_to_llm
 
 EXTRACTION_SYSTEM_PROMPT = """You are a job description parser. Given the raw text of a job posting, extract structured fields and return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 

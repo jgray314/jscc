@@ -3,9 +3,10 @@
 No DB access here — callers pass in an `Application` list and a `StagesConfig`.
 Testable in isolation; the CLI is a thin wrapper.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -26,9 +27,7 @@ class StaleAlert(BaseModel):
         return self.days_since_last_interaction - self.threshold_days
 
 
-def funnel_counts(
-    apps: list[Application], stages_config: StagesConfig
-) -> dict[str, int]:
+def funnel_counts(apps: list[Application], stages_config: StagesConfig) -> dict[str, int]:
     """Return per-stage counts in stages.yaml order, including zero-count stages.
 
     Apps whose `stage` isn't in the configured pipeline are omitted from the
@@ -62,7 +61,7 @@ def detect_stale(
 
     Alerts are sorted most-overdue first. Apps in unknown stages are skipped.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     alerts: list[StaleAlert] = []
     for app in apps:
         threshold = stages_config.staleness_thresholds_days.get(app.stage)
@@ -73,7 +72,7 @@ def detect_stale(
             continue
         # Coerce naive→UTC to match storage's contract (see ADR-002).
         if ref.tzinfo is None:
-            ref = ref.replace(tzinfo=timezone.utc)
+            ref = ref.replace(tzinfo=UTC)
         days = (now - ref).days
         # M6: a future reference timestamp means bad data (clock skew, corrupt
         # row, or a caller passing a --now in the past). Silent drop would

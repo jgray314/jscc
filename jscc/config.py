@@ -12,7 +12,7 @@ class StagesConfig(BaseModel):
     staleness_thresholds_days: dict[str, int]
 
     @model_validator(mode="after")
-    def _thresholds_cover_stages(self) -> "StagesConfig":
+    def _thresholds_cover_stages(self) -> StagesConfig:
         missing = [s for s in self.stages if s not in self.staleness_thresholds_days]
         if missing:
             raise ValueError(f"staleness_thresholds_days missing entries for: {missing}")
@@ -27,7 +27,7 @@ class CompRange(BaseModel):
     max_usd: int
 
     @model_validator(mode="after")
-    def _min_le_max(self) -> "CompRange":
+    def _min_le_max(self) -> CompRange:
         if self.min_usd > self.max_usd:
             raise ValueError("min_usd must be <= max_usd")
         return self

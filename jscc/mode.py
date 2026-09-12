@@ -6,19 +6,19 @@ environment variable; each mode maps to a distinct DB file path. Structural
 enforcement — a marker inside the DB itself refuses cross-mode opens — lives
 in storage.py under `open_for_mode` / `ModeMismatchError`.
 """
+
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from os import environ
 from pathlib import Path
 
 from .paths import PACKAGE_ROOT
 
-
 ENV_VAR = "JSCC_DATA"
 
 
-class Mode(str, Enum):
+class Mode(StrEnum):
     synthetic = "synthetic"
     real = "real"
 

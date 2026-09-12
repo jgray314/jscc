@@ -16,8 +16,8 @@ from jscc.mode import (
 from jscc.storage import (
     DB_SCHEMA_VERSION,
     ModeMismatchError,
-    _ensure_meta_table,
     _connect,
+    _ensure_meta_table,
     _init_db,
     open_for_mode,
     read_mode_marker,
@@ -127,9 +127,7 @@ def test_corrupt_marker_raises_mode_mismatch_not_valueerror(tmp_path: Path) -> N
     path = tmp_path / "synthetic.db"
     conn = _connect(path)
     _init_db(conn)
-    conn.execute(
-        "INSERT OR REPLACE INTO meta (key, value) VALUES ('mode', 'production')"
-    )
+    conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('mode', 'production')")
     conn.commit()
     conn.close()
 
@@ -185,14 +183,10 @@ def test_attach_database_does_not_bypass_mode_check(tmp_path: Path) -> None:
         real_path = tmp_path / "real.db"
         conn.execute(f"ATTACH DATABASE '{real_path}' AS other")
         # Unqualified reads still see synthetic (the marker-verified DB).
-        marker_row = conn.execute(
-            "SELECT value FROM meta WHERE key = 'mode'"
-        ).fetchone()
+        marker_row = conn.execute("SELECT value FROM meta WHERE key = 'mode'").fetchone()
         assert marker_row["value"] == "synthetic"
         # The attached alias sees its own marker independently.
-        other_row = conn.execute(
-            "SELECT value FROM other.meta WHERE key = 'mode'"
-        ).fetchone()
+        other_row = conn.execute("SELECT value FROM other.meta WHERE key = 'mode'").fetchone()
         assert other_row["value"] == "real"
     finally:
         conn.close()
@@ -266,9 +260,7 @@ def test_default_data_dir_is_absolute() -> None:
     assert DEFAULT_DATA_DIR.is_absolute()
 
 
-def test_default_db_path_does_not_follow_the_working_directory(
-    tmp_path, monkeypatch
-) -> None:
+def test_default_db_path_does_not_follow_the_working_directory(tmp_path, monkeypatch) -> None:
     before = resolve_db_path(Mode.real)
     monkeypatch.chdir(tmp_path)
     assert resolve_db_path(Mode.real) == before

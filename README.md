@@ -109,12 +109,16 @@ The ten locked design principles behind them are in [docs/design-principles.md](
 ```bash
 uv sync
 uv run pytest              # ~seconds
+uv run ruff check .        # lint
+uv run ruff format --check .  # formatting
 uv run python -m jscc eval jd_extraction --replay   # eval suite, no API key
-uv run pre-commit install  # enable the safety scanner
+uv run pre-commit install  # enable the safety scanner + ruff hooks
 uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
 
 The pre-commit scanner refuses commits that match email/phone patterns, an Anthropic API key, or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
+
+Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the same pre-commit hooks and CI job as the content scanner. `E501` (line length) is deliberately off — this codebase's design-rationale comments and docstrings are long-form prose by design, and wrapping them at a fixed column would be churn against an established writing style, not a real improvement.
 
 ## Status
 
@@ -124,9 +128,9 @@ The pre-commit scanner refuses commits that match email/phone patterns, an Anthr
 
 **B2b closed.** No `ANTHROPIC_API_KEY` is configured — this project isn't using the Anthropic Console, so extraction runs end-to-end against a stub client by default. B2b validates the prompt against real (not stub) model output captured by hand through Claude.ai chat and replayed via the eval harness's `--record`/`--replay` fixtures, rather than against live API traffic. The eval clears the ≥80% bar, but the honest number is a band, not a point figure: two independent capture rounds measured 76%–82% on the same 33-case suite holding the prompt fixed, so pass rate itself carries several points of model variance under manual capture. See CHANGELOG for the categorized breakdown — one grader gap (abbreviation pairs like "infra-as-code" vs "infrastructure as code") and a couple of documented model-consistency limits (ambiguous-title leveling; case-by-case wording variance) are left as disclosed gaps rather than chased further. Not CI-gated, since a manual-capture eval has no live traffic to gate on.
 
-**Phase B → C gate, as of 2026-09-12.** Two cold two-lens reviews (adversarial + outside-reviewer walkthrough) have run against the Phase B slices above (2026-09-04, 2026-09-12). The first review's critical/high/medium findings are closed. The second, run the same morning B2b's manual-capture eval closed, found two open highs specific to that milestone: recorded eval fixtures don't pin the extraction system prompt, so replay can't detect a prompt change even though its own docstring says it does (`jscc/evals.py`); and a transient LLM API error (rate limit, overload, timeout) crashes `ingest`/`resolve-dlq` with a raw traceback and loses the fetched JD instead of routing it to the DLQ. Neither is reachable through the stub client this README's quick start uses. A further batch of medium and low findings — duplicate-application detection, exit-code semantics for a no-op resolve, unenforced `level`/`remote_policy` vocabularies, a few stale docstrings — are open and explicitly non-blocking. Full findings and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
+**Phase B → C gate, as of 2026-09-12: closed.** Three cold two-lens reviews (adversarial + outside-reviewer walkthrough) ran against the Phase B slices above (2026-09-01, 2026-09-04, 2026-09-12). Every finding across all three — including two highs found the same morning B2b's manual-capture eval closed (eval fixtures not pinning the extraction system prompt; a transient LLM API error crashing `ingest`/`resolve-dlq` instead of routing to the DLQ) and a low-severity backlog (duplicate-application detection, exit-code semantics for a no-op resolve, unenforced `level`/`remote_policy` vocabularies, a handful of residuals reasoned acceptable rather than fixed) — is now fixed or documented. Full findings and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
 
-348 pytest cases.
+348 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

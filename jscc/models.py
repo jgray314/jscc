@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from enum import Enum
+from datetime import UTC, date, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
@@ -13,10 +13,10 @@ def _new_id() -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-class FetchStatus(str, Enum):
+class FetchStatus(StrEnum):
     ok = "ok"
     dlq_paywall = "dlq_paywall"
     dlq_blocked = "dlq_blocked"
@@ -25,7 +25,7 @@ class FetchStatus(str, Enum):
     manual = "manual"
 
 
-class ContactRole(str, Enum):
+class ContactRole(StrEnum):
     recruiter = "recruiter"
     hm = "hm"
     ic = "ic"
@@ -33,7 +33,7 @@ class ContactRole(str, Enum):
     other = "other"
 
 
-class InteractionType(str, Enum):
+class InteractionType(StrEnum):
     applied = "applied"
     recruiter_reply = "recruiter_reply"
     screen = "screen"
@@ -43,7 +43,7 @@ class InteractionType(str, Enum):
     custom = "custom"
 
 
-class FailureMode(str, Enum):
+class FailureMode(StrEnum):
     paywall = "paywall"
     blocked = "blocked"
     timeout = "timeout"
@@ -51,7 +51,7 @@ class FailureMode(str, Enum):
     other = "other"
 
 
-class Resolution(str, Enum):
+class Resolution(StrEnum):
     unresolved = "unresolved"
     manual_paste = "manual_paste"
     wont_fix = "wont_fix"

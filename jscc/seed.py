@@ -20,12 +20,13 @@ Chain generation rule: interactions are anchored on `applied_at` and stepped
 forward with realistic gaps, so `list_interactions()` returns events in
 chronological order. `last_interaction_at` is the timestamp of the final event.
 """
+
 from __future__ import annotations
 
 import random
 import sqlite3
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from .models import (
     Application,
@@ -59,13 +60,32 @@ def _rng_uuid(rng: random.Random) -> str:
     """
     return str(uuid.UUID(int=rng.getrandbits(128), version=4))
 
+
 _COMPANIES = [
-    "Acme Robotics", "Bluewave Systems", "Ceres Analytics", "Delta Foundry",
-    "Ember Grid", "Falcon Ledger", "Gale Networks", "Helix Compute",
-    "Ionic Studios", "Juno Labs", "Karma Freight", "Latitude AI",
-    "Meridian Payments", "Nova Health", "Orbit Media", "Pinnacle Search",
-    "Quartz Signals", "Rift Cloud", "Sable Data", "Timber Motors",
-    "Umbra Security", "Vertex Loop", "Wharf Logistics", "Xenon Retail",
+    "Acme Robotics",
+    "Bluewave Systems",
+    "Ceres Analytics",
+    "Delta Foundry",
+    "Ember Grid",
+    "Falcon Ledger",
+    "Gale Networks",
+    "Helix Compute",
+    "Ionic Studios",
+    "Juno Labs",
+    "Karma Freight",
+    "Latitude AI",
+    "Meridian Payments",
+    "Nova Health",
+    "Orbit Media",
+    "Pinnacle Search",
+    "Quartz Signals",
+    "Rift Cloud",
+    "Sable Data",
+    "Timber Motors",
+    "Umbra Security",
+    "Vertex Loop",
+    "Wharf Logistics",
+    "Xenon Retail",
     "Yield Model Co",
 ]
 
@@ -95,7 +115,7 @@ _STAGE_DISTRIBUTION: list[tuple[str, int]] = [
 # How long ago (in days) the application was submitted, per current stage.
 # Broad enough that later chain steps still leave a mix of fresh + stale apps.
 _APPLIED_AGE_DAYS: dict[str, tuple[int, int]] = {
-    "identified": (0, 20),   # identified only — no applied_at, used as identified_at
+    "identified": (0, 20),  # identified only — no applied_at, used as identified_at
     "applied": (0, 40),
     "recruiter_screen": (5, 30),
     "hm_screen": (10, 45),
@@ -106,8 +126,14 @@ _APPLIED_AGE_DAYS: dict[str, tuple[int, int]] = {
 }
 
 _STAGE_ORDER = [
-    "identified", "applied", "recruiter_screen", "hm_screen",
-    "technical_loop", "onsite", "offer", "closed",
+    "identified",
+    "applied",
+    "recruiter_screen",
+    "hm_screen",
+    "technical_loop",
+    "onsite",
+    "offer",
+    "closed",
 ]
 
 _RESPONSIBILITY_POOLS: dict[str, list[str]] = {
@@ -222,10 +248,12 @@ def _effective_depth(rng: random.Random, stage: str) -> int:
         # Weighted so early closures are more common than late ones — matches reality
         # for candidates who withdraw or get passed early.
         return rng.choices(
-            [_STAGE_ORDER.index("applied"),
-             _STAGE_ORDER.index("recruiter_screen"),
-             _STAGE_ORDER.index("hm_screen"),
-             _STAGE_ORDER.index("onsite")],
+            [
+                _STAGE_ORDER.index("applied"),
+                _STAGE_ORDER.index("recruiter_screen"),
+                _STAGE_ORDER.index("hm_screen"),
+                _STAGE_ORDER.index("onsite"),
+            ],
             weights=[3, 4, 3, 2],
         )[0]
     return _STAGE_ORDER.index(stage)
@@ -429,10 +457,12 @@ def _make_application_bundle(
     )
 
     if interactions:
-        app = app.model_copy(update={
-            "last_interaction_at": chain_end,
-            "updated_at": chain_end,
-        })
+        app = app.model_copy(
+            update={
+                "last_interaction_at": chain_end,
+                "updated_at": chain_end,
+            }
+        )
     else:
         # identified: no interactions; last_interaction_at stays None; updated_at = created_at
         pass
@@ -467,7 +497,7 @@ def build_seed(
 ) -> tuple[list[Application], list[Contact], list[Interaction], list[DLQEntry]]:
     """Build the seed in memory without touching the DB. Deterministic for a given seed."""
     rng = random.Random(random_seed)
-    now = now or datetime.now(timezone.utc).replace(microsecond=0)
+    now = now or datetime.now(UTC).replace(microsecond=0)
 
     companies = _COMPANIES.copy()
     rng.shuffle(companies)
@@ -509,8 +539,7 @@ def reset_tables(conn: sqlite3.Connection) -> None:
     tables = {
         row[0]
         for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' "
-            "AND name NOT LIKE 'sqlite_%'"
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
         )
     }
     for table in sorted(tables - _RESET_EXEMPT_TABLES):
@@ -532,7 +561,7 @@ def seed_synthetic(
     # Pin the anchor now here (not inside build_seed) so the DLQ resolve below
     # can stamp resolved_at against the same moment build_seed used — otherwise
     # resolved_at falls back to wall clock and breaks reproducibility.
-    ref_now = now if now is not None else datetime.now(timezone.utc).replace(microsecond=0)
+    ref_now = now if now is not None else datetime.now(UTC).replace(microsecond=0)
 
     apps, contacts, interactions, dlq = build_seed(now=ref_now, random_seed=random_seed)
 

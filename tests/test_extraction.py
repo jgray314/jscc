@@ -58,6 +58,7 @@ def conn(tmp_path: Path):
 
 # ---- stub fallback (no API key) ------------------------------------------------
 
+
 def test_extract_jd_uses_stub_by_default_no_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     result = extract_jd("some JD text")
@@ -71,6 +72,7 @@ def test_extract_jd_accepts_explicit_client() -> None:
 
 # ---- request wiring --------------------------------------------------------------
 
+
 def test_extract_jd_sends_raw_text_as_user_prompt() -> None:
     fake = _FakeClient(_VALID_RESPONSE)
     extract_jd("this is the raw JD", client=fake)
@@ -80,6 +82,7 @@ def test_extract_jd_sends_raw_text_as_user_prompt() -> None:
 
 
 # ---- response parsing -------------------------------------------------------------
+
 
 def test_extract_jd_parses_valid_response() -> None:
     fake = _FakeClient(_VALID_RESPONSE)
@@ -102,6 +105,7 @@ def test_extract_jd_raises_on_json_missing_required_field() -> None:
 
 
 # ---- instrumentation (D5) ---------------------------------------------------------
+
 
 def test_extract_jd_records_llm_call_when_conn_provided(conn: sqlite3.Connection) -> None:
     fake = _FakeClient(_VALID_RESPONSE, input_tokens=42, output_tokens=17, cost_usd=0.0055)
@@ -191,10 +195,7 @@ _JD_PHONE = "(415) 555" + "-0134"
 
 def test_client_receives_redacted_text_not_the_raw_jd(conn: sqlite3.Connection) -> None:
     client = _FakeClient(_VALID_RESPONSE)
-    raw = (
-        "Staff Engineer at Rift Cloud. Questions to "
-        f"{_JD_EMAIL} or call {_JD_PHONE}."
-    )
+    raw = f"Staff Engineer at Rift Cloud. Questions to {_JD_EMAIL} or call {_JD_PHONE}."
     extract_jd(raw, conn=conn, client=client)
 
     sent = client.calls[0]["user"]

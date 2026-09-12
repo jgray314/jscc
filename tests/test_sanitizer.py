@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from datetime import datetime
 from typing import Any
 
@@ -123,7 +124,7 @@ def test_returns_defensive_copy_of_data() -> None:
 def test_sanitized_payload_is_frozen() -> None:
     """Callers cannot silently mutate authenticator after construction."""
     out = sanitize_for_llm({"a": 1})
-    with pytest.raises(Exception):  # FrozenInstanceError
+    with pytest.raises(FrozenInstanceError):
         out.authenticator = "0" * 64  # type: ignore[misc]
 
 
@@ -174,6 +175,7 @@ def test_send_to_llm_refuses_bare_dict() -> None:
     """Walkthrough #2: the runtime type check must catch a bare dict cast
     past mypy — the type annotation is not enough on its own."""
     from typing import cast
+
     from jscc.sanitizer import LLMSendError, send_to_llm
 
     with pytest.raises(LLMSendError):

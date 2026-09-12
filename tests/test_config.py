@@ -39,9 +39,7 @@ def test_pipeline_missing_file_defaults_to_off(tmp_path: Path) -> None:
 
 
 def test_pipeline_playwright_on(tmp_path: Path) -> None:
-    (tmp_path / "pipeline.yaml").write_text(
-        "playwright_fallback: true\n", encoding="utf-8"
-    )
+    (tmp_path / "pipeline.yaml").write_text("playwright_fallback: true\n", encoding="utf-8")
     cfg = load_pipeline(tmp_path / "pipeline.yaml")
     assert cfg.playwright_fallback is True
 

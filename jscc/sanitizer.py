@@ -49,9 +49,10 @@ import hashlib
 import hmac
 import json
 import secrets
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from .personal_data import default_danger_terms, redact
 
@@ -112,7 +113,7 @@ def _compute_authenticator(data: dict[str, Any], sanitized_at: str) -> str:
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # Payload keys holding application-authored control values rather than user
@@ -132,13 +133,12 @@ def _utcnow_iso() -> str:
 _CONTROL_KEYS = frozenset({"model"})
 
 
-def _redact_tree(value: Any, key: str | None, danger_terms: list[str],
-                 name_roles: Mapping[str, str] | None) -> Any:
+def _redact_tree(
+    value: Any, key: str | None, danger_terms: list[str], name_roles: Mapping[str, str] | None
+) -> Any:
     """Walk a JSON-native snapshot, rewriting every in-scope string."""
     if isinstance(value, dict):
-        return {
-            k: _redact_tree(v, k, danger_terms, name_roles) for k, v in value.items()
-        }
+        return {k: _redact_tree(v, k, danger_terms, name_roles) for k, v in value.items()}
     if isinstance(value, list):
         return [_redact_tree(v, key, danger_terms, name_roles) for v in value]
     if isinstance(value, str) and key not in _CONTROL_KEYS:

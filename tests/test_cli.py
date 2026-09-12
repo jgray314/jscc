@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import anthropic
 import pytest
 from click.testing import CliRunner
 
 from jscc.cli import cli
 from jscc.mode import ENV_VAR
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = REPO_ROOT / "config"
@@ -28,6 +28,7 @@ def runner() -> CliRunner:
 
 # ---- validate-config ----------------------------------------------------------
 
+
 def test_validate_config_success(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["validate-config", "--config-dir", str(CONFIG_DIR)])
     assert result.exit_code == 0, result.output
@@ -35,14 +36,13 @@ def test_validate_config_success(runner: CliRunner) -> None:
 
 
 def test_validate_config_missing_dir(runner: CliRunner, tmp_path: Path) -> None:
-    result = runner.invoke(
-        cli, ["validate-config", "--config-dir", str(tmp_path / "nope")]
-    )
+    result = runner.invoke(cli, ["validate-config", "--config-dir", str(tmp_path / "nope")])
     assert result.exit_code == 1
     assert "FAIL" in result.output
 
 
 # ---- db init ------------------------------------------------------------------
+
 
 def test_db_init_default_synthetic(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -74,6 +74,7 @@ def test_db_init_bogus_env_exits_nonzero(
 
 
 # ---- seed ---------------------------------------------------------------------
+
 
 def test_seed_success_default_synthetic(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -114,8 +115,10 @@ def test_seed_with_pinned_now_reproducible(
 
     monkeypatch.delenv(ENV_VAR, raising=False)
     args_common = [
-        "--random-seed", "42",
-        "--now", "2026-08-28T12:00:00+00:00",
+        "--random-seed",
+        "42",
+        "--now",
+        "2026-08-28T12:00:00+00:00",
     ]
 
     dir_a = tmp_path / "a"
@@ -134,14 +137,9 @@ def test_seed_with_pinned_now_reproducible(
         try:
             out: dict[str, list[tuple]] = {}
             for table in ("applications", "contacts", "interactions", "dlq_entries"):
-                cols = [
-                    row[1]
-                    for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
-                ]
+                cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
                 col_list = ", ".join(cols)
-                out[table] = conn.execute(
-                    f"SELECT {col_list} FROM {table} ORDER BY id"
-                ).fetchall()
+                out[table] = conn.execute(f"SELECT {col_list} FROM {table} ORDER BY id").fetchall()
             return out
         finally:
             conn.close()
@@ -169,14 +167,13 @@ def test_seed_now_bogus_string_fails(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(ENV_VAR, raising=False)
-    result = runner.invoke(
-        cli, ["seed", "--data-dir", str(tmp_path), "--now", "not-a-date"]
-    )
+    result = runner.invoke(cli, ["seed", "--data-dir", str(tmp_path), "--now", "not-a-date"])
     assert result.exit_code != 0
     assert "ISO-8601" in result.output
 
 
 # ---- report -------------------------------------------------------------------
+
 
 def test_report_on_seeded_db(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -186,8 +183,10 @@ def test_report_on_seeded_db(
         cli,
         [
             "seed",
-            "--data-dir", str(tmp_path),
-            "--now", "2026-08-28T12:00:00+00:00",
+            "--data-dir",
+            str(tmp_path),
+            "--now",
+            "2026-08-28T12:00:00+00:00",
         ],
     )
     result = runner.invoke(
@@ -274,9 +273,12 @@ def test_report_rejects_a_now_without_a_timezone(
         cli,
         [
             "report",
-            "--data-dir", str(tmp_path),
-            "--config-dir", str(CONFIG_DIR),
-            "--now", "2026-08-28T12:00:00",
+            "--data-dir",
+            str(tmp_path),
+            "--config-dir",
+            str(CONFIG_DIR),
+            "--now",
+            "2026-08-28T12:00:00",
         ],
     )
     assert result.exit_code != 0
@@ -316,9 +318,12 @@ def test_report_now_in_the_past_is_a_usage_error_not_a_crash(
         cli,
         [
             "report",
-            "--data-dir", str(tmp_path),
-            "--config-dir", str(CONFIG_DIR),
-            "--now", "2026-08-01T12:00:00+00:00",
+            "--data-dir",
+            str(tmp_path),
+            "--config-dir",
+            str(CONFIG_DIR),
+            "--now",
+            "2026-08-01T12:00:00+00:00",
         ],
     )
     assert result.exit_code == 2, result.output
@@ -326,6 +331,7 @@ def test_report_now_in_the_past_is_a_usage_error_not_a_crash(
 
 
 # ---- costs ----------------------------------------------------------------------
+
 
 def test_costs_empty_ledger(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -365,6 +371,7 @@ def test_costs_summarizes_recorded_calls(
 
 
 # ---- ingest / dlq ---------------------------------------------------------------
+
 
 def test_ingest_url_success_creates_application(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -760,9 +767,7 @@ def test_ingest_paste_empty_input_exits_nonzero_no_application(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    result = runner.invoke(
-        cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n"
-    )
+    result = runner.invoke(cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n")
     assert result.exit_code != 0
 
     from jscc.mode import Mode
@@ -804,8 +809,8 @@ def test_dlq_list_shows_unresolved_entries(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    from jscc.models import DLQEntry, FailureMode
     from jscc.mode import Mode
+    from jscc.models import DLQEntry, FailureMode
     from jscc.storage import create_dlq_entry, open_for_mode
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
@@ -825,9 +830,7 @@ def test_dlq_list_shows_unresolved_entries(
     assert "paywall" in result.output
 
 
-def test_dlq_list_empty(
-    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_dlq_list_empty(runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     result = runner.invoke(cli, ["dlq", "list", "--data-dir", str(tmp_path)])
@@ -841,8 +844,8 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    from jscc.models import DLQEntry, FailureMode, FetchStatus, Resolution
     from jscc.mode import Mode
+    from jscc.models import DLQEntry, FailureMode, FetchStatus, Resolution
     from jscc.storage import create_dlq_entry, list_applications, list_dlq_entries, open_for_mode
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
@@ -895,8 +898,8 @@ def test_resolve_dlq_company_override(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    from jscc.models import DLQEntry, FailureMode
     from jscc.mode import Mode
+    from jscc.models import DLQEntry, FailureMode
     from jscc.storage import create_dlq_entry, list_applications, open_for_mode
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
@@ -913,10 +916,14 @@ def test_resolve_dlq_company_override(
     result = runner.invoke(
         cli,
         [
-            "resolve-dlq", entry_id,
-            "--paste-text", "Senior Engineer at Rift Cloud. " * 20,
-            "--company", "Corrected Co",
-            "--data-dir", str(tmp_path),
+            "resolve-dlq",
+            entry_id,
+            "--paste-text",
+            "Senior Engineer at Rift Cloud. " * 20,
+            "--company",
+            "Corrected Co",
+            "--data-dir",
+            str(tmp_path),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -935,8 +942,8 @@ def test_resolve_dlq_unpriced_model_is_a_usage_error_not_a_crash(
     the same helper but only caught `ExtractionParseError`, so the same
     misconfiguration reached the caller as a raw traceback."""
     from jscc.llm_client import UnknownModelPricingError
-    from jscc.models import DLQEntry, FailureMode
     from jscc.mode import Mode
+    from jscc.models import DLQEntry, FailureMode
     from jscc.storage import create_dlq_entry, list_applications, open_for_mode
 
     monkeypatch.delenv(ENV_VAR, raising=False)
@@ -961,9 +968,12 @@ def test_resolve_dlq_unpriced_model_is_a_usage_error_not_a_crash(
     result = runner.invoke(
         cli,
         [
-            "resolve-dlq", entry_id,
-            "--paste-text", "some jd text",
-            "--data-dir", str(tmp_path),
+            "resolve-dlq",
+            entry_id,
+            "--paste-text",
+            "some jd text",
+            "--data-dir",
+            str(tmp_path),
         ],
     )
     assert result.exit_code == 2, result.output
@@ -987,8 +997,8 @@ def test_resolve_dlq_is_idempotent(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    from jscc.models import DLQEntry, FailureMode
     from jscc.mode import Mode
+    from jscc.models import DLQEntry, FailureMode
     from jscc.storage import create_dlq_entry, list_applications, open_for_mode
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
@@ -1037,8 +1047,8 @@ def test_ingest_paste_sets_manual_fetch_status(
     )
     assert result.exit_code == 0, result.output
 
-    from jscc.models import FetchStatus
     from jscc.mode import Mode
+    from jscc.models import FetchStatus
     from jscc.storage import list_applications, open_for_mode
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
@@ -1177,7 +1187,6 @@ def _ingest_with_client(runner, tmp_path, monkeypatch, client, argv=None):
     )
 
 
-
 def _assert_queued(result) -> None:
     """Handled failure: a DLQ entry was written. Exit 3, and nothing escaped
     as a real exception -- CliRunner reports the SystemExit itself here."""
@@ -1252,8 +1261,7 @@ class _RaisingClient:
         raise self._error
 
 
-def _api_connection_error() -> "anthropic.APIConnectionError":
-    import anthropic
+def _api_connection_error() -> anthropic.APIConnectionError:
     import httpx2
 
     return anthropic.APIConnectionError(
@@ -1291,9 +1299,12 @@ def test_transient_api_error_during_resolve_dlq_leaves_entry_unresolved(
     result = runner.invoke(
         cli,
         [
-            "resolve-dlq", entry_id,
-            "--paste-text", "some jd text",
-            "--data-dir", str(tmp_path),
+            "resolve-dlq",
+            entry_id,
+            "--paste-text",
+            "some jd text",
+            "--data-dir",
+            str(tmp_path),
         ],
     )
     _assert_queued(result)
@@ -1352,7 +1363,9 @@ def test_url_path_extraction_failure_keeps_the_url_on_the_dlq_entry(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
-    body = ("<html><body><article><p>" + "Senior engineer role. " * 30 + "</p></article></body></html>")
+    body = (
+        "<html><body><article><p>" + "Senior engineer role. " * 30 + "</p></article></body></html>"
+    )
     resp = Mock()
     resp.status_code = 200
     resp.headers = {}
@@ -1459,7 +1472,6 @@ def test_resolve_dlq_also_stores_the_extracted_fields(
 ) -> None:
     """Both writers go through the shared helper; assert it, don't assume it."""
     import json
-
     from unittest.mock import Mock
 
     monkeypatch.delenv(ENV_VAR, raising=False)
@@ -1525,9 +1537,7 @@ def test_usage_error_and_queued_failure_are_different_codes(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    empty = runner.invoke(
-        cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n"
-    )
+    empty = runner.invoke(cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="   \n")
     assert empty.exit_code == 2
 
     queued = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient("not json"))
@@ -1582,7 +1592,15 @@ def test_record_then_replay_round_trips(
 
     rec = runner.invoke(
         cli,
-        ["eval", "jd_extraction", "--record", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+        [
+            "eval",
+            "jd_extraction",
+            "--record",
+            "--min-pass-rate",
+            "0.0",
+            "--data-dir",
+            str(tmp_path),
+        ],
     )
     assert rec.exit_code == 0, rec.output
     assert recording.exists()
@@ -1590,7 +1608,15 @@ def test_record_then_replay_round_trips(
 
     play = runner.invoke(
         cli,
-        ["eval", "jd_extraction", "--replay", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+        [
+            "eval",
+            "jd_extraction",
+            "--replay",
+            "--min-pass-rate",
+            "0.0",
+            "--data-dir",
+            str(tmp_path),
+        ],
     )
     assert play.exit_code == 0, play.output
     assert "33" in play.output
@@ -1607,11 +1633,21 @@ def test_record_preserves_an_unrelated_stale_recording_instead_of_clobbering_it(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     recording = _eval_paths(tmp_path, monkeypatch)
-    recording.write_text(json.dumps({"stale-key-from-a-prior-run": "some response"}), encoding="utf-8")
+    recording.write_text(
+        json.dumps({"stale-key-from-a-prior-run": "some response"}), encoding="utf-8"
+    )
 
     result = runner.invoke(
         cli,
-        ["eval", "jd_extraction", "--record", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+        [
+            "eval",
+            "jd_extraction",
+            "--record",
+            "--min-pass-rate",
+            "0.0",
+            "--data-dir",
+            str(tmp_path),
+        ],
     )
     assert result.exit_code == 0, result.output
     saved = json.loads(recording.read_text(encoding="utf-8"))
@@ -1625,9 +1661,7 @@ def test_replay_without_a_recording_is_a_usage_error(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     _eval_paths(tmp_path, monkeypatch)
-    result = runner.invoke(
-        cli, ["eval", "jd_extraction", "--replay", "--data-dir", str(tmp_path)]
-    )
+    result = runner.invoke(cli, ["eval", "jd_extraction", "--replay", "--data-dir", str(tmp_path)])
     assert result.exit_code == 2
 
 

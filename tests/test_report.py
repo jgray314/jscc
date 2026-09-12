@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -16,8 +16,7 @@ from jscc.report import (
 from jscc.seed import seed_synthetic
 from jscc.storage import _connect, _init_db, list_applications
 
-
-FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
 
 
 @pytest.fixture()
@@ -61,8 +60,8 @@ def test_funnel_counts_flags_unknown_stage(stages_cfg: StagesConfig) -> None:
 
 def test_detect_stale_flags_over_threshold(stages_cfg: StagesConfig) -> None:
     apps = [
-        _app(stage="applied", days_ago=20, company="Late"),   # over 14d threshold
-        _app(stage="applied", days_ago=5, company="Fresh"),   # under threshold
+        _app(stage="applied", days_ago=20, company="Late"),  # over 14d threshold
+        _app(stage="applied", days_ago=5, company="Fresh"),  # under threshold
     ]
     alerts = detect_stale(apps, stages_cfg, now=FIXED_NOW)
     assert [a.company for a in alerts] == ["Late"]
@@ -78,8 +77,8 @@ def test_detect_stale_at_threshold_is_stale(stages_cfg: StagesConfig) -> None:
 def test_detect_stale_sorts_most_overdue_first(stages_cfg: StagesConfig) -> None:
     apps = [
         _app(stage="applied", days_ago=16, company="Small"),  # overdue by 2
-        _app(stage="applied", days_ago=40, company="Big"),    # overdue by 26
-        _app(stage="applied", days_ago=22, company="Mid"),    # overdue by 8
+        _app(stage="applied", days_ago=40, company="Big"),  # overdue by 26
+        _app(stage="applied", days_ago=22, company="Mid"),  # overdue by 8
     ]
     alerts = detect_stale(apps, stages_cfg, now=FIXED_NOW)
     assert [a.company for a in alerts] == ["Big", "Mid", "Small"]
@@ -171,13 +170,24 @@ def test_report_e2e_against_seed(tmp_path: Path) -> None:
 
     stages_cfg = StagesConfig(
         stages=[
-            "identified", "applied", "recruiter_screen", "hm_screen",
-            "technical_loop", "onsite", "offer", "closed",
+            "identified",
+            "applied",
+            "recruiter_screen",
+            "hm_screen",
+            "technical_loop",
+            "onsite",
+            "offer",
+            "closed",
         ],
         staleness_thresholds_days={
-            "identified": 7, "applied": 14, "recruiter_screen": 7,
-            "hm_screen": 7, "technical_loop": 10, "onsite": 10,
-            "offer": 30, "closed": 999,
+            "identified": 7,
+            "applied": 14,
+            "recruiter_screen": 7,
+            "hm_screen": 7,
+            "technical_loop": 10,
+            "onsite": 10,
+            "offer": 30,
+            "closed": 999,
         },
     )
 
@@ -193,7 +203,7 @@ def test_report_e2e_against_seed(tmp_path: Path) -> None:
     assert alerts, "expected at least one stale alert against the seeded fixture"
     assert all(a.stage != "closed" for a in alerts)
     # Most-overdue-first ordering:
-    for prev, curr in zip(alerts, alerts[1:]):
+    for prev, curr in zip(alerts, alerts[1:], strict=False):
         assert prev.overdue_by_days >= curr.overdue_by_days
 
 

@@ -27,6 +27,7 @@ def _offline_dns(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP])
 
+
 SAMPLE_HTML = """
 <html><head><title>Senior Engineer - Rift Cloud</title></head>
 <body>
@@ -339,7 +340,9 @@ def test_redirect_into_a_private_address_is_refused(monkeypatch: pytest.MonkeyPa
 
 
 def test_redirect_to_a_public_url_is_followed():
-    responses = iter([_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)])
+    responses = iter(
+        [_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)]
+    )
     with patch("jscc.fetcher.requests.get", side_effect=lambda *a, **kw: next(responses)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is True
@@ -392,7 +395,9 @@ def test_unresolvable_host_is_a_failure_not_a_crash(monkeypatch: pytest.MonkeyPa
 # assert on the call, and on the behaviour the call produces.
 
 
-def _real_response(status: int, headers: dict | None = None, body: bytes = b"") -> requests.Response:
+def _real_response(
+    status: int, headers: dict | None = None, body: bytes = b""
+) -> requests.Response:
     """A genuine `requests.Response`, so the redirect machinery behaves as it
     does in production rather than as a Mock permits."""
     resp = requests.Response()
@@ -407,9 +412,7 @@ def test_fetch_passes_the_guard_arguments_to_requests():
     """`allow_redirects=False` is what makes the per-hop check reachable, and
     `stream=True` is what makes the size cap a cap rather than a check after
     the fact. Neither has any other observable effect at this level."""
-    with patch(
-        "jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)
-    ) as get:
+    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)) as get:
         fetch_jd("https://example.com/jobs/1")
     kwargs = get.call_args.kwargs
     assert kwargs["allow_redirects"] is False
@@ -440,13 +443,9 @@ def test_a_redirect_is_never_followed_below_the_guard(monkeypatch: pytest.Monkey
     def fake_send(self, request, **kwargs):
         sent.append(request.url)
         if len(sent) == 1:
-            resp = _real_response(
-                302, {"location": "http://metadata.internal/latest/meta-data/"}
-            )
+            resp = _real_response(302, {"location": "http://metadata.internal/latest/meta-data/"})
         else:
-            resp = _real_response(
-                200, {"content-type": "text/html"}, b"<html>secrets</html>"
-            )
+            resp = _real_response(200, {"content-type": "text/html"}, b"<html>secrets</html>")
         # requests reads `.request` off the response even when it is not
         # following the redirect -- it resolves one hop with
         # `yield_requests=True` to populate `Response.next`, which prepares a
@@ -498,9 +497,7 @@ def _fetch_body(body: bytes, content_type: str = "text/html") -> str:
         + b"Senior engineer role with real responsibilities. " * 12
         + b"</p></article></body></html>"
     )
-    with patch(
-        "jscc.fetcher.requests.get", return_value=_body_response(padded, content_type)
-    ):
+    with patch("jscc.fetcher.requests.get", return_value=_body_response(padded, content_type)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is True, result.error_detail
     return result.raw_text

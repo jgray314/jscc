@@ -17,6 +17,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "ruff>=0.16.7",
 ]
 
 [build-system]
@@ -28,3 +29,20 @@ packages = ["jscc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F: pyflakes + pycodestyle core (unused imports, undefined names, etc).
+# I: import sorting. UP: pyupgrade (modern syntax for the pinned Python
+# version). B: bugbear (common correctness footguns beyond bare pyflakes).
+select = ["E", "F", "I", "UP", "B"]
+# E501 (line too long) is deliberately off, not deferred: this codebase's
+# design-rationale comments and docstrings are long-form prose by design
+# (see docs/design-principles.md and most module docstrings) -- mechanically
+# wrapping them at 100 chars would be pure churn against an established
+# writing style, not a real improvement. Actual code lines rarely approach
+# the limit; ruff format still reformats those normally.
+ignore = ["E501"]

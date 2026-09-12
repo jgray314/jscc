@@ -28,8 +28,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 
 # Keep this script runnable as a bare `python scripts/precommit_scan.py ...`
 # with no install step — `scripts/scan_tracked.sh` invokes it that way, from
@@ -100,6 +100,7 @@ def _to_repo_relative_posix(p: Path, cwd: Path) -> str:
     except (ValueError, OSError):
         return PurePosixPath(*p.parts).as_posix()
     return PurePosixPath(*rel.parts).as_posix()
+
 
 class Hit:
     __slots__ = ("path", "line_no", "reason", "match")

@@ -127,9 +127,7 @@ def test_missing_file_arg_is_silently_skipped(tmp_path: Path) -> None:
     danger = _write(tmp_path / "danger.txt", "# empty\n")
     # Nonexistent path — should not crash, should exit clean.
     assert (
-        precommit_scan.main(
-            [str(tmp_path / "does-not-exist.md"), "--danger-list", str(danger)]
-        )
+        precommit_scan.main([str(tmp_path / "does-not-exist.md"), "--danger-list", str(danger)])
         == 0
     )
 
@@ -137,12 +135,7 @@ def test_missing_file_arg_is_silently_skipped(tmp_path: Path) -> None:
 def test_missing_danger_list_ok(tmp_path: Path) -> None:
     # No danger list file present → only regex rules apply.
     f = _write(tmp_path / "notes.md", "just some words\n")
-    assert (
-        precommit_scan.main(
-            [str(f), "--danger-list", str(tmp_path / "not-there.txt")]
-        )
-        == 0
-    )
+    assert precommit_scan.main([str(f), "--danger-list", str(tmp_path / "not-there.txt")]) == 0
 
 
 def test_binary_file_skipped_not_failed(tmp_path: Path) -> None:
@@ -240,9 +233,7 @@ def test_exclude_single_star_does_not_cross_slash(tmp_path: Path) -> None:
     danger = _write(tmp_path / "danger.txt", "# empty\n")
     posix_nested = str(nested).replace("\\", "/")
     # `*/note.md` should NOT reach `d/sub/note.md` (two levels).
-    rc = precommit_scan.main(
-        [posix_nested, "--danger-list", str(danger), "--exclude", "*/note.md"]
-    )
+    rc = precommit_scan.main([posix_nested, "--danger-list", str(danger), "--exclude", "*/note.md"])
     assert rc == 1  # not excluded
 
 
@@ -257,9 +248,7 @@ def test_exclude_double_star_matches_directory_itself(tmp_path: Path, monkeypatc
     # then also asserting the compile handles the zero-child case via regex.
     inside = _write(d / "x.md", "alice@example.com\n")
     danger = _write(tmp_path / "danger.txt", "# empty\n")
-    rc = precommit_scan.main(
-        [str(inside), "--danger-list", str(danger), "--exclude", "tests/**"]
-    )
+    rc = precommit_scan.main([str(inside), "--danger-list", str(danger), "--exclude", "tests/**"])
     assert rc == 0  # excluded
 
     # And the compiled pattern also fullmatches "tests" (the bare directory name).
@@ -299,8 +288,7 @@ def _dump_text_values(db_path: Path) -> str:
         tables = [
             r[0]
             for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table' "
-                "AND name NOT LIKE 'sqlite_%'"
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
             )
         ]
         lines: list[str] = []

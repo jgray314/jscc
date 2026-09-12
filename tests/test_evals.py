@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from jscc.evals import (
-    EvalCase,
     JD_EXTRACTION_CASES_PATH,
+    EvalCase,
     RecordingClient,
     RecordingMissing,
     ReplayClient,
@@ -48,6 +48,7 @@ def _extracted(**overrides) -> ExtractedJD:
 
 # ---- fixture file ---------------------------------------------------------------
 
+
 def test_cases_file_has_thirty_three_cases() -> None:
     """25 short (paste-shaped) + 8 long (fetch-shaped) — see decisions-log
     2026-09-11 for the statistical sizing rationale (n=15 gave a ~10-point
@@ -67,6 +68,7 @@ def test_cases_file_covers_comp_band_presence_and_absence() -> None:
 
 
 # ---- grading ----------------------------------------------------------------
+
 
 def test_grade_extraction_exact_match_passes() -> None:
     result = grade_extraction(_case(), _extracted())
@@ -88,18 +90,14 @@ def test_grade_extraction_skills_set_equality_ignores_order() -> None:
 
 
 def test_grade_extraction_comp_band_presence_mismatch_fails() -> None:
-    result = grade_extraction(
-        _case(comp_band="$100k-$150k"), _extracted(comp_band=None)
-    )
+    result = grade_extraction(_case(comp_band="$100k-$150k"), _extracted(comp_band=None))
     assert not result.passed
     assert any(d.field == "comp_band" for d in result.diffs)
 
 
 def test_grade_extraction_comp_band_exact_figure_not_required() -> None:
     """Presence-only per the eval strategy doc — dollar figures are too brittle."""
-    result = grade_extraction(
-        _case(comp_band="$100k-$150k"), _extracted(comp_band="$110k-$140k")
-    )
+    result = grade_extraction(_case(comp_band="$100k-$150k"), _extracted(comp_band="$110k-$140k"))
     assert result.passed
 
 
@@ -110,6 +108,7 @@ def test_grade_extraction_empty_prose_fails() -> None:
 
 
 # ---- harness against StubExtractionClient (no API key in B2) ------------------
+
 
 def _extract_via_stub(raw_text: str) -> ExtractedJD:
     return extract_jd(raw_text, client=StubExtractionClient())
@@ -186,7 +185,7 @@ def test_location_wrong_city_fails() -> None:
 
 
 def test_location_accepts_a_more_specific_answer() -> None:
-    """"Denver" vs "Denver, CO" is not an extraction failure."""
+    """ "Denver" vs "Denver, CO" is not an extraction failure."""
     result = grade_extraction(_case(location="Denver"), _extracted(location="Denver, CO"))
     assert result.passed, result.diffs
 
@@ -382,6 +381,7 @@ def test_replay_key_changes_when_the_system_prompt_changes() -> None:
 
 def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
     """Only the D7/D8 boundary exceptions escape — prompt bugs still grade."""
+
     def broken(raw_text: str) -> ExtractedJD:
         raise ValueError("model returned nonsense")
 

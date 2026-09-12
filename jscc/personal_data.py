@@ -49,9 +49,9 @@ from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Iterable, Mapping
 from os import environ
 from pathlib import Path
-from typing import Iterable, Mapping
 
 from .paths import PACKAGE_ROOT
 
@@ -135,6 +135,7 @@ class SafetyConfigError(RuntimeError):
     loudly is the whole point -- the silent-empty-list behaviour is the bug
     this replaces.
     """
+
 
 EMAIL_TOKEN = "[redacted-email]"
 CREDENTIAL_TOKEN = "[redacted-credential]"

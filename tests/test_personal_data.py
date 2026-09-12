@@ -130,9 +130,7 @@ def test_name_role_survives_a_danger_term_inside_the_name() -> None:
 
 def test_redacts_all_three_classes_in_one_pass() -> None:
     text = f"Dana Reyes, {RECRUITER_EMAIL}, {RECRUITER_PHONE}, via ExampleCorp"
-    out = redact(
-        text, danger_terms=["examplecorp"], name_roles={"Dana Reyes": "recruiter"}
-    )
+    out = redact(text, danger_terms=["examplecorp"], name_roles={"Dana Reyes": "recruiter"})
     for leaked in ("Dana Reyes", RECRUITER_EMAIL, "555-0134", "ExampleCorp"):
         assert leaked not in out
 
@@ -278,9 +276,7 @@ def test_admin_keys_are_covered_too() -> None:
 
 
 def test_an_api_key_is_redacted() -> None:
-    assert redact(f"use {FAKE_KEY} to authenticate") == (
-        f"use {CREDENTIAL_TOKEN} to authenticate"
-    )
+    assert redact(f"use {FAKE_KEY} to authenticate") == (f"use {CREDENTIAL_TOKEN} to authenticate")
 
 
 def test_a_key_body_with_a_phone_shaped_run_is_not_mangled_by_the_phone_rule() -> None:

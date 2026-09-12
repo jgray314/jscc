@@ -9,14 +9,16 @@ The wrapped function owns the actual LLM call and reports usage back via
 it this way means the decorator never needs to know which client library
 or model family produced the response.
 """
+
 from __future__ import annotations
 
 import hashlib
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from .models import LLMCallRecord, _now
 from .storage import record_llm_call

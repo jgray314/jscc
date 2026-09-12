@@ -59,6 +59,7 @@ def _company_from_url(url: str) -> str:
     netloc = urlparse(url).netloc
     return netloc.removeprefix("www.") or url
 
+
 # Anchored like DEFAULT_DATA_DIR: config lives with the package, not wherever
 # the process happened to start.
 DEFAULT_CONFIG_DIR = PACKAGE_ROOT / "config"
@@ -199,7 +200,7 @@ def _parse_now(now_str: str | None) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(now_str)
     except ValueError as e:
-        raise click.UsageError(f"--now is not a valid ISO-8601 timestamp: {e}")
+        raise click.UsageError(f"--now is not a valid ISO-8601 timestamp: {e}") from e
     if parsed.tzinfo is None:
         raise click.UsageError(
             "--now must include a timezone offset (e.g. 2026-08-28T12:00:00+00:00)"
@@ -329,7 +330,7 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
     try:
         stages_cfg = load_stages(stages_path)
     except (LoadError, ValidationError) as e:
-        raise click.UsageError(f"{stages_path}: {e}")
+        raise click.UsageError(f"{stages_path}: {e}") from e
     conn = _open_or_exit(mode, data_dir)
     try:
         apps = list_applications(conn)
@@ -347,7 +348,7 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
         # pointing it at the wrong instant is the first mistake anyone makes
         # with it, so treat that case as a usage error rather than a crash.
         if now_str is not None:
-            raise click.UsageError(str(e))
+            raise click.UsageError(str(e)) from e
         raise
     click.echo(f"[mode: {mode.value}]")
     click.echo(format_report(counts, alerts, stages_cfg))
@@ -390,9 +391,7 @@ def costs(data_dir: Path) -> None:
     for feature, feature_calls in sorted(by_feature.items()):
         total_cost = sum(c.cost_usd for c in feature_calls)
         avg_latency = sum(c.latency_ms for c in feature_calls) / len(feature_calls)
-        click.echo(
-            f"{feature:<20}{len(feature_calls):>8}{total_cost:>12.4f}{avg_latency:>16.1f}"
-        )
+        click.echo(f"{feature:<20}{len(feature_calls):>8}{total_cost:>12.4f}{avg_latency:>16.1f}")
 
 
 @cli.group("eval")
@@ -429,9 +428,7 @@ def eval_group() -> None:
     show_default=True,
     help="Fail below this pass rate.",
 )
-def eval_jd_extraction(
-    data_dir: Path, record: bool, replay: bool, min_pass_rate: float
-) -> None:
+def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate: float) -> None:
     """Run the JD-extraction eval suite (33 cases) against the current `extract_jd`.
 
     Exits non-zero when the pass *rate* falls below `--min-pass-rate`, which
@@ -454,9 +451,7 @@ def eval_jd_extraction(
     if replay:
         recorded = load_recording()
         if not recorded:
-            click.echo(
-                "no recordings yet; run once with --record against a live key", err=True
-            )
+            click.echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
@@ -474,9 +469,7 @@ def eval_jd_extraction(
     conn = _open_or_exit(mode, data_dir)
     try:
         summary = run_jd_extraction_evals(
-            lambda raw: extract_jd(
-                raw, conn=conn, client=client, feature=EXTRACTION_EVAL_FEATURE
-            )
+            lambda raw: extract_jd(raw, conn=conn, client=client, feature=EXTRACTION_EVAL_FEATURE)
         )
     finally:
         conn.close()
@@ -673,9 +666,7 @@ def ingest(
                     error_detail=result.error_detail,
                 )
                 entry_id = create_dlq_entry(conn, entry)
-                click.echo(
-                    f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})"
-                )
+                click.echo(f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})")
                 sys.exit(EXIT_QUEUED)
             raw_text = result.raw_text
             source_url: str | None = url
@@ -785,9 +776,7 @@ def dlq_group() -> None:
     show_default=True,
     help="Directory holding mode DBs.",
 )
-@click.option(
-    "--all", "show_all", is_flag=True, help="Include already-resolved entries."
-)
+@click.option("--all", "show_all", is_flag=True, help="Include already-resolved entries.")
 def dlq_list(data_dir: Path, show_all: bool) -> None:
     """List DLQ entries for the active mode (unresolved-only by default)."""
     mode = _resolve_mode_or_exit()
@@ -866,9 +855,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
             return
 
         fallback_company_val = (
-            "(pasted)"
-            if entry.source_url == PASTED_SOURCE
-            else _company_from_url(entry.source_url)
+            "(pasted)" if entry.source_url == PASTED_SOURCE else _company_from_url(entry.source_url)
         )
         try:
             app_id, _app = _extract_and_create_application(
@@ -878,9 +865,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
                 company_override=company,
                 fallback_company=fallback_company_val,
                 fallback_title=None,
-                fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(
-                    entry.failure_mode, FetchStatus.manual
-                ),
+                fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(entry.failure_mode, FetchStatus.manual),
             )
         except ExtractionParseError as e:
             # No new DLQ entry here -- one already exists and stays unresolved,

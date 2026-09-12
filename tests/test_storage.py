@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -21,13 +21,13 @@ from jscc.models import (
 from jscc.storage import (
     DB_SCHEMA_VERSION,
     _connect,
+    _init_db,
     create_application,
     create_contact,
     create_dlq_entry,
     create_interaction,
     get_application,
     get_contact,
-    _init_db,
     list_applications,
     list_contacts,
     list_dlq_entries,
@@ -62,10 +62,7 @@ def _sample_app(**overrides) -> Application:
 def test_init_creates_schema(conn: sqlite3.Connection) -> None:
     assert schema_version(conn) == DB_SCHEMA_VERSION
     tables = {
-        r[0]
-        for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     assert {"applications", "contacts", "interactions", "dlq_entries", "llm_calls"} <= tables
 
@@ -167,12 +164,12 @@ def test_interaction_optional_contact_and_ordering(conn: sqlite3.Connection) -> 
     older = Interaction(
         application_id=app.id,
         type=InteractionType.applied,
-        occurred_at=datetime(2026, 8, 10, tzinfo=timezone.utc),
+        occurred_at=datetime(2026, 8, 10, tzinfo=UTC),
     )
     newer = Interaction(
         application_id=app.id,
         type=InteractionType.recruiter_reply,
-        occurred_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+        occurred_at=datetime(2026, 8, 20, tzinfo=UTC),
         notes="scheduled screen for next week",
         next_action="prep questions",
         next_action_due=date(2026, 8, 25),
@@ -315,7 +312,7 @@ def test_extracted_jd_serializes_datetime_set_enum(tmp_path: Path) -> None:
     try:
         _init_db(c)
         exotic = {
-            "posted_at": datetime(2026, 7, 4, 12, 0, tzinfo=timezone.utc),
+            "posted_at": datetime(2026, 7, 4, 12, 0, tzinfo=UTC),
             "seen_on": date(2026, 8, 1),
             "tags": {"remote", "senior", "python"},
             "fetch_status": FetchStatus.ok,
@@ -346,7 +343,9 @@ def test_extracted_jd_serializes_nested_pydantic_model(tmp_path: Path) -> None:
     try:
         _init_db(c)
         nested_contact = Contact(
-            id="c1", application_id="app-h4b", name="Recruiter A. Placeholder",
+            id="c1",
+            application_id="app-h4b",
+            name="Recruiter A. Placeholder",
             role=ContactRole.recruiter,
         )
         app = Application(
@@ -372,8 +371,10 @@ def test_extracted_jd_unknown_type_raises_typerror(tmp_path: Path) -> None:
     c = _connect(tmp_path / "test.db")
     try:
         _init_db(c)
+
         class Weird:
             pass
+
         app = Application(
             id="app-h4c",
             title="SWE",
@@ -389,6 +390,7 @@ def test_extracted_jd_unknown_type_raises_typerror(tmp_path: Path) -> None:
 
 
 # ---- LLM call ledger (D5) -------------------------------------------------------
+
 
 def test_llm_call_roundtrip(conn: sqlite3.Connection) -> None:
     record = LLMCallRecord(
@@ -417,14 +419,24 @@ def test_llm_call_roundtrip(conn: sqlite3.Connection) -> None:
 
 def test_llm_calls_ordered_by_ts(conn: sqlite3.Connection) -> None:
     earlier = LLMCallRecord(
-        feature="extraction", model="m", prompt_hash="b" * 64,
-        input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1.0,
-        ts=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        feature="extraction",
+        model="m",
+        prompt_hash="b" * 64,
+        input_tokens=1,
+        output_tokens=1,
+        cost_usd=0.0,
+        latency_ms=1.0,
+        ts=datetime(2026, 1, 1, tzinfo=UTC),
     )
     later = LLMCallRecord(
-        feature="extraction", model="m", prompt_hash="c" * 64,
-        input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1.0,
-        ts=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        feature="extraction",
+        model="m",
+        prompt_hash="c" * 64,
+        input_tokens=1,
+        output_tokens=1,
+        cost_usd=0.0,
+        latency_ms=1.0,
+        ts=datetime(2026, 1, 2, tzinfo=UTC),
     )
     record_llm_call(conn, later)
     record_llm_call(conn, earlier)

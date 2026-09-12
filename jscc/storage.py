@@ -16,14 +16,14 @@ Two rules that make the mode-safety story structural rather than disciplinary:
 Tests can still import the underscored names — they need them to construct
 pre-corrupt / pre-populated fixtures the safe front door refuses to create.
 """
+
 from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import closing
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .mode import Mode, resolve_db_path
 from .models import (
@@ -35,7 +35,6 @@ from .models import (
     Resolution,
     _now,
 )
-
 
 __all__ = [
     "ModeMismatchError",
@@ -55,7 +54,6 @@ __all__ = [
     "list_contacts",
     "list_interactions",
     "list_dlq_entries",
-    "reset_tables",
     "record_llm_call",
     "list_llm_calls",
 ]
@@ -209,9 +207,7 @@ def read_mode_marker(conn: sqlite3.Connection) -> Mode | None:
     `except ModeMismatchError` guard in the caller.
     """
     try:
-        row = conn.execute(
-            "SELECT value FROM meta WHERE key = ?", (_MODE_META_KEY,)
-        ).fetchone()
+        row = conn.execute("SELECT value FROM meta WHERE key = ?", (_MODE_META_KEY,)).fetchone()
     except sqlite3.OperationalError:
         return None
     if row is None:
@@ -220,9 +216,7 @@ def read_mode_marker(conn: sqlite3.Connection) -> Mode | None:
     try:
         return Mode(raw)
     except ValueError as e:
-        raise ModeMismatchError(
-            f"database has corrupt mode marker {raw!r}: {e}"
-        ) from None
+        raise ModeMismatchError(f"database has corrupt mode marker {raw!r}: {e}") from None
 
 
 def write_mode_marker(conn: sqlite3.Connection, mode: Mode) -> None:
@@ -238,9 +232,7 @@ def _ensure_meta_table(conn: sqlite3.Connection) -> None:
     """Create only the `meta` table. Used to inspect a DB before deciding
     whether to run full DDL — the full DDL must NEVER run against a DB that
     was populated under a different mode (Phase A adversarial finding C4)."""
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-    )
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.commit()
 
 
@@ -310,13 +302,14 @@ def open_for_mode(
 
 # ---- serialization helpers ----------------------------------------------------
 
+
 def _iso(value: datetime | date | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).isoformat()
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat()
     return value.isoformat()
 
 
@@ -337,12 +330,13 @@ def _json_default(obj: Any) -> Any:
     is likely to embed in `extracted_jd` (datetimes, sets, pydantic models,
     enums) without silently swallowing types the schema hasn't decided about."""
     from enum import Enum
+
     from pydantic import BaseModel
 
     if isinstance(obj, datetime):
         if obj.tzinfo is None:
-            obj = obj.replace(tzinfo=timezone.utc)
-        return obj.astimezone(timezone.utc).isoformat()
+            obj = obj.replace(tzinfo=UTC)
+        return obj.astimezone(UTC).isoformat()
     if isinstance(obj, date):
         return obj.isoformat()
     if isinstance(obj, BaseModel):
@@ -357,11 +351,7 @@ def _json_default(obj: Any) -> Any:
 
 
 def _dump_json(value: Any) -> str | None:
-    return (
-        None
-        if value is None
-        else json.dumps(value, sort_keys=True, default=_json_default)
-    )
+    return None if value is None else json.dumps(value, sort_keys=True, default=_json_default)
 
 
 def _load_json(value: str | None) -> Any:
@@ -369,6 +359,7 @@ def _load_json(value: str | None) -> Any:
 
 
 # ---- Application --------------------------------------------------------------
+
 
 def _application_row_to_model(row: sqlite3.Row) -> Application:
     return Application(
@@ -399,10 +390,19 @@ def create_application(conn: sqlite3.Connection, app: Application) -> str:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            app.id, app.source_url, app.source_raw, app.fetch_status.value,
-            app.title, app.company, _dump_json(app.extracted_jd), app.stage,
-            app.fit_score, app.fit_rationale,
-            _iso(app.applied_at), _iso(app.created_at), _iso(app.updated_at),
+            app.id,
+            app.source_url,
+            app.source_raw,
+            app.fetch_status.value,
+            app.title,
+            app.company,
+            _dump_json(app.extracted_jd),
+            app.stage,
+            app.fit_score,
+            app.fit_rationale,
+            _iso(app.applied_at),
+            _iso(app.created_at),
+            _iso(app.updated_at),
             _iso(app.last_interaction_at),
         ),
     )
@@ -431,9 +431,17 @@ def list_applications(
 
 
 _UPDATABLE_APPLICATION_FIELDS = {
-    "source_url", "source_raw", "fetch_status", "title", "company",
-    "extracted_jd", "stage", "fit_score", "fit_rationale",
-    "applied_at", "last_interaction_at",
+    "source_url",
+    "source_raw",
+    "fetch_status",
+    "title",
+    "company",
+    "extracted_jd",
+    "stage",
+    "fit_score",
+    "fit_rationale",
+    "applied_at",
+    "last_interaction_at",
 }
 
 
@@ -468,6 +476,7 @@ def update_application(conn: sqlite3.Connection, app_id: str, **fields: Any) -> 
 
 
 # ---- Contact ------------------------------------------------------------------
+
 
 def create_contact(conn: sqlite3.Connection, contact: Contact) -> str:
     conn.execute(
@@ -513,6 +522,7 @@ def list_contacts(conn: sqlite3.Connection, application_id: str) -> list[Contact
 
 # ---- Interaction --------------------------------------------------------------
 
+
 def create_interaction(conn: sqlite3.Connection, interaction: Interaction) -> str:
     conn.execute(
         """
@@ -522,18 +532,21 @@ def create_interaction(conn: sqlite3.Connection, interaction: Interaction) -> st
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            interaction.id, interaction.application_id, interaction.contact_id,
-            interaction.type.value, _iso(interaction.occurred_at), interaction.notes,
-            interaction.next_action, _iso(interaction.next_action_due),
+            interaction.id,
+            interaction.application_id,
+            interaction.contact_id,
+            interaction.type.value,
+            _iso(interaction.occurred_at),
+            interaction.notes,
+            interaction.next_action,
+            _iso(interaction.next_action_due),
         ),
     )
     conn.commit()
     return interaction.id
 
 
-def list_interactions(
-    conn: sqlite3.Connection, application_id: str
-) -> list[Interaction]:
+def list_interactions(conn: sqlite3.Connection, application_id: str) -> list[Interaction]:
     rows = conn.execute(
         "SELECT * FROM interactions WHERE application_id = ? ORDER BY occurred_at",
         (application_id,),
@@ -555,6 +568,7 @@ def list_interactions(
 
 # ---- DLQ ----------------------------------------------------------------------
 
+
 def create_dlq_entry(conn: sqlite3.Connection, entry: DLQEntry) -> str:
     conn.execute(
         """
@@ -564,9 +578,14 @@ def create_dlq_entry(conn: sqlite3.Connection, entry: DLQEntry) -> str:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            entry.id, entry.application_id, entry.source_url,
-            entry.failure_mode.value, _iso(entry.attempted_at),
-            entry.error_detail, entry.resolution.value, _iso(entry.resolved_at),
+            entry.id,
+            entry.application_id,
+            entry.source_url,
+            entry.failure_mode.value,
+            _iso(entry.attempted_at),
+            entry.error_detail,
+            entry.resolution.value,
+            _iso(entry.resolved_at),
         ),
     )
     conn.commit()
@@ -586,18 +605,14 @@ def _dlq_row_to_model(row: sqlite3.Row) -> DLQEntry:
     )
 
 
-def list_dlq_entries(
-    conn: sqlite3.Connection, *, unresolved_only: bool = True
-) -> list[DLQEntry]:
+def list_dlq_entries(conn: sqlite3.Connection, *, unresolved_only: bool = True) -> list[DLQEntry]:
     if unresolved_only:
         rows = conn.execute(
             "SELECT * FROM dlq_entries WHERE resolution = ? ORDER BY attempted_at",
             (Resolution.unresolved.value,),
         ).fetchall()
     else:
-        rows = conn.execute(
-            "SELECT * FROM dlq_entries ORDER BY attempted_at"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM dlq_entries ORDER BY attempted_at").fetchall()
     return [_dlq_row_to_model(r) for r in rows]
 
 
@@ -626,6 +641,7 @@ def resolve_dlq_entry(
 
 # ---- LLM call ledger (D5) ------------------------------------------------------
 
+
 def record_llm_call(conn: sqlite3.Connection, record: LLMCallRecord) -> str:
     conn.execute(
         """
@@ -635,9 +651,15 @@ def record_llm_call(conn: sqlite3.Connection, record: LLMCallRecord) -> str:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            record.id, record.feature, record.model, record.prompt_hash,
-            record.input_tokens, record.output_tokens,
-            record.cost_usd, record.latency_ms, _iso(record.ts),
+            record.id,
+            record.feature,
+            record.model,
+            record.prompt_hash,
+            record.input_tokens,
+            record.output_tokens,
+            record.cost_usd,
+            record.latency_ms,
+            _iso(record.ts),
         ),
     )
     conn.commit()

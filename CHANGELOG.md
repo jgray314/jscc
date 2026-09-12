@@ -7,6 +7,57 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Lint + format gate, before Phase C
+
+No linter or formatter existed anywhere in this repo -- only pytest and the
+content scanner. Added ruff (lint + format, one tool, one dependency) rather
+than a black/isort/flake8 stack, wired into the same pre-commit config and
+CI job as the existing scanner so there's one quality gate, not two.
+
+- `pyproject.toml` gained `[tool.ruff]`: `select = ["E", "F", "I", "UP", "B"]`
+  (pyflakes/pycodestyle, import sorting, pyupgrade, bugbear), `ignore =
+  ["E501"]` -- line length is deliberately unenforced, since this codebase's
+  design-rationale comments and docstrings are long-form prose by design and
+  mechanically wrapping them would be churn, not improvement.
+- Full-repo `ruff format` pass (26 of 44 files reformatted, all
+  whitespace/wrapping, no behavior change) landed in this same change,
+  alongside the real fixes below.
+- Real fixes the linter surfaced, not just style:
+  - **`storage.py`'s `__all__` listed `reset_tables`**, a name that lives in
+    `seed.py`, not `storage.py` -- `from jscc.storage import *` would have
+    raised `AttributeError`. Stale entry removed.
+  - **Three `except` blocks in `cli.py` re-raised `click.UsageError` without
+    `from e`**, discarding the original exception's traceback chain on any
+    of the deliberate error-translation boundaries (`--now` parsing,
+    `stages.yaml` loading, `report`'s stale-date guard).
+  - **A test asserted a blind `pytest.raises(Exception)`** with a comment
+    guessing the real type (`# FrozenInstanceError`) -- confirmed against
+    `SanitizedPayload`'s actual `@dataclass(frozen=True)` and pinned to
+    `dataclasses.FrozenInstanceError`.
+  - **Six `class X(str, Enum)` definitions converted to `StrEnum`** (`Mode`,
+    `FetchStatus`, `ContactRole`, `InteractionType`, `FailureMode`,
+    `Resolution`) -- Python 3.12 is already the pinned minimum. Checked
+    first that nothing relies on `str(member)` returning the old
+    `"ClassName.member"` form rather than the plain value, since that's a
+    real behavior difference between the two on this Python version, not
+    just a style change.
+  - **Two `zip(seq, seq[1:])` calls** (deliberate pairwise-adjacent
+    iteration, where the trailing element is meant to drop) **made their
+    truncation explicit** with `strict=False`, rather than leaving bugbear's
+    default-strictness warning unresolved.
+  - A test-only forward-reference type annotation (`"anthropic.APIConnectionError"`)
+    that ruff couldn't resolve statically, because the only import of
+    `anthropic` was local to the function body -- hoisted to a module-level
+    import, since `anthropic` is already a hard dependency, not optional.
+- `.pre-commit-config.yaml` and `ci.yml` both gained `ruff check .` /
+  `ruff format --check .` steps alongside the existing content scanner.
+  README's Development section documents the new commands. Its Status
+  section was also stale in the same way W3 was — H-5/H-6 and the
+  low-severity backlog were described as still open; both are closed as of
+  today, corrected here too.
+- 348 tests passing (unchanged -- every fix above was behavior-preserving),
+  lint clean, format clean, scanner clean.
+
 ### Phase B -> C gate: L-18 (documented, closes the gate's low-severity backlog)
 
 `PHONE_RE`'s digit-count heuristic redacts a real requisition-ID digit run

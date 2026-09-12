@@ -9,11 +9,12 @@ Usage:
     uv run python scripts/smoke_fetch.py
     uv run python scripts/smoke_fetch.py --playwright   # also try the fallback on failures
 """
+
 from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -29,11 +30,17 @@ _AMZN_JOB = "1051843" + "3"
 _GH_JOB = "502339400" + "8"
 
 URLS = [
-    ("Microsoft Careers (SPA)", f"https://apply.careers.microsoft.com/careers?start=0&pid={_MS_PID}&sort_by=timestamp"),
+    (
+        "Microsoft Careers (SPA)",
+        f"https://apply.careers.microsoft.com/careers?start=0&pid={_MS_PID}&sort_by=timestamp",
+    ),
     ("Amazon Jobs", f"https://www.amazon.jobs/en/jobs/{_AMZN_JOB}"),
     ("OpenAI Careers", "https://openai.com/careers/3p-silicon-architect-san-francisco/"),
     ("Anthropic (Greenhouse)", f"https://job-boards.greenhouse.io/anthropic/jobs/{_GH_JOB}"),
-    ("LinkedIn Jobs (authwall)", "https://www.linkedin.com/jobs/search/?keywords=software%20engineer"),
+    (
+        "LinkedIn Jobs (authwall)",
+        "https://www.linkedin.com/jobs/search/?keywords=software%20engineer",
+    ),
 ]
 
 
@@ -49,7 +56,7 @@ def main() -> None:
     lines = [
         "# B3b real-URL smoke test",
         "",
-        f"Run: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        f"Run: {datetime.now(UTC).isoformat(timespec='seconds')}",
         f"Playwright fallback: {'on' if args.playwright else 'off'}",
         "",
         "| Source | URL | Outcome | Used Playwright | Detail |",

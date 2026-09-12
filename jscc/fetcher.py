@@ -16,6 +16,7 @@ Known residual: the Playwright fallback is handed an already-checked URL,
 but the browser then follows its own redirects without those guards. It is
 off by default and opt-in per config.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -260,7 +261,9 @@ def fetch_jd(
             # to fall through the status checks below (none of which catch
             # anything under 400) and get treated as a successful, empty-ish
             # fetch.
-            return _failure(FailureMode.blocked, f"HTTP {response.status_code} (unresolved redirect)")
+            return _failure(
+                FailureMode.blocked, f"HTTP {response.status_code} (unresolved redirect)"
+            )
         if response.status_code in _BLOCKED_STATUS_CODES or response.status_code >= 400:
             return _failure(FailureMode.blocked, f"HTTP {response.status_code}")
 

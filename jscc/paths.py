@@ -15,6 +15,7 @@ Callers still take explicit overrides (`--data-dir`, `--config-dir`,
 different thing from a default that quietly depends on where they happened
 to be standing.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

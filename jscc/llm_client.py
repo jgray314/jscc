@@ -20,6 +20,7 @@ Two implementations:
 is set. Nothing in this module silently falls back from a real key to the
 stub — a key that's present but invalid fails loudly from the Anthropic SDK.
 """
+
 from __future__ import annotations
 
 import os
@@ -78,6 +79,7 @@ def rates_for(model: str) -> tuple[float, float]:
             "ledger record a wrong figure. Known models: "
             f"{sorted(_MODEL_RATES_USD_PER_MTOK)}"
         ) from None
+
 
 _STUB_RESPONSE_TEXT = """{
   "title": "",

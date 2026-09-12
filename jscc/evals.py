@@ -7,12 +7,14 @@ presence) comparison; prose fields are recorded but not machine-graded here
 prose is worth judging. A case with an ungraded prose field can still fail
 on its structural fields.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -171,7 +173,7 @@ def _grade_field(field: str, expected: Any, actual: Any) -> FieldDiff | None:
     if field in _SET_FIELDS:
         remaining_actual = list(actual or [])
         unmatched_expected = []
-        for slot in (expected or []):
+        for slot in expected or []:
             alternatives = slot if isinstance(slot, list) else [slot]
             matched_indices = [
                 i
@@ -237,9 +239,7 @@ def load_recording(path: Path = JD_EXTRACTION_RECORDING_PATH) -> dict[str, str]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def save_recording(
-    responses: dict[str, str], path: Path = JD_EXTRACTION_RECORDING_PATH
-) -> None:
+def save_recording(responses: dict[str, str], path: Path = JD_EXTRACTION_RECORDING_PATH) -> None:
     """Merge `responses` into whatever's already on disk at `path` and write
     the result.
 
@@ -276,7 +276,7 @@ def _prompt_key(model: str, system: str, user: str) -> str:
     precommit_scan.py` strips exactly this `"sha256:<hex>"` shape before
     matching, so the file no longer needs the blanket exclude and its values
     get scanned like everything else."""
-    digest = hashlib.sha256(f"{model}\0{system}\0{user}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{model}\0{system}\0{user}".encode()).hexdigest()
     return f"sha256:{digest}"
 
 
