@@ -7,6 +7,36 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: third-pass findings, cont'd (M-8, M-10)
+
+From the same 9/12 third-pass review (full detail:
+`jscc-phase-b-rerun-gate.md`).
+
+- **M-8** - `ingest` had no duplicate detection at all; the same URL or the
+  same pasted text ingested twice created two Applications, same shape as
+  M-1 one command over. Decided: refuse silently duplicating. `ingest` now
+  detects a duplicate (exact `source_url` match, or exact `source_raw`
+  match for pasted text) and notifies + confirms before reprocessing into
+  the *existing* row (via a new `update_id` path through
+  `_extract_and_create_application`, reusing `storage.update_application`)
+  rather than creating a second one. `--update` skips the prompt; it's
+  required rather than prompted when the JD came from stdin (`--paste` with
+  no `--file`), since stdin was already consumed for the JD text itself and
+  has nothing left to answer a confirmation with. `stage` is deliberately
+  left untouched on an update -- reprocessing corrects the extracted
+  record, it doesn't reset pipeline progress.
+- **M-10** - decided not enforced. `level`/`remote_policy` stay bare `str`
+  even though the prompt defines closed vocabularies and the eval grades
+  them as exact matches; a `Literal` would convert an out-of-vocabulary
+  value into a DLQ entry instead of a silently wrong stored field, but nothing
+  live has hit this yet and the disclosed residual it would address
+  (ambiguous-title leveling) doesn't currently justify the machinery. The
+  silence itself was the finding, not the choice -- `ExtractedJD`'s
+  docstring now says explicitly that the eval suite is what enforces the
+  vocabulary today, not the type.
+
+337 tests (+5).
+
 ### Phase B -> C gate: third-pass findings, cont'd (H-6)
 
 From the same 9/12 third-pass review (full detail:

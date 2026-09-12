@@ -109,6 +109,18 @@ class ExtractedJD(BaseModel):
     `Application.extracted_jd` as a plain dict; this model is the contract
     the extraction prompt (Slice B2) is written against and the eval suite
     (Slice B1) grades against.
+
+    Gate finding M-10: `level` and `remote_policy` are the prompt's two
+    closed vocabularies (six levels, three remote policies) and `evals.py`
+    grades both as exact matches on that assumption -- but the type here is
+    bare `str`, so nothing stops an out-of-vocabulary value from parsing and
+    getting stored. Decided: leave it a `str`. The eval suite is what
+    actually enforces the vocabulary today, at the 33-case sample it covers;
+    a `Literal` would extend that enforcement to every live `ingest` call
+    (turning a bad value into a DLQ entry instead of a silently wrong stored
+    field), but that's more machinery than the disclosed residual
+    ("ambiguous-title leveling") currently justifies. Revisit if a live run
+    stores an out-of-vocabulary value somewhere this matters.
     """
 
     title: str

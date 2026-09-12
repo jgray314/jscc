@@ -466,6 +466,149 @@ def test_ingest_url_failure_creates_dlq_entry_not_application(
     assert entries[0].failure_mode.value == "blocked"
 
 
+# ---- duplicate detection on re-ingest (gate finding M-8) --------------------
+#
+# `ingest` used to have no duplicate detection at all: the same URL, or the
+# same pasted text, ingested twice created two Applications, feeding straight
+# into `funnel_counts`/`detect_stale` -- M-1's shape one command over. Decided:
+# refuse silently duplicating. Notify and confirm before reprocessing into the
+# existing row, or skip the prompt with --update. Reading pasted text from
+# stdin already consumes stdin for the JD itself, so that path requires
+# --update rather than prompting.
+
+
+def test_ingest_url_twice_without_update_asks_before_reprocessing(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
+    )
+    argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
+    runner.invoke(cli, argv)
+
+    declined = runner.invoke(cli, argv, input="n\n")
+    assert declined.exit_code == 0, declined.output
+    assert "no changes made" in declined.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+
+
+def test_ingest_url_twice_confirmed_updates_the_existing_application(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
+    )
+    argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
+    runner.invoke(cli, argv)
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    original_id = list_applications(conn)[0].id
+    conn.close()
+
+    confirmed = runner.invoke(cli, argv, input="y\n")
+    assert confirmed.exit_code == 0, confirmed.output
+    assert "updated application" in confirmed.output.lower()
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].id == original_id
+
+
+def test_ingest_url_twice_with_update_flag_skips_the_prompt(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.fetcher import FetchResult
+
+    monkeypatch.setattr(
+        "jscc.cli.fetch_jd",
+        lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
+    )
+    argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
+    runner.invoke(cli, argv)
+    result = runner.invoke(cli, argv + ["--update"])
+    assert result.exit_code == 0, result.output
+    assert "updated application" in result.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    assert len(list_applications(conn)) == 1
+    conn.close()
+
+
+def test_ingest_paste_stdin_duplicate_without_update_is_a_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stdin already fed the JD text on both calls, so there's nothing left
+    for a confirmation prompt to read -- --update is required, not asked."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    argv = ["ingest", "--paste", "--data-dir", str(tmp_path)]
+    runner.invoke(cli, argv, input="a job description")
+
+    result = runner.invoke(cli, argv, input="a job description")
+    assert result.exit_code == 2, result.output
+    assert "--update" in result.output
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    assert len(list_applications(conn)) == 1
+    conn.close()
+
+
+def test_ingest_paste_file_duplicate_with_update_flag_updates_in_place(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--file doesn't consume stdin for the JD text, but --update still
+    skips the prompt outright rather than requiring one."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    jd_file = tmp_path / "jd.txt"
+    jd_file.write_text("a job description", encoding="utf-8")
+    argv = ["ingest", "--paste", "--file", str(jd_file), "--data-dir", str(tmp_path)]
+    runner.invoke(cli, argv)
+    result = runner.invoke(cli, argv + ["--update"])
+    assert result.exit_code == 0, result.output
+    assert "updated application" in result.output.lower()
+
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    assert len(list_applications(conn)) == 1
+    conn.close()
+
+
 def test_ingest_empty_response_body_dlqs_instead_of_crashing(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -37,6 +37,7 @@ from .storage import (
     ModeMismatchError,
     create_application,
     create_dlq_entry,
+    get_application,
     list_applications,
     list_dlq_entries,
     list_llm_calls,
@@ -44,6 +45,7 @@ from .storage import (
     read_mode_marker,
     resolve_dlq_entry,
     schema_version,
+    update_application,
 )
 
 FIRST_STAGE = "identified"
@@ -489,6 +491,24 @@ _DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
 }
 
 
+def _find_duplicate_application(
+    conn, *, source_url: str | None, raw_text: str
+) -> Application | None:
+    """Gate finding M-8: `ingest` had no duplicate detection of any kind --
+    the same JD file, or the same URL, ingested three times produced three
+    Applications, feeding straight into `funnel_counts`/`detect_stale` just
+    like M-1's shape did one command over. A URL is matched by exact
+    equality; pasted text has no URL to key on, so it's matched by exact
+    `source_raw` equality among the other paste-sourced applications.
+    Decided: refuse re-ingesting silently. `ingest` notifies the caller and
+    either confirms interactively or requires `--update`, then reprocesses
+    into the *existing* row rather than creating a second one."""
+    apps = list_applications(conn)
+    if source_url is not None:
+        return next((a for a in apps if a.source_url == source_url), None)
+    return next((a for a in apps if a.source_url is None and a.source_raw == raw_text), None)
+
+
 def _extract_and_create_application(
     conn,
     *,
@@ -498,6 +518,7 @@ def _extract_and_create_application(
     fallback_company: str,
     fallback_title: str | None,
     fetch_status: FetchStatus = FetchStatus.ok,
+    update_id: str | None = None,
 ) -> tuple[str, Application]:
     """Shared extract-then-store path for both `ingest` (URL and --paste) and
     `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
@@ -511,9 +532,14 @@ def _extract_and_create_application(
 
     `fetch_status` defaults to `ok` for the URL path, which really did fetch
     cleanly; callers on the paste and DLQ-resolution paths pass the status
-    that actually describes how the raw text arrived."""
+    that actually describes how the raw text arrived.
+
+    `update_id`, when given (gate finding M-8's confirmed-reprocess path),
+    overwrites that existing Application's fields instead of creating a new
+    one -- `stage` is deliberately left untouched, since a reprocess is a
+    correction to the extracted record, not a reset of pipeline progress."""
     extracted = extract_jd(raw_text, conn=conn)
-    app = Application(
+    fields = dict(
         source_url=source_url,
         source_raw=raw_text,
         fetch_status=fetch_status,
@@ -523,8 +549,11 @@ def _extract_and_create_application(
         # splits extract from score because the intermediate output has
         # independent product value, and caching it needs it stored.
         extracted_jd=extracted.model_dump(),
-        stage=FIRST_STAGE,
     )
+    if update_id is not None:
+        update_application(conn, update_id, **fields)
+        return update_id, get_application(conn, update_id)
+    app = Application(**fields, stage=FIRST_STAGE)
     app_id = create_application(conn, app)
     return app_id, app
 
@@ -550,6 +579,17 @@ def _extract_and_create_application(
     help="Company name for a pasted JD (no URL to infer it from). Defaults to '(pasted)'.",
 )
 @click.option(
+    "--update",
+    is_flag=True,
+    default=False,
+    help=(
+        "If an application already exists for this URL/text, reprocess and "
+        "overwrite it instead of asking. Required (rather than prompted) "
+        "when reading pasted text from stdin, since stdin can't also answer "
+        "the confirmation."
+    ),
+)
+@click.option(
     "--data-dir",
     type=click.Path(path_type=Path),
     default=DEFAULT_DATA_DIR,
@@ -568,6 +608,7 @@ def ingest(
     paste: bool,
     paste_file: Path | None,
     company: str | None,
+    update: bool,
     data_dir: Path,
     config_dir: Path,
 ) -> None:
@@ -582,6 +623,10 @@ def ingest(
     `--paste` (optionally with `--file`) is the escape hatch for any site the
     fetcher can't crack at all -- no URL, no fetch, no DLQ, just pasted JD
     text straight to extraction and storage.
+
+    Re-ingesting a URL or exact pasted text already on file (gate finding
+    M-8) does not silently create a second Application: it notifies you and
+    asks before reprocessing into the existing one, or skips with `--update`.
     """
     if url and (paste or paste_file):
         raise click.UsageError("--url and --paste/--file are mutually exclusive")
@@ -620,6 +665,27 @@ def ingest(
             fallback_title = None
             fetch_status_val = FetchStatus.manual
 
+        # Gate finding M-8: re-ingesting the same URL, or the same pasted
+        # text, used to silently create a second Application every time.
+        # Decided: notify and confirm before reprocessing into the existing
+        # row. Reading pasted text from stdin (no --file) already consumed
+        # stdin for the JD itself, so there is nothing left to confirm with
+        # -- --update is required there instead of prompted.
+        existing = _find_duplicate_application(conn, source_url=source_url, raw_text=raw_text)
+        if existing is not None and not update:
+            click.echo(
+                f"an application already exists for this "
+                f"{'URL' if source_url else 'pasted text'}: "
+                f"{existing.id} ({existing.title!r}, created {existing.created_at.isoformat()})"
+            )
+            read_from_stdin = not url and not paste_file
+            if read_from_stdin:
+                click.echo("re-run with --update to reprocess and overwrite it", err=True)
+                sys.exit(EXIT_USAGE)
+            if not click.confirm("Re-process and overwrite it instead of skipping?", default=False):
+                click.echo("no changes made")
+                return
+
         try:
             app_id, app = _extract_and_create_application(
                 conn,
@@ -629,6 +695,7 @@ def ingest(
                 fallback_company=fallback_company_val,
                 fallback_title=fallback_title,
                 fetch_status=fetch_status_val,
+                update_id=existing.id if existing is not None else None,
             )
         except ExtractionParseError as e:
             # A model that wraps its JSON in prose or a ``` fence is the
@@ -672,7 +739,8 @@ def ingest(
             # Nothing was billed either -- the check runs before the request.
             click.echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
-        click.echo(f"created application {app_id}: {app.title}")
+        verb = "updated" if existing is not None else "created"
+        click.echo(f"{verb} application {app_id}: {app.title}")
     finally:
         conn.close()
 
