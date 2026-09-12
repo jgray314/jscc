@@ -49,8 +49,10 @@ FIRST_STAGE = "identified"
 
 
 def _company_from_url(url: str) -> str:
-    """Placeholder company name until extraction covers it (D9's ExtractedJD
-    has no company field yet -- see backlog note in jscc.md)."""
+    """Fallback company name for when extraction doesn't find one -- an
+    ATS page whose JD text never names the employer, or the stub client.
+    `_extract_and_create_application` prefers `ExtractedJD.company` over
+    this whenever extraction returns one."""
     netloc = urlparse(url).netloc
     return netloc.removeprefix("www.") or url
 
@@ -458,18 +460,25 @@ def _extract_and_create_application(
     *,
     raw_text: str,
     source_url: str | None,
-    company: str,
+    company_override: str | None,
+    fallback_company: str,
     fallback_title: str | None,
 ) -> tuple[str, Application]:
     """Shared extract-then-store path for both `ingest` (URL and --paste) and
     `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
-    same Application shape as the URL path, so both funnel through here."""
+    same Application shape as the URL path, so both funnel through here.
+
+    Company precedence, highest first: `company_override` (the user typed
+    `--company` explicitly -- that's a deliberate correction and wins over
+    anything inferred), then `ExtractedJD.company` (extraction found a name
+    in the JD text itself), then `fallback_company` (a URL-domain guess or
+    "(pasted)", used only when extraction comes back null)."""
     extracted = extract_jd(raw_text, conn=conn)
     app = Application(
         source_url=source_url,
         source_raw=raw_text,
         title=extracted.title or fallback_title or "(untitled)",
-        company=company,
+        company=company_override or extracted.company or fallback_company,
         # The whole extraction, not just the field the title comes from: D9
         # splits extract from score because the intermediate output has
         # independent product value, and caching it needs it stored.
@@ -558,7 +567,7 @@ def ingest(
                 sys.exit(EXIT_QUEUED)
             raw_text = result.raw_text
             source_url: str | None = url
-            company_val = company or _company_from_url(url)
+            fallback_company_val = _company_from_url(url)
             fallback_title = result.title
         else:
             raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
@@ -566,7 +575,7 @@ def ingest(
                 click.echo("no JD text provided (empty stdin/file)", err=True)
                 sys.exit(EXIT_USAGE)
             source_url = None
-            company_val = company or "(pasted)"
+            fallback_company_val = "(pasted)"
             fallback_title = None
 
         try:
@@ -574,7 +583,8 @@ def ingest(
                 conn,
                 raw_text=raw_text,
                 source_url=source_url,
-                company=company_val,
+                company_override=company,
+                fallback_company=fallback_company_val,
                 fallback_title=fallback_title,
             )
         except ExtractionParseError as e:
@@ -667,7 +677,7 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(EXIT_USAGE)
 
-        company = (
+        fallback_company_val = (
             "(pasted)"
             if entry.source_url == PASTED_SOURCE
             else _company_from_url(entry.source_url)
@@ -677,7 +687,8 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
                 conn,
                 raw_text=paste_text,
                 source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
-                company=company,
+                company_override=None,
+                fallback_company=fallback_company_val,
                 fallback_title=None,
             )
         except ExtractionParseError as e:

@@ -43,10 +43,15 @@ def _extracted(**overrides) -> ExtractedJD:
 
 # ---- fixture file ---------------------------------------------------------------
 
-def test_cases_file_has_fifteen_cases() -> None:
+def test_cases_file_has_thirty_three_cases() -> None:
+    """25 short (paste-shaped) + 8 long (fetch-shaped) — see decisions-log
+    2026-09-11 for the statistical sizing rationale (n=15 gave a ~10-point
+    standard error on the pass-rate threshold)."""
     cases = load_cases(JD_EXTRACTION_CASES_PATH)
-    assert len(cases) == 15
-    assert len({c.id for c in cases}) == 15  # unique ids
+    assert len(cases) == 33
+    assert len({c.id for c in cases}) == 33  # unique ids
+    assert sum(1 for c in cases if c.group == "short") == 25
+    assert sum(1 for c in cases if c.group == "long") == 8
 
 
 def test_cases_file_covers_comp_band_presence_and_absence() -> None:
@@ -111,7 +116,7 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
     result until an ANTHROPIC_API_KEY is set and the prompt is iterated,
     not a regression."""
     summary = run_jd_extraction_evals(_extract_via_stub)
-    assert summary.total == 15
+    assert summary.total == 33
     assert summary.passed == 0
     assert all(not r.passed for r in summary.results)
     assert all(r.error is None for r in summary.results)  # stub parses cleanly; grading just fails
@@ -120,13 +125,23 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
 def test_format_eval_summary_reports_pass_and_fail() -> None:
     summary = run_jd_extraction_evals(_extract_via_stub, JD_EXTRACTION_CASES_PATH)
     text = format_eval_summary(summary)
-    assert "0/15 passed" in text
+    assert "0/33 passed" in text
     assert "[FAIL]" in text
+
+
+def test_format_eval_summary_reports_group_breakdown() -> None:
+    """Regression signal on which distribution broke, not just that it broke
+    — the short (paste-shaped) and long (fetch-shaped) cases are different
+    enough that a combined number alone can hide which one regressed."""
+    summary = run_jd_extraction_evals(_extract_via_stub, JD_EXTRACTION_CASES_PATH)
+    text = format_eval_summary(summary)
+    assert "long: 0/8 passed (0%)" in text
+    assert "short: 0/25 passed (0%)" in text
 
 
 # ---- title + location grading (gate finding H2) ------------------------------
 #
-# Both fields are specified by all 15 cases in cases.json but were absent from
+# Both fields are specified by every case in cases.json but were absent from
 # every graded-field tuple, so the harness read the expectations and dropped
 # them. `title` is the only extracted field with a production consumer.
 
@@ -227,6 +242,6 @@ def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
         raise ValueError("model returned nonsense")
 
     summary = run_jd_extraction_evals(broken)
-    assert summary.total == 15
+    assert summary.total == 33
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

@@ -726,7 +726,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
 
     result = runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
     assert result.exit_code == 1, result.output  # stub fails every case, as expected
-    assert "0/15 passed" in result.output
+    assert "0/33 passed" in result.output
 
     from jscc.mode import Mode
     from jscc.storage import list_llm_calls, open_for_mode
@@ -735,7 +735,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 15, "one ledger row per eval case"
+    assert len(calls) == 33, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"extraction_eval"}
 
 
@@ -766,7 +766,7 @@ def test_ingest_and_eval_traffic_stay_separable_in_the_ledger(
     conn.close()
 
     assert features.count("extraction") == 1
-    assert features.count("extraction_eval") == 15
+    assert features.count("extraction_eval") == 33
 
 
 def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
@@ -986,6 +986,7 @@ def test_ingest_stores_every_extracted_field_not_just_the_title(
 
     payload = {
         "title": "Staff Backend Engineer",
+        "company": "Acme Corp",
         "level": "staff",
         "comp_band": "$200,000-$240,000",
         "location": "Denver, CO",
@@ -1016,6 +1017,7 @@ def test_every_extracted_jd_field_survives_storage(
 
     payload = {
         "title": "T",
+        "company": "Acme Corp",
         "level": "senior",
         "comp_band": "band",
         "location": "Denver",
@@ -1057,6 +1059,7 @@ def test_resolve_dlq_also_stores_the_extracted_fields(
 
     payload = {
         "title": "Director of Engineering",
+        "company": None,
         "level": "director",
         "comp_band": None,
         "location": None,
@@ -1161,14 +1164,14 @@ def test_record_then_replay_round_trips(
     )
     assert rec.exit_code == 0, rec.output
     assert recording.exists()
-    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 15
+    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 33
 
     play = runner.invoke(
         cli,
         ["eval", "jd_extraction", "--replay", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
     )
     assert play.exit_code == 0, play.output
-    assert "15" in play.output
+    assert "33" in play.output
 
 
 def test_replay_without_a_recording_is_a_usage_error(

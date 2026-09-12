@@ -1,197 +1,562 @@
 [
   {
     "id": "case-01-senior-backend-remote-with-comp",
-    "raw_jd": "Senior Backend Engineer — Rift Cloud\n\nWe're hiring a Senior Backend Engineer to own our billing and metering services. You'll design APIs, review PRs, and mentor two mid-level engineers. Compensation: $180,000-$220,000 base plus equity. Fully remote (US timezones).\n\nRequirements: 5+ years backend experience, strong Python, experience with distributed systems and PostgreSQL.",
+    "raw_jd": "Senior Backend Engineer \u2014 Rift Cloud\n\nWe're hiring a Senior Backend Engineer to own our billing and metering services. You'll design APIs, review PRs, and mentor two mid-level engineers. Compensation: $180,000-$220,000 base plus equity. Fully remote (US timezones).\n\nRequirements: 5+ years backend experience, strong Python, experience with distributed systems and PostgreSQL.",
     "expected": {
       "title": "Senior Backend Engineer",
+      "company": "Rift Cloud",
       "level": "senior",
       "comp_band": "$180,000-$220,000",
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["Python", "distributed systems", "PostgreSQL"],
+      "must_have_skills": [
+        "Python",
+        "distributed systems",
+        "PostgreSQL"
+      ],
       "responsibilities_summary": "Owns billing and metering services: designs APIs, reviews PRs, mentors two mid-level engineers."
     }
   },
   {
     "id": "case-02-staff-ml-hybrid-no-comp",
-    "raw_jd": "Staff Machine Learning Engineer — Timber Motors\n\nJoin our perception team building the models behind our driver-assist stack. You'll lead model architecture decisions, own the training pipeline, and partner with the safety review board on rollout criteria. Hybrid — 3 days/week in our Austin, TX office.\n\nRequirements: 8+ years ML experience, PyTorch, experience shipping models to production, strong communication skills for cross-functional safety reviews.",
+    "raw_jd": "Staff Machine Learning Engineer \u2014 Timber Motors\n\nJoin our perception team building the models behind our driver-assist stack. You'll lead model architecture decisions, own the training pipeline, and partner with the safety review board on rollout criteria. Hybrid \u2014 3 days/week in our Austin, TX office.\n\nRequirements: 8+ years ML experience, PyTorch, experience shipping models to production, strong communication skills for cross-functional safety reviews.",
     "expected": {
       "title": "Staff Machine Learning Engineer",
+      "company": "Timber Motors",
       "level": "staff",
       "comp_band": null,
       "location": "Austin, TX",
       "remote_policy": "hybrid",
-      "must_have_skills": ["PyTorch", "production ML deployment"],
+      "must_have_skills": [
+        "PyTorch",
+        "production ML deployment"
+      ],
       "responsibilities_summary": "Leads perception model architecture, owns the training pipeline, partners with safety review on rollout criteria."
     }
   },
   {
     "id": "case-03-junior-frontend-onsite",
-    "raw_jd": "Junior Frontend Engineer — Pinnacle Search\n\nEntry-level role on our search results team. You'll implement UI components from Figma specs, fix bugs, and write tests under the guidance of senior engineers. Onsite in Seattle, WA — no remote option.\n\nRequirements: 0-2 years experience, React, CSS, willingness to learn.",
+    "raw_jd": "Junior Frontend Engineer \u2014 Pinnacle Search\n\nEntry-level role on our search results team. You'll implement UI components from Figma specs, fix bugs, and write tests under the guidance of senior engineers. Onsite in Seattle, WA \u2014 no remote option.\n\nRequirements: 0-2 years experience, React, CSS, willingness to learn.",
     "expected": {
       "title": "Junior Frontend Engineer",
+      "company": "Pinnacle Search",
       "level": "junior",
       "comp_band": null,
       "location": "Seattle, WA",
       "remote_policy": "onsite",
-      "must_have_skills": ["React", "CSS"],
+      "must_have_skills": [
+        "React",
+        "CSS"
+      ],
       "responsibilities_summary": "Implements UI components from Figma specs, fixes bugs, writes tests under senior guidance."
     }
   },
   {
     "id": "case-04-principal-platform-remote-with-comp",
-    "raw_jd": "Principal Platform Engineer — Yield Model Co\n\nSet technical direction for our internal developer platform used by 200+ engineers. You'll drive the multi-year infra roadmap, arbitrate cross-team architecture disputes, and represent platform in exec planning. $260,000-$310,000 + significant equity. Remote, US only.\n\nRequirements: 12+ years, deep Kubernetes and infra-as-code experience, track record setting org-wide technical direction.",
+    "raw_jd": "Principal Platform Engineer \u2014 Yield Model Co\n\nSet technical direction for our internal developer platform used by 200+ engineers. You'll drive the multi-year infra roadmap, arbitrate cross-team architecture disputes, and represent platform in exec planning. $260,000-$310,000 + significant equity. Remote, US only.\n\nRequirements: 12+ years, deep Kubernetes and infra-as-code experience, track record setting org-wide technical direction.",
     "expected": {
       "title": "Principal Platform Engineer",
+      "company": "Yield Model Co",
       "level": "principal",
       "comp_band": "$260,000-$310,000",
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["Kubernetes", "infrastructure as code"],
+      "must_have_skills": [
+        "Kubernetes",
+        "infrastructure as code"
+      ],
       "responsibilities_summary": "Sets technical direction for the internal developer platform, drives the infra roadmap, arbitrates architecture disputes, represents platform in exec planning."
     }
   },
   {
     "id": "case-05-mid-data-hybrid-no-comp",
-    "raw_jd": "Data Engineer — Rift Cloud\n\nBuild and maintain ETL pipelines feeding our analytics warehouse. You'll own pipeline reliability, add new data sources, and partner with analysts on schema design. Hybrid, 2 days/week in our Denver office.\n\nRequirements: 3-5 years data engineering, SQL, Airflow, dbt.",
+    "raw_jd": "Data Engineer \u2014 Rift Cloud\n\nBuild and maintain ETL pipelines feeding our analytics warehouse. You'll own pipeline reliability, add new data sources, and partner with analysts on schema design. Hybrid, 2 days/week in our Denver office.\n\nRequirements: 3-5 years data engineering, SQL, Airflow, dbt.",
     "expected": {
       "title": "Data Engineer",
+      "company": "Rift Cloud",
       "level": "mid",
       "comp_band": null,
       "location": "Denver",
       "remote_policy": "hybrid",
-      "must_have_skills": ["SQL", "Airflow", "dbt"],
+      "must_have_skills": [
+        "SQL",
+        "Airflow",
+        "dbt"
+      ],
       "responsibilities_summary": "Owns ETL pipeline reliability, adds new data sources, partners with analysts on schema design."
     }
   },
   {
     "id": "case-06-director-eng-remote-with-comp",
-    "raw_jd": "Director of Engineering, ML — Yield Model Co\n\nLead a 25-person org spanning ML platform, applied science, and MLOps. You'll set hiring bar, own the quarterly roadmap, and be the escalation point for cross-org dependencies. $290,000-$340,000 base, senior leadership equity grant. Remote, US/Canada.\n\nRequirements: prior experience managing managers, ML domain fluency, track record scaling an org through 2x headcount growth.",
+    "raw_jd": "Director of Engineering, ML \u2014 Yield Model Co\n\nLead a 25-person org spanning ML platform, applied science, and MLOps. You'll set hiring bar, own the quarterly roadmap, and be the escalation point for cross-org dependencies. $290,000-$340,000 base, senior leadership equity grant. Remote, US/Canada.\n\nRequirements: prior experience managing managers, ML domain fluency, track record scaling an org through 2x headcount growth.",
     "expected": {
       "title": "Director of Engineering, ML",
+      "company": "Yield Model Co",
       "level": "director",
       "comp_band": "$290,000-$340,000",
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["managing managers", "ML domain fluency"],
+      "must_have_skills": [
+        "managing managers",
+        "ML domain fluency"
+      ],
       "responsibilities_summary": "Leads a 25-person ML org across platform, applied science, and MLOps; sets hiring bar and quarterly roadmap; escalation point for cross-org dependencies."
     }
   },
   {
     "id": "case-07-senior-sre-onsite-no-comp",
-    "raw_jd": "Senior Site Reliability Engineer — Timber Motors\n\nOwn on-call rotation health and incident response process for our core services. You'll drive postmortem quality, build alerting, and reduce toil through automation. Onsite in Detroit, MI.\n\nRequirements: 5+ years SRE/infra, strong Linux fundamentals, experience with incident command.",
+    "raw_jd": "Senior Site Reliability Engineer \u2014 Timber Motors\n\nOwn on-call rotation health and incident response process for our core services. You'll drive postmortem quality, build alerting, and reduce toil through automation. Onsite in Detroit, MI.\n\nRequirements: 5+ years SRE/infra, strong Linux fundamentals, experience with incident command.",
     "expected": {
       "title": "Senior Site Reliability Engineer",
+      "company": "Timber Motors",
       "level": "senior",
       "comp_band": null,
       "location": "Detroit, MI",
       "remote_policy": "onsite",
-      "must_have_skills": ["Linux", "incident command"],
+      "must_have_skills": [
+        "Linux",
+        "incident command"
+      ],
       "responsibilities_summary": "Owns on-call health and incident response, drives postmortem quality, builds alerting, reduces toil through automation."
     }
   },
   {
     "id": "case-08-mid-fullstack-remote-with-comp",
-    "raw_jd": "Full-Stack Engineer — Pinnacle Search\n\nWork across our Rails backend and React frontend shipping features for the search results team. You'll pair with design on UX details and own features end-to-end. $130,000-$160,000. Remote, US.\n\nRequirements: 3+ years full-stack, Rails or similar, React.",
+    "raw_jd": "Full-Stack Engineer \u2014 Pinnacle Search\n\nWork across our Rails backend and React frontend shipping features for the search results team. You'll pair with design on UX details and own features end-to-end. $130,000-$160,000. Remote, US.\n\nRequirements: 3+ years full-stack, Rails or similar, React.",
     "expected": {
       "title": "Full-Stack Engineer",
+      "company": "Pinnacle Search",
       "level": "mid",
       "comp_band": "$130,000-$160,000",
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["Rails", "React"],
+      "must_have_skills": [
+        "Rails",
+        "React"
+      ],
       "responsibilities_summary": "Ships features end-to-end across the Rails backend and React frontend, pairs with design on UX details."
     }
   },
   {
     "id": "case-09-staff-security-hybrid-with-comp",
-    "raw_jd": "Staff Security Engineer — Yield Model Co\n\nLead application security reviews for new product launches and own the vulnerability disclosure program. You'll set secure-coding standards and run tabletop exercises with the incident response team. $220,000-$260,000. Hybrid, San Francisco, CA.\n\nRequirements: 8+ years security engineering, threat modeling experience, familiarity with OWASP top 10.",
+    "raw_jd": "Staff Security Engineer \u2014 Yield Model Co\n\nLead application security reviews for new product launches and own the vulnerability disclosure program. You'll set secure-coding standards and run tabletop exercises with the incident response team. $220,000-$260,000. Hybrid, San Francisco, CA.\n\nRequirements: 8+ years security engineering, threat modeling experience, familiarity with OWASP top 10.",
     "expected": {
       "title": "Staff Security Engineer",
+      "company": "Yield Model Co",
       "level": "staff",
       "comp_band": "$220,000-$260,000",
       "location": "San Francisco, CA",
       "remote_policy": "hybrid",
-      "must_have_skills": ["threat modeling", "OWASP top 10"],
+      "must_have_skills": [
+        "threat modeling",
+        "OWASP top 10"
+      ],
       "responsibilities_summary": "Leads application security reviews for launches, owns the vulnerability disclosure program, sets secure-coding standards, runs tabletop exercises."
     }
   },
   {
     "id": "case-10-junior-data-remote-no-comp",
-    "raw_jd": "Junior Data Analyst — Rift Cloud\n\nSupport the growth team with weekly reporting and ad-hoc analysis. You'll build dashboards, validate data quality, and present findings in team syncs. Remote, US.\n\nRequirements: 0-2 years, SQL, spreadsheet fluency, curiosity about the business.",
+    "raw_jd": "Junior Data Analyst \u2014 Rift Cloud\n\nSupport the growth team with weekly reporting and ad-hoc analysis. You'll build dashboards, validate data quality, and present findings in team syncs. Remote, US.\n\nRequirements: 0-2 years, SQL, spreadsheet fluency, curiosity about the business.",
     "expected": {
       "title": "Junior Data Analyst",
+      "company": "Rift Cloud",
       "level": "junior",
       "comp_band": null,
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["SQL"],
+      "must_have_skills": [
+        "SQL"
+      ],
       "responsibilities_summary": "Builds dashboards, validates data quality, presents findings in team syncs for weekly reporting and ad-hoc analysis."
     }
   },
   {
     "id": "case-11-senior-mobile-onsite-with-comp",
-    "raw_jd": "Senior iOS Engineer — Timber Motors\n\nOwn the driver companion app's navigation and trip-history features. You'll drive architecture for offline-first sync and mentor a junior iOS engineer. $175,000-$205,000. Onsite, Detroit, MI.\n\nRequirements: 5+ years iOS, Swift, experience with offline-first architecture.",
+    "raw_jd": "Senior iOS Engineer \u2014 Timber Motors\n\nOwn the driver companion app's navigation and trip-history features. You'll drive architecture for offline-first sync and mentor a junior iOS engineer. $175,000-$205,000. Onsite, Detroit, MI.\n\nRequirements: 5+ years iOS, Swift, experience with offline-first architecture.",
     "expected": {
       "title": "Senior iOS Engineer",
+      "company": "Timber Motors",
       "level": "senior",
       "comp_band": "$175,000-$205,000",
       "location": "Detroit, MI",
       "remote_policy": "onsite",
-      "must_have_skills": ["Swift", "offline-first architecture"],
+      "must_have_skills": [
+        "Swift",
+        "offline-first architecture"
+      ],
       "responsibilities_summary": "Owns navigation and trip-history features, drives offline-first sync architecture, mentors a junior iOS engineer."
     }
   },
   {
     "id": "case-12-mid-devops-hybrid-no-comp",
-    "raw_jd": "DevOps Engineer — Pinnacle Search\n\nMaintain CI/CD pipelines and Terraform-managed infrastructure for the search platform. You'll reduce deploy friction and improve build times. Hybrid, Seattle, WA.\n\nRequirements: 3-5 years DevOps, Terraform, GitHub Actions or similar CI.",
+    "raw_jd": "DevOps Engineer \u2014 Pinnacle Search\n\nMaintain CI/CD pipelines and Terraform-managed infrastructure for the search platform. You'll reduce deploy friction and improve build times. Hybrid, Seattle, WA.\n\nRequirements: 3-5 years DevOps, Terraform, GitHub Actions or similar CI.",
     "expected": {
       "title": "DevOps Engineer",
+      "company": "Pinnacle Search",
       "level": "mid",
       "comp_band": null,
       "location": "Seattle, WA",
       "remote_policy": "hybrid",
-      "must_have_skills": ["Terraform", "CI/CD"],
+      "must_have_skills": [
+        "Terraform",
+        "CI/CD"
+      ],
       "responsibilities_summary": "Maintains CI/CD pipelines and Terraform-managed infrastructure, reduces deploy friction, improves build times."
     }
   },
   {
     "id": "case-13-principal-data-remote-no-comp",
-    "raw_jd": "Principal Data Scientist — Yield Model Co\n\nSet the technical bar for experimentation methodology across the science org. You'll review high-stakes experiment designs, mentor senior scientists, and advise leadership on causal inference tradeoffs. Remote, US.\n\nRequirements: 10+ years applied statistics or data science, causal inference expertise, experience influencing exec decisions with data.",
+    "raw_jd": "Principal Data Scientist \u2014 Yield Model Co\n\nSet the technical bar for experimentation methodology across the science org. You'll review high-stakes experiment designs, mentor senior scientists, and advise leadership on causal inference tradeoffs. Remote, US.\n\nRequirements: 10+ years applied statistics or data science, causal inference expertise, experience influencing exec decisions with data.",
     "expected": {
       "title": "Principal Data Scientist",
+      "company": "Yield Model Co",
       "level": "principal",
       "comp_band": null,
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": ["causal inference", "experimentation methodology"],
+      "must_have_skills": [
+        "causal inference",
+        "experimentation methodology"
+      ],
       "responsibilities_summary": "Sets the technical bar for experimentation methodology, reviews high-stakes experiment designs, mentors senior scientists, advises leadership on causal inference tradeoffs."
     }
   },
   {
     "id": "case-14-senior-eng-manager-hybrid-with-comp",
-    "raw_jd": "Engineering Manager, Payments — Rift Cloud\n\nLead a team of 6 engineers owning the payments settlement service. You'll run the hiring loop, set quarterly goals, and be the primary escalation point for payment incidents. $195,000-$230,000 + management equity refresh. Hybrid, Denver.\n\nRequirements: 2+ years as an engineering manager, prior IC background in backend systems, experience with regulated/financial systems a plus.",
+    "raw_jd": "Engineering Manager, Payments \u2014 Rift Cloud\n\nLead a team of 6 engineers owning the payments settlement service. You'll run the hiring loop, set quarterly goals, and be the primary escalation point for payment incidents. $195,000-$230,000 + management equity refresh. Hybrid, Denver.\n\nRequirements: 2+ years as an engineering manager, prior IC background in backend systems, experience with regulated/financial systems a plus.",
     "expected": {
       "title": "Engineering Manager, Payments",
+      "company": "Rift Cloud",
       "level": "senior",
       "comp_band": "$195,000-$230,000",
       "location": "Denver",
       "remote_policy": "hybrid",
-      "must_have_skills": ["engineering management", "backend systems"],
+      "must_have_skills": [
+        "engineering management",
+        "backend systems"
+      ],
       "responsibilities_summary": "Leads a 6-engineer team owning payments settlement, runs the hiring loop, sets quarterly goals, is the primary escalation point for payment incidents."
     }
   },
   {
     "id": "case-15-mid-qa-onsite-no-comp",
-    "raw_jd": "QA Automation Engineer — Pinnacle Search\n\nBuild and maintain the end-to-end test suite for the search results web app. You'll triage flaky tests, expand coverage for new features, and partner with engineers on testability. Onsite, Seattle, WA.\n\nRequirements: 3+ years QA automation, Playwright or Selenium, CI integration experience.",
+    "raw_jd": "QA Automation Engineer \u2014 Pinnacle Search\n\nBuild and maintain the end-to-end test suite for the search results web app. You'll triage flaky tests, expand coverage for new features, and partner with engineers on testability. Onsite, Seattle, WA.\n\nRequirements: 3+ years QA automation, Playwright or Selenium, CI integration experience.",
     "expected": {
       "title": "QA Automation Engineer",
+      "company": "Pinnacle Search",
       "level": "mid",
       "comp_band": null,
       "location": "Seattle, WA",
       "remote_policy": "onsite",
-      "must_have_skills": ["Playwright", "test automation"],
+      "must_have_skills": [
+        "Playwright",
+        "test automation"
+      ],
       "responsibilities_summary": "Builds and maintains the end-to-end test suite, triages flaky tests, expands coverage for new features, partners with engineers on testability."
+    }
+  },
+  {
+    "id": "case-16-mid-backend-remote-single-comp-figure",
+    "raw_jd": "Backend Engineer \u2014 Lattice Robotics\n\nBuild the APIs powering our warehouse robotics fleet coordination service. You'll own service reliability and ship new coordination features. Compensation: $165,000. Remote, US.\n\nRequirements: 4+ years backend experience, Go, gRPC.",
+    "expected": {
+      "title": "Backend Engineer",
+      "company": "Lattice Robotics",
+      "level": "mid",
+      "comp_band": "$165,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [
+        "Go",
+        "gRPC"
+      ],
+      "responsibilities_summary": "Owns reliability of the fleet coordination service's APIs and ships new coordination features."
+    }
+  },
+  {
+    "id": "case-17-senior-infra-hybrid-competitive-comp",
+    "raw_jd": "Senior Infrastructure Engineer \u2014 Cobalt Systems\n\nOwn the Kubernetes platform underpinning our data pipelines. You'll harden multi-tenant isolation and drive cost efficiency initiatives. Competitive compensation. Hybrid, Chicago, IL.\n\nRequirements: 6+ years infra experience, Kubernetes, Terraform.",
+    "expected": {
+      "title": "Senior Infrastructure Engineer",
+      "company": "Cobalt Systems",
+      "level": "senior",
+      "comp_band": null,
+      "location": "Chicago, IL",
+      "remote_policy": "hybrid",
+      "must_have_skills": [
+        "Kubernetes",
+        "Terraform"
+      ],
+      "responsibilities_summary": "Owns the multi-tenant Kubernetes platform, hardens isolation, and drives cost efficiency initiatives."
+    }
+  },
+  {
+    "id": "case-18-mid-platform-onsite-multi-location",
+    "raw_jd": "Software Engineer, Platform \u2014 Northfield Cloud\n\nBuild internal developer tooling used across the org. You'll ship CLI improvements and maintain our build system. Onsite in New York, NY or Austin, TX \u2014 pick either office.\n\nRequirements: 3+ years experience, TypeScript, Bazel.",
+    "expected": {
+      "title": "Software Engineer, Platform",
+      "company": "Northfield Cloud",
+      "level": "mid",
+      "comp_band": null,
+      "location": "New York, NY",
+      "remote_policy": "onsite",
+      "must_have_skills": [
+        "TypeScript",
+        "Bazel"
+      ],
+      "responsibilities_summary": "Builds internal developer tooling, ships CLI improvements, and maintains the build system."
+    }
+  },
+  {
+    "id": "case-19-founding-backend-remote-no-named-skills",
+    "raw_jd": "Founding Backend Engineer \u2014 Halcyon Feeds\n\nBe employee #3 on the engineering team and help shape our core recommendation service from scratch. You'll make foundational architecture calls and hire the team around you. $190,000-$230,000 + significant early equity. Remote, US.\n\nRequirements: 8+ years experience, strong systems design instincts, comfort operating with high autonomy and no existing playbook.",
+    "expected": {
+      "title": "Founding Backend Engineer",
+      "company": "Halcyon Feeds",
+      "level": "staff",
+      "comp_band": "$190,000-$230,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [],
+      "responsibilities_summary": "Makes foundational architecture decisions for the recommendation service and hires the founding engineering team."
+    }
+  },
+  {
+    "id": "case-20-mid-security-no-remote-policy-stated",
+    "raw_jd": "Security Engineer \u2014 Ridgeline Security\n\nInvestigate and remediate application security findings across our product suite. You'll run periodic penetration tests and coordinate fixes with engineering teams. $150,000-$180,000.\n\nRequirements: 4+ years security engineering, familiarity with OWASP Top 10, scripting in Python.",
+    "expected": {
+      "title": "Security Engineer",
+      "company": "Ridgeline Security",
+      "level": "mid",
+      "comp_band": "$150,000-$180,000",
+      "location": null,
+      "remote_policy": null,
+      "must_have_skills": [
+        "OWASP Top 10",
+        "Python"
+      ],
+      "responsibilities_summary": "Investigates and remediates application security findings, runs penetration tests, and coordinates fixes with engineering."
+    }
+  },
+  {
+    "id": "case-21-senior-sre-onsite-international-location",
+    "raw_jd": "Site Reliability Engineer \u2014 Vantage Motors\n\nKeep our fleet telemetry ingestion pipeline online and performant. You'll build on-call tooling and reduce incident response time. Onsite in London, UK.\n\nRequirements: 5+ years SRE experience, Kubernetes, Prometheus.",
+    "expected": {
+      "title": "Site Reliability Engineer",
+      "company": "Vantage Motors",
+      "level": "senior",
+      "comp_band": null,
+      "location": "London, UK",
+      "remote_policy": "onsite",
+      "must_have_skills": [
+        "Kubernetes",
+        "Prometheus"
+      ],
+      "responsibilities_summary": "Keeps the fleet telemetry ingestion pipeline online, builds on-call tooling, and reduces incident response time."
+    }
+  },
+  {
+    "id": "case-22-mid-data-hybrid-prose-skills",
+    "raw_jd": "Data Platform Engineer \u2014 Driftwood Analytics\n\nOwn the pipelines feeding our analytics warehouse and keep them reliable as data volume grows. Some comfort with modern cloud infrastructure tooling such as Terraform and Kubernetes is expected, along with strong SQL fundamentals for debugging pipeline issues. Hybrid, Boston, MA.\n\n3-5 years of data engineering experience preferred.",
+    "expected": {
+      "title": "Data Platform Engineer",
+      "company": "Driftwood Analytics",
+      "level": "mid",
+      "comp_band": null,
+      "location": "Boston, MA",
+      "remote_policy": "hybrid",
+      "must_have_skills": [
+        "Terraform",
+        "Kubernetes",
+        "SQL"
+      ],
+      "responsibilities_summary": "Owns the analytics-warehouse ingestion pipelines and keeps them reliable as data volume grows."
+    }
+  },
+  {
+    "id": "case-23-mid-swe-remote-terse-minimal-info",
+    "raw_jd": "Software Engineer \u2014 Cascade Ledger\n\nJoin our small engineering team. Remote.",
+    "expected": {
+      "title": "Software Engineer",
+      "company": "Cascade Ledger",
+      "level": "mid",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [],
+      "responsibilities_summary": "Joins the core engineering team as a general software engineer; no specific responsibilities are stated."
+    }
+  },
+  {
+    "id": "case-24-mid-backend-remote-numeral-level-title",
+    "raw_jd": "Backend Engineer II \u2014 Bellwood Analytics\n\nOwn the billing reconciliation service and its downstream reporting pipeline. You'll pair with the data team on schema migrations. $140,000-$165,000. Remote, US.\n\nRequirements: 2-4 years backend experience, Python, PostgreSQL.",
+    "expected": {
+      "title": "Backend Engineer II",
+      "company": "Bellwood Analytics",
+      "level": "mid",
+      "comp_band": "$140,000-$165,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [
+        "Python",
+        "PostgreSQL"
+      ],
+      "responsibilities_summary": "Owns the billing reconciliation service and its downstream reporting pipeline, pairing with the data team on schema migrations."
+    }
+  },
+  {
+    "id": "case-25-mid-contract-backend-onsite-hourly-comp",
+    "raw_jd": "Contract Backend Engineer \u2014 Quill Systems\n\n6-month contract building integrations for our partner API platform. You'll write connectors and maintain integration tests. $85/hr. Onsite, Miami, FL.\n\nRequirements: 3+ years backend experience, REST APIs, Python.",
+    "expected": {
+      "title": "Contract Backend Engineer",
+      "company": "Quill Systems",
+      "level": "mid",
+      "comp_band": "$85/hr",
+      "location": "Miami, FL",
+      "remote_policy": "onsite",
+      "must_have_skills": [
+        "REST APIs",
+        "Python"
+      ],
+      "responsibilities_summary": "Builds partner API integrations and maintains integration tests for a fixed-term contract engagement."
+    }
+  },
+  {
+    "id": "case-26-em-infra-remote-longform",
+    "group": "long",
+    "raw_jd": "Northgate Systems Logo\nBack to jobs\nEngineering Manager, Infrastructure\nRemote\n\nThe Role\nNorthgate Systems has spent eight years building the infrastructure platform that runs our own products. We're now packaging pieces of it for other engineering teams to use directly. We're hiring an engineering manager to help lead that transition.\n\nWe're looking for a caring, technical engineering manager excited to build and ship iteratively, close to the teams who consume the platform. This role owns core infrastructure, developer tooling, and the internal platform's security posture.\n\nOur stack: fully typed Python 3.12 services, TypeScript on the frontend, Terraform-managed infra deployed via ECS, Postgres, and Datadog for monitoring.\n\nThis is a remote position managing a distributed team across the United States.\n\nKey Responsibilities\n- Lead a team of engineers shipping infrastructure and developer-tooling improvements.\n- Mentor engineers and help shape their career development and project fit.\n- Set quarterly priorities balancing platform reliability work against new capability requests.\n- Partner with security and other engineering teams on cross-cutting technical direction.\n- Grow the team thoughtfully, addressing skill gaps as the platform's surface area expands.\n\nAbout You\nAt least two years in an official engineering management role, including experience managing a distributed team, and most of the following:\n- Managing engineer performance, including calibration, feedback, and performance corrections.\n- Growing a team: defining hiring criteria and owning the recruiting lifecycle.\n- Technical execution across teams with external dependencies.\n- Diagnosing and resolving team-dynamics or morale issues.\n- A strong technical background sufficient to hold your own in architecture discussions, though the role expects little day-to-day code output.\n\nAbout Northgate Systems\nNorthgate Systems builds infrastructure tooling used by thousands of engineers across our customer base. We've raised over $140 million from a mix of enterprise and growth investors and serve customers across financial services, logistics, and healthcare.\n\nWhy Northgate\n- Flexible time-off policy and all federal holidays observed.\n- Competitive benefits including a wellness stipend.\n- Parental leave at full pay for twelve weeks.\n- 401(k) with employer match.\n\nThe base pay range target for this role is $158,000-$210,000 in most US locations, and $190,000-$230,000 in the San Francisco Bay Area. Final offer depends on experience, location, and internal equity.\n\nNorthgate Systems provides equal employment opportunity regardless of race, color, religion, sex, national origin, age, disability, or veteran status. Reasonable accommodations are available on request during the hiring process.\n\nCreate a Job Alert\nInterested in building your career at Northgate Systems? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile*\nAre you legally authorized to work in the United States?*  Select...\nDo you require visa sponsorship now or in the future?*  Select...\nHow many years of engineering management experience do you have?*  Select...",
+    "expected": {
+      "title": "Engineering Manager, Infrastructure",
+      "company": "Northgate Systems",
+      "level": "senior",
+      "comp_band": "$158,000-$210,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [],
+      "responsibilities_summary": "Leads an infrastructure and developer-tooling team, mentors engineers, and sets quarterly platform priorities."
+    }
+  },
+  {
+    "id": "case-27-staff-field-engineer-onsite-longform-no-remote-policy-stated",
+    "group": "long",
+    "raw_jd": "Back to jobs\nStaff Field Engineer - Compute Infrastructure\nDenver, CO / Austin, TX\n\nRidge Compute is a cloud infrastructure company built for large-scale AI and HPC workloads. Founded in 2019, we operate data centers supporting some of the largest model-training customers in the industry.\n\nWhat You'll Do\nAs a Staff Field Engineer, you'll own the technical path for our largest customers from rack design to a validated, production-ready cluster. You'll work across data center operations, networking, and product engineering to turn raw hardware into reliable, customer-ready compute.\n\nIn this role, you will:\n- Serve as the primary technical point of contact for enterprise customers on bare-metal compute delivery.\n- Lead bring-up and acceptance of new GPU clusters, including InfiniBand fabric validation and performance benchmarking.\n- Define operating models for customer bare-metal fleets: break-fix, network, and firmware management.\n- Partner with data center operations and networking teams to align hardware readiness with customer go-live timelines.\n- Review customer-facing technical contract terms including SLAs and support boundaries.\n- Represent Ridge Compute at industry conferences, with occasional travel required.\n\nWho You Are\n- 7+ years as a field engineer, solutions architect, or infrastructure engineer in cloud or HPC environments.\n- Deep expertise with rack-scale GPU hardware, high-speed interconnects (InfiniBand, NVLink), and firmware/BMC layers.\n- Expert-level Linux administration and strong networking fundamentals.\n- Hands-on experience bringing up and validating large GPU clusters, integrating with Kubernetes or Slurm.\n\nPreferred\n- Experience with Python or Ansible for provisioning automation.\n- Experience in security-sensitive or air-gapped customer environments.\n\nWhy Ridge Compute\nWe're in a stage of rapid growth, and we care about how we build and how we work together. We support independent thinking and provide real opportunities to shape the roadmap.\n\nThe base salary range for this role is $175,000-$240,000. Final offer depends on experience, skills, and location. Total rewards also include a discretionary bonus and equity.\n\nBenefits include medical/dental/vision fully covered, life insurance, a 401(k) match, flexible PTO, and a family-forming benefit.\n\nEqual Opportunity & Accommodations\nRidge Compute is an equal opportunity employer. All qualified applicants receive consideration without regard to race, color, religion, sex, disability, age, sexual orientation, gender identity, national origin, or veteran status. Reasonable accommodations are available during the hiring process; contact careers@ridgecompute.example to request one.\n\nExport Control Notice\nThis position may require access to export-controlled information. Applicants must be eligible to access such information under US export regulations, or eligible to obtain the required authorization.\n\nCreate a Job Alert\nInterested in building your career at Ridge Compute? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone*  Country*  Resume/CV*  LinkedIn Profile\nAre you a U.S. person as defined under export control regulations?*  Select...\nDo you require sponsorship to work in the United States?*  Select...\nVoluntary Self-Identification (gender, veteran status, disability) -- optional, for government reporting purposes.",
+    "expected": {
+      "title": "Staff Field Engineer - Compute Infrastructure",
+      "company": "Ridge Compute",
+      "level": "staff",
+      "comp_band": "$175,000-$240,000",
+      "location": "Denver, CO",
+      "remote_policy": null,
+      "must_have_skills": [
+        "Linux",
+        "InfiniBand",
+        "Kubernetes"
+      ],
+      "responsibilities_summary": "Owns the technical path from rack design to a validated GPU cluster for enterprise customers, leading fabric validation and bring-up."
+    }
+  },
+  {
+    "id": "case-28-senior-data-eng-hybrid-longform-competitive-comp",
+    "group": "long",
+    "raw_jd": "Back to jobs\nSenior Data Engineer\nHybrid \u2014 Denver, CO\n\nAbout Fernwood Analytics\nFernwood Analytics builds the pipelines that power inventory forecasting for mid-size retailers. Our platform ingests data from hundreds of point-of-sale and warehouse systems every day.\n\nThe Role\nWe're hiring a Senior Data Engineer to own the ingestion layer feeding our forecasting models. You'll design schemas, build and monitor pipelines, and partner with the data science team on data quality.\n\nWhat you'll do\n- Own reliability of the core ingestion pipelines, including alerting and on-call rotation.\n- Design and evolve the warehouse schema as new data sources are added.\n- Partner with data scientists on data quality issues affecting model inputs.\n- Mentor junior data engineers on pipeline design patterns.\n- Evaluate and integrate new data sources from retail partners.\n\nWhat we're looking for\n- 5+ years of data engineering experience.\n- Strong SQL and hands-on experience with Airflow.\n- Experience with Snowflake.\n- Comfortable owning a service end-to-end, including on-call.\n\nCompensation & Benefits\nWe offer competitive base compensation plus equity, benchmarked against market data annually. Additional benefits include medical/dental/vision coverage, a 401(k) match, and a flexible PTO policy.\n\nHybrid work model: three days per week in our Denver office, two days remote.\n\nFernwood Analytics is an equal opportunity employer and does not discriminate on the basis of race, color, religion, sex, national origin, age, disability, or any other protected status. Applicants requiring accommodation during the hiring process should contact people@fernwoodanalytics.example.\n\nCreate a Job Alert\nInterested in building your career at Fernwood Analytics? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nHow did you hear about this role?*\nAre you legally authorized to work in the United States?*  Select...",
+    "expected": {
+      "title": "Senior Data Engineer",
+      "company": "Fernwood Analytics",
+      "level": "senior",
+      "comp_band": null,
+      "location": "Denver, CO",
+      "remote_policy": "hybrid",
+      "must_have_skills": [
+        "SQL",
+        "Airflow",
+        "Snowflake"
+      ],
+      "responsibilities_summary": "Owns the ingestion layer feeding forecasting models, designs schemas, and partners with data science on data quality."
+    }
+  },
+  {
+    "id": "case-29-principal-security-remote-longform-no-comp-stated",
+    "group": "long",
+    "raw_jd": "Back to jobs\nPrincipal Security Engineer\nRemote\n\nAbout Ashford Systems\nAshford Systems provides fraud-detection infrastructure for online marketplaces. Our engineering team is distributed across the US and Canada.\n\nThe Role\nWe're hiring a Principal Security Engineer to set the technical bar for application security across the company. You'll lead the vulnerability disclosure program and advise engineering leadership on architecture-level security tradeoffs.\n\nResponsibilities\n- Lead application security reviews for major product launches.\n- Own and continuously improve the vulnerability disclosure program.\n- Set secure-coding standards adopted across all engineering teams.\n- Run tabletop incident-response exercises with the security and infra teams.\n- Mentor senior security engineers across the org.\n\nRequirements\n- 10+ years of security engineering experience.\n- Deep threat-modeling expertise.\n- Strong familiarity with the OWASP Top 10 and common web application vulnerability classes.\n- Experience influencing architecture decisions at the executive level.\n\nOur Culture\nWe value directness, ownership, and a bias toward shipping. Ashford Systems is fully remote and has been since founding; we invest heavily in async communication and documentation.\n\nBenefits\nMedical, dental, and vision coverage, a 401(k) plan, unlimited PTO, and an annual learning stipend.\n\nAshford Systems is an equal opportunity employer committed to building a diverse team. We consider all qualified applicants without regard to race, color, religion, sex, national origin, age, disability, or veteran status.\n\nCreate a Job Alert\nInterested in building your career at Ashford Systems? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nAre you legally authorized to work in the United States or Canada?*  Select...",
+    "expected": {
+      "title": "Principal Security Engineer",
+      "company": "Ashford Systems",
+      "level": "principal",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [
+        "threat modeling",
+        "OWASP Top 10"
+      ],
+      "responsibilities_summary": "Sets the application security bar company-wide, owns the vulnerability disclosure program, and sets secure-coding standards."
+    }
+  },
+  {
+    "id": "case-30-em-platform-onsite-longform-single-comp-figure",
+    "group": "long",
+    "raw_jd": "Back to jobs\nEngineering Manager, Platform\nOnsite \u2014 Pittsburgh, PA\n\nAbout Cedar Robotics\nCedar Robotics builds autonomous inspection robots for industrial facilities. Our engineering team is based primarily out of our Pittsburgh headquarters.\n\nThe Role\nWe're hiring an Engineering Manager to lead our Platform team, responsible for the software stack that runs on every robot we ship. You'll manage a team of six engineers and partner closely with hardware and applied robotics teams.\n\nWhat you'll do\n- Manage a team of six platform engineers, including hiring and performance management.\n- Set quarterly roadmap priorities balancing reliability work against new capability requests.\n- Be the primary escalation point for platform incidents affecting deployed robots.\n- Partner with hardware and applied robotics teams on cross-functional dependencies.\n- Represent the platform team in company-wide planning.\n\nWhat we're looking for\n- 3+ years as an engineering manager, ideally with a background in embedded or robotics software.\n- Prior IC experience in C++ or Rust.\n- Comfort managing a team through ambiguity in a fast-moving hardware company.\n\nCompensation\n$210,000 total target compensation, including base and bonus. Onsite role based at our Pittsburgh headquarters \u2014 no remote option currently offered.\n\nBenefits\nHealth, dental, and vision coverage, 401(k) with match, and relocation assistance for candidates moving to Pittsburgh.\n\nCedar Robotics is an equal opportunity employer. We welcome applicants of all backgrounds and do not discriminate on the basis of race, color, religion, sex, national origin, age, disability, or veteran status.\n\nCreate a Job Alert\nInterested in building your career at Cedar Robotics? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nAre you willing to relocate to Pittsburgh, PA?*  Select...",
+    "expected": {
+      "title": "Engineering Manager, Platform",
+      "company": "Cedar Robotics",
+      "level": "senior",
+      "comp_band": "$210,000 total target compensation",
+      "location": "Pittsburgh, PA",
+      "remote_policy": "onsite",
+      "must_have_skills": [
+        "C++",
+        "Rust"
+      ],
+      "responsibilities_summary": "Manages a six-engineer platform team, sets quarterly priorities, and is the escalation point for platform incidents."
+    }
+  },
+  {
+    "id": "case-31-staff-mle-remote-longform-multi-country",
+    "group": "long",
+    "raw_jd": "Back to jobs\nStaff Machine Learning Engineer\nRemote \u2014 US or Canada\n\nAbout Solano AI\nSolano AI builds document-understanding models for insurance claims processing. Our models run in production for several of the largest US insurers.\n\nThe Role\nWe're hiring a Staff Machine Learning Engineer to lead architecture decisions for our claims-extraction models. You'll own the training pipeline and partner with the compliance team on model auditability.\n\nResponsibilities\n- Lead model architecture decisions for the claims-extraction stack.\n- Own the training and evaluation pipeline end-to-end.\n- Partner with compliance on model auditability and explainability requirements.\n- Mentor senior ML engineers across the team.\n- Represent ML engineering in cross-functional planning with product and compliance.\n\nRequirements\n- 8+ years of applied ML experience, with production deployment experience.\n- Strong PyTorch skills.\n- Experience with model evaluation and auditability practices in a regulated domain.\n- Strong written communication for cross-functional documentation.\n\nWhy Solano AI\nWe're a remote-first company with team members across the US and Canada. We invest in documentation and async collaboration so people can do focused work regardless of time zone.\n\nCompensation & Benefits\n$210,000-$260,000 base, plus equity. Medical/dental/vision coverage, 401(k) match, and an annual learning stipend.\n\nSolano AI is an equal opportunity employer. We consider all qualified applicants without regard to race, color, religion, sex, national origin, age, disability, or veteran status. Reasonable accommodations available on request.\n\nCreate a Job Alert\nInterested in building your career at Solano AI? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Country*  Resume/CV*  LinkedIn Profile\nAre you legally authorized to work in the United States or Canada?*  Select...",
+    "expected": {
+      "title": "Staff Machine Learning Engineer",
+      "company": "Solano AI",
+      "level": "staff",
+      "comp_band": "$210,000-$260,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [
+        "PyTorch"
+      ],
+      "responsibilities_summary": "Leads architecture decisions for claims-extraction models, owns the training pipeline, and partners with compliance on auditability."
+    }
+  },
+  {
+    "id": "case-32-senior-backend-hybrid-longform-international-location",
+    "group": "long",
+    "raw_jd": "Back to jobs\nSenior Backend Engineer\nHybrid \u2014 London, UK\n\nAbout Larkspur Systems\nLarkspur Systems provides payment reconciliation infrastructure for e-commerce platforms across Europe. Our engineering team is split between London and Berlin.\n\nThe Role\nWe're hiring a Senior Backend Engineer to own our reconciliation service, which processes millions of transactions daily. You'll design APIs consumed by both internal teams and customer-facing dashboards.\n\nResponsibilities\n- Own the reconciliation service's reliability and API design.\n- Review pull requests and mentor two mid-level engineers.\n- Partner with the data team on schema changes affecting downstream reporting.\n- Participate in an on-call rotation covering European business hours.\n\nRequirements\n- 5+ years of backend engineering experience.\n- Strong Java skills, plus experience with PostgreSQL and distributed systems.\n- Comfortable working in a hybrid team split across two offices.\n\nWorking Arrangement\nHybrid, three days per week in our London office. Occasional travel to Berlin for team offsites.\n\nCompensation & Benefits\n\u00a385,000-\u00a3105,000 base, plus a discretionary bonus. Private healthcare, a pension contribution match, and 27 days of annual leave plus bank holidays.\n\nLarkspur Systems is an equal opportunities employer and welcomes applications from all backgrounds regardless of race, religion, gender, age, disability, or sexual orientation.\n\nCreate a Job Alert\nInterested in building your career at Larkspur Systems? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Right to work in the UK?*  Select...  Resume/CV*  LinkedIn Profile",
+    "expected": {
+      "title": "Senior Backend Engineer",
+      "company": "Larkspur Systems",
+      "level": "senior",
+      "comp_band": "\u00a385,000-\u00a3105,000",
+      "location": "London, UK",
+      "remote_policy": "hybrid",
+      "must_have_skills": [
+        "Java",
+        "PostgreSQL"
+      ],
+      "responsibilities_summary": "Owns the reconciliation service's reliability and API design, mentoring two mid-level engineers."
+    }
+  },
+  {
+    "id": "case-33-director-eng-remote-longform-no-named-skills",
+    "group": "long",
+    "raw_jd": "Back to jobs\nDirector of Engineering, Platform\nRemote \u2014 US\n\nAbout Anchorpoint Systems\nAnchorpoint Systems builds identity and access management infrastructure used by mid-market SaaS companies. We've grown from 40 to 220 employees over the past three years.\n\nThe Role\nWe're hiring a Director of Engineering to lead our Platform organization, spanning core infrastructure, developer experience, and internal security tooling \u2014 roughly 30 engineers across four teams.\n\nResponsibilities\n- Set technical direction and hiring bar across the Platform organization.\n- Own the quarterly roadmap and represent Platform in company-wide planning.\n- Be the executive escalation point for cross-org platform dependencies.\n- Coach a team of four engineering managers.\n- Partner with the CTO on multi-year infrastructure investment decisions.\n\nRequirements\n- Prior experience managing managers at a growth-stage company.\n- Track record scaling an engineering organization through significant headcount growth.\n- Deep infrastructure or platform engineering background.\n- Comfortable operating with significant ambiguity and cross-org influence.\n\nCompensation & Benefits\n$260,000-$310,000 base plus a senior leadership equity grant. Full health coverage, 401(k) match, and a flexible, uncapped PTO policy.\n\nAnchorpoint Systems is an equal opportunity employer. We do not discriminate on the basis of race, color, religion, sex, national origin, age, disability, sexual orientation, gender identity, or veteran status.\n\nCreate a Job Alert\nInterested in building your career at Anchorpoint Systems? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nAre you legally authorized to work in the United States?*  Select...",
+    "expected": {
+      "title": "Director of Engineering, Platform",
+      "company": "Anchorpoint Systems",
+      "level": "director",
+      "comp_band": "$260,000-$310,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [],
+      "responsibilities_summary": "Leads the Platform organization across infrastructure, developer experience, and security tooling; coaches four engineering managers."
     }
   }
 ]

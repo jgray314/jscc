@@ -20,6 +20,8 @@ Drafter uses in-prompt style samples instead of a retrieval layer. Parked for re
 
 BYOK live demos are deferred. The build story carries the signal; a hosted service is scope inflation for a portfolio piece.
 
+**Note added 2026-09-11, does not reopen BYOK.** Phase B's extraction-eval *validation set* is captured by hand through Claude.ai chat rather than fetched via a live key (see [decisions-log 2026-09-11](../../../context-directory/decisions-log.md#2026-09-11--jscc-b2b-no-console-account-so-extraction-validation-runs-on-manual-capture--replay-not-a-live-api-key) and jscc.md's B2b entry) — no Anthropic Console account exists to issue one. This is unrelated to the BYOK question D4 answers: BYOK is about a *deployed product* accepting a user-supplied key at runtime, which is still out of scope. What's captured-not-live here is only the eval harness's validation data; the production call path (`extract_jd` → `sanitize_for_llm` → `send_to_llm` → `AnthropicClient`) is untouched and still calls a live model at runtime whenever a key is configured. `AnthropicClient` remains correct, dead code under this plan rather than a demo feature.
+
 ## D5 — LLM cost/latency instrumentation lands at the call site in Phase A
 
 Every LLM call is instrumented from day one, via a decorator. Ledger and reporting come later (Phase C), but the data is captured from the first call. Retrofit-later would produce sparse data.

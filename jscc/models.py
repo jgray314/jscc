@@ -112,6 +112,7 @@ class ExtractedJD(BaseModel):
     """
 
     title: str
+    company: str | None = None
     level: str
     comp_band: str | None = None
     location: str | None = None

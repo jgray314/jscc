@@ -37,9 +37,13 @@ PASS_THRESHOLD = 0.80
 # than merely unlikely.
 #
 #   level, remote_policy  -- closed vocabularies, exact match
-#   title                 -- normalized match: strict on content, forgiving
+#   title, company        -- normalized match: strict on content, forgiving
 #                            on case and whitespace, which are formatting
-#                            noise rather than extraction errors
+#                            noise rather than extraction errors. `company`
+#                            is nullable (some postings never name the
+#                            employer) -- both-None normalizes to the same
+#                            string and passes, one-None-one-not fails, same
+#                            as any other normalized-field mismatch.
 #   must_have_skills      -- set equality over normalized strings, so order
 #                            and casing don't matter but wording still does
 #                            ("Postgres" vs "PostgreSQL" should fail; that's
@@ -52,7 +56,7 @@ PASS_THRESHOLD = 0.80
 #                            is not an extraction failure while "Denver" vs
 #                            "Seattle" is -- containment separates the two.
 _EXACT_FIELDS = ("level", "remote_policy")
-_NORMALIZED_FIELDS = ("title",)
+_NORMALIZED_FIELDS = ("title", "company")
 _SET_FIELDS = ("must_have_skills",)
 _PRESENCE_FIELDS = ("comp_band",)
 _LOCATION_FIELDS = ("location",)
@@ -71,6 +75,10 @@ class EvalCase(BaseModel):
     id: str
     raw_jd: str
     expected: dict[str, Any]
+    # "short" (hand-authored, paste-shaped) vs "long" (synthetic-but-realistic
+    # fetched-page length and noise). Reporting, not a separate gate -- see
+    # `format_eval_summary`. Defaulted so the original 15 cases need no edit.
+    group: str = "short"
 
 
 class FieldDiff(BaseModel):
@@ -81,6 +89,7 @@ class FieldDiff(BaseModel):
 
 class EvalCaseResult(BaseModel):
     case_id: str
+    group: str = "short"
     passed: bool
     error: str | None = None
     diffs: list[FieldDiff] = []
@@ -144,7 +153,7 @@ def grade_extraction(case: EvalCase, extracted: ExtractedJD) -> EvalCaseResult:
     for field in _PROSE_FIELDS:
         if not (actual.get(field) or "").strip():
             diffs.append(FieldDiff(field=field, expected="<non-empty>", actual=actual.get(field)))
-    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+    return EvalCaseResult(case_id=case.id, group=case.group, passed=not diffs, diffs=diffs)
 
 
 class RecordingMissing(RuntimeError):
@@ -234,7 +243,9 @@ def run_jd_extraction_evals(
             # continue. A safety failure during an eval run stops the run.
             raise
         except Exception as e:  # extractor stub, prompt bugs, etc. — all count as a failed case
-            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            results.append(
+                EvalCaseResult(case_id=case.id, group=case.group, passed=False, error=str(e))
+            )
             continue
         results.append(grade_extraction(case, extracted))
     passed = sum(1 for r in results if r.passed)
@@ -242,7 +253,24 @@ def run_jd_extraction_evals(
 
 
 def format_eval_summary(summary: EvalSummary) -> str:
-    lines = [f"{summary.passed}/{summary.total} passed ({summary.pass_rate:.0%})", ""]
+    lines = [f"{summary.passed}/{summary.total} passed ({summary.pass_rate:.0%})"]
+    # Subgroup breakdown is reporting only -- `min_pass_rate` in the CLI gates
+    # on the combined figure above, per the locked B7 exit contract. This just
+    # answers "which distribution broke" when the combined number drops,
+    # rather than requiring a second gate to find out (D9's philosophy
+    # applied to the eval fixtures, not just the extract/score split).
+    groups: dict[str, list[EvalCaseResult]] = {}
+    for result in summary.results:
+        groups.setdefault(result.group, []).append(result)
+    if len(groups) > 1:
+        for group in sorted(groups):
+            group_results = groups[group]
+            group_passed = sum(1 for r in group_results if r.passed)
+            lines.append(
+                f"  {group}: {group_passed}/{len(group_results)} passed "
+                f"({group_passed / len(group_results):.0%})"
+            )
+    lines.append("")
     for result in summary.results:
         if result.passed:
             lines.append(f"  [PASS] {result.case_id}")

@@ -81,6 +81,7 @@ def rates_for(model: str) -> tuple[float, float]:
 
 _STUB_RESPONSE_TEXT = """{
   "title": "",
+  "company": null,
   "level": "unspecified",
   "comp_band": null,
   "location": null,

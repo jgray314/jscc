@@ -10,7 +10,7 @@ Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phas
 
 Three ideas being demonstrated at once:
 
-1. **Eval-driven agent design.** Every LLM stage ships behind an eval suite whose bar lives in code (`PASS_THRESHOLD = 0.80`), not in prose. One stage exists so far. Its suite is not yet a CI gate, for a reason worth stating rather than hiding: with no API key configured the suite runs against a stub client and fails every case, so gating today would gate on 0/15 instead of on the prompt. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
+1. **Eval-driven agent design.** Every LLM stage ships behind an eval suite whose bar lives in code (`PASS_THRESHOLD = 0.80`), not in prose. One stage exists so far. Its suite is not yet a CI gate, for a reason worth stating rather than hiding: with no API key configured the suite runs against a stub client and fails every case, so gating today would gate on 0/33 instead of on the prompt. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
 2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, and two egress points that share one definition of "personal": a pre-commit scanner guarding git, and an authenticated, redacting sanitizer guarding every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). Redaction is unconditional and runs *before* the payload is authenticated, so no caller can opt out of it — including the ones that forget to. The guarantee's scope is stated narrowly and honestly in D8: structured identifiers and known names, not free-text NER.
 3. **Knowing when not to automate.** A locked principle, not shipped code: the drafter will route anything non-routine to a briefing card rather than a prose draft ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)). Deciding where automation stops is the design work; it is specified and unbuilt, and saying so is more useful than implying otherwise.
 
@@ -82,7 +82,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (319 tests)
+tests/          pytest suite (320 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -122,9 +122,9 @@ The pre-commit scanner refuses commits that match email/phone patterns, an Anthr
 
 **Not built.** Fit scoring (Phase C), the drafter and its routing (Phase D). Both are specified in the design principles and neither exists in code.
 
-**Immediately next: B2b.** No `ANTHROPIC_API_KEY` is configured yet, so extraction runs end-to-end against a stub client. B2b is live prompt iteration to the ≥80% bar, which is also what makes the eval suite worth wiring into CI.
+**Immediately next: B2b.** No `ANTHROPIC_API_KEY` is configured — this project isn't using the Anthropic Console, so extraction runs end-to-end against a stub client by default. B2b validates the prompt to the ≥80% bar against real (not stub) model output captured by hand through Claude.ai chat and replayed via the eval harness's `--record`/`--replay` fixtures, rather than against live API traffic. That's also what makes the eval suite worth wiring into CI, on the fixtures it captures.
 
-319 pytest cases.
+320 pytest cases.
 
 ## License
 

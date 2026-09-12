@@ -7,6 +7,46 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B2b prep - eval suite sized up, `company` folded into extraction
+
+No Anthropic Console account exists for this project, so B2b closes by hand
+-- each eval prompt run once through Claude.ai chat, the completion captured
+and replayed -- rather than against a live key. That made two gaps in the
+eval suite itself worth fixing before the first capture round, since a
+hand-capture round is expensive to redo.
+
+**15 cases wasn't enough to make the 80% threshold mean anything.** Each case
+was worth ~6.7 points; the standard error on the pass rate at that size was
+about ±10 points, so a perfectly stable prompt could show anywhere from 70%
+to 90% depending on which 15 cases happened to be picked. Scaled to 25 short
+cases (~±8pt SE) plus 8 new `long`-group cases at realistic fetched-page
+length and noise (nav breadcrumb, EEO/benefits boilerplate) -- the original
+15 were all clean and averaged 357 characters, an order of magnitude short
+of what the B3b smoke test found on real postings. The long cases are
+hand-authored from the shape of three real postings, not copied from them:
+`cases.json` is tracked and public, so verbatim third-party posting text
+would be a copyright problem, the same reason `docs/smoke-test-results.md`
+never stored raw fetched text either. `format_eval_summary` now reports
+`short`/`long` pass rates as a breakdown; the combined figure still alone
+gates `--min-pass-rate`, unchanged from B7's exit contract.
+
+**`ExtractedJD` had no `company` field**, so `ingest`/`resolve-dlq` always
+fell back to a URL-domain guess (`_company_from_url`) even when the JD text
+named the employer outright -- a known gap since B3a. Folded in now because
+it touches the same three files (prompt, `cases.json`, eval suite) the
+sizing pass already had open. `company` is nullable and graded like `title`
+(normalized match) since some postings never name the employer. Company
+resolution in `cli.py` now has an explicit precedence: an explicit
+`--company` (the user's deliberate override) beats extraction, which beats
+the URL-domain fallback -- previously `--company` and the fallback were
+already folded together before extraction had an opinion to override.
+
+Full rationale, including the standard-error math: decisions-log 2026-09-11
+and jscc.md's B2b section.
+
+- 33 eval cases (was 15). 320 tests, no net change in count (three existing
+  test payloads gained a `company` key).
+
 ### B14 - the README's test count, kept honest by the suite it counts
 
 The README said 304 pytest cases. The suite had 317. Four slices had added

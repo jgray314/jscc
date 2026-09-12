@@ -29,6 +29,7 @@ EXTRACTION_SYSTEM_PROMPT = """You are a job description parser. Given the raw te
 
 {
   "title": string,
+  "company": string or null — the hiring company's name, if the posting states it; null if the posting never names the employer,
   "level": one of "junior" | "mid" | "senior" | "staff" | "principal" | "director" — infer from title and seniority language if not stated explicitly; use "mid" as the default for an ambiguous individual-contributor role,
   "comp_band": string or null — only if the posting explicitly states a compensation range; never guess a figure,
   "location": string or null — city/state if given; null if remote-only or unstated,
