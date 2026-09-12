@@ -62,7 +62,7 @@ Local storage is deliberately **not** redacted. D7 governs egress — what leave
 
 ## D9 — LLM stages are SPLIT (extract → score), scorer sees raw JD too
 
-JD extraction and fit scoring are separate LLM calls, not one combined call.
+JD extraction and fit scoring are separate LLM calls, not one combined call. A single combined call would look simpler on day one and quietly couple two things that fail, regress, and cost money for entirely different reasons.
 
 Reasons ranked:
 

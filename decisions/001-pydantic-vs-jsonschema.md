@@ -14,7 +14,7 @@ Use **pydantic v2** models as both the runtime validator and the typed represent
 
 - **`jsonschema` + `TypedDict`.** Familiar and lightweight, but forces two sources of truth (schema JSON + Python types) that drift. Rejected.
 - **Hand-rolled `dataclass` + manual validation.** Zero dependency cost but reinvents error messages and cross-field checks. Rejected.
-- **`attrs` + `cattrs`.** Valid, but pydantic is more idiomatic for AI-adjacent Python (LLM function-calling libraries, LangChain-family tooling) and produces a stronger "I know the ecosystem" signal for the target-role reader.
+- **`attrs` + `cattrs`.** Valid, but pydantic is more idiomatic for AI-adjacent Python — it's what the LLM function-calling libraries and LangChain-family tooling this project's later phases will touch already expect.
 
 ## Consequences
 

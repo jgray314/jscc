@@ -122,6 +122,15 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 ## Status
 
+**Read [CHANGELOG.md](CHANGELOG.md) for the arc** — the slice-by-slice history, the review findings, and the reasoning behind each fix, not just the fixes themselves.
+
+| | Shipped | Next |
+|---|---|---|
+| **Phase A — foundations** | Config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs. Closed after three gate rounds. | — |
+| **Phase B — ingestion + extraction** | Eval suite, extraction prompt validated against real model output (76%–82% band, see below), fetcher + Playwright fallback + DLQ, paste-only path, three-value exit contract, ruff lint/format gate. Phase B → C gate fully closed. | — |
+| **Phase C — fit scoring** | — | Not built. Specified in [D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too) (extract/score split) and [D5](docs/design-principles.md) (instrumentation). |
+| **Phase D — follow-up drafter** | — | Not built. Routing-first, routine-only per [D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition) — anything non-routine gets a briefing card, not a prose draft. |
+
 **Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B so far: B1 (eval suite), B2 (extraction prompt + client plumbing, validated against real model output — see below), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay.
 
 **Not built.** Fit scoring (Phase C), the drafter and its routing (Phase D). Both are specified in the design principles and neither exists in code.

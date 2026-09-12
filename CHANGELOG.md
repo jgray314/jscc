@@ -7,6 +7,45 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Backlog sweep: Phase A walkthrough findings #5-#7 dispositioned
+
+Deferred since A10 (2026-08-29), untouched across two phase boundaries (A->B,
+B->C) -- caught by the first `/backlog-prune` sweep.
+
+- **#5 (ADR-001 framing) -- fixed.** `decisions/001-pydantic-vs-jsonschema.md`'s
+  "produces a stronger 'I know the ecosystem' signal for the target-role
+  reader" line cut; the technical reasoning (pydantic fits the AI-adjacent
+  tooling ecosystem later phases touch) now stands alone.
+- **#6 (coverage badge) -- killed.** Pure portfolio polish with no technical
+  payoff; two phase boundaries of zero motion is itself the signal it wasn't
+  valued. Removed from backlog.
+- **#7 (CHANGELOG release-notes/work-log split) -- killed.** The earlier
+  compaction pass (58KB -> 24KB) already delivered the practical benefit; a
+  structural split is more ceremony than the file's current size justifies.
+  Removed from backlog.
+
+Five more A9-era walkthrough-polish items, same staleness class, swept the
+same pass:
+
+- **"Shipped vs. next" table -- done.** README's Status section now opens
+  with a Phase A-D shipped/next table.
+- **D9 one-sentence hook lead -- done.** `docs/design-principles.md`'s D9
+  section now has a connecting sentence before "Reasons ranked."
+- **CHANGELOG "read this to see the arc" pointer -- done.** Added at the
+  top of README's Status section.
+- **Demo GIF/asciinema of `report`** -- re-scoped, not done. Thin as
+  originally scoped (`report` alone) now that more of the pipeline exists;
+  re-deferred to record one GIF covering the whole ingest -> extract ->
+  score path once Phase C ships end-to-end.
+- **Cost envelope paragraph** -- kept deferred, not done. No real cost
+  data exists yet (B2b ran on manual capture, not live billed calls);
+  re-deferred to once Phase C runs live extraction with real
+  per-application cost data.
+
+L-json-default-sanitizer-1, L-report-format-injection-1, L-sanitizer-1 (the
+other three items from the same A9/A10-era backlog) not yet dispositioned --
+separate pass.
+
 ### Lint + format gate, before Phase C
 
 No linter or formatter existed anywhere in this repo -- only pytest and the
