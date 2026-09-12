@@ -14,6 +14,11 @@
 #   - tests/test_precommit_scan.py      — deliberate email/phone fixtures
 #   - CHANGELOG.md                      — prose describing the scanner
 #   - uv.lock                           — sha256 hashes contain 10-15-digit runs
+#   - evals/jd_extraction/recorded.json — keyed by sha256 prompt hashes (B7's
+#                                         --record/--replay contract); same
+#                                         hash-looks-like-a-phone-number class
+#                                         as uv.lock, not a content leak — the
+#                                         values are synthetic eval JD text
 #
 # Both CI (.github/workflows/ci.yml) and the pre-commit config
 # (.pre-commit-config.yaml, via `entry: bash scripts/scan_tracked.sh`)
@@ -29,6 +34,7 @@ EXCLUDES=(
   --exclude 'jscc/personal_data.py'
   --exclude 'CHANGELOG.md'
   --exclude 'uv.lock'
+  --exclude 'evals/jd_extraction/recorded.json'
 )
 
 # Collect files into a bash array so we can invoke the scanner exactly once
