@@ -7,6 +7,31 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### B14 - the README's test count, kept honest by the suite it counts
+
+The README said 304 pytest cases. The suite had 317. Four slices had added
+tests without touching the number, which is the fourth time this figure has
+gone stale.
+
+A small lie, but badly placed: it sits two lines from the claim that the sample
+output reproduces exactly, in the one document a cold reader trusts most, in a
+repo whose whole pitch is that the engineering is honest. Anyone who runs the
+suite sees the mismatch immediately.
+
+Fixed the number, then made it unable to drift again. One test compares the
+figure the README states against what the run actually collected; a second
+checks the two places the count appears still agree, because fixing one and
+leaving the other is the obvious near miss.
+
+The fiddly half is the guard. `-k`, `-m`, `--lf`, and naming specific files all
+collect a subset by design, and asserting against those would fail for reasons
+that have nothing to do with the README, so the test skips there and holds on
+the full run -- which is what CI does. Verified in all three modes, and by
+setting the count back to 304 and watching both tests fail.
+
+- 2 tests (319 total).
+
+
 ### B13 - the scanner learns what an API key looks like
 
 Nothing in either egress point would have stopped an Anthropic API key. The

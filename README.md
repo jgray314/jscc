@@ -82,7 +82,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (304 tests)
+tests/          pytest suite (319 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -124,7 +124,7 @@ The pre-commit scanner refuses commits that match email/phone patterns, an Anthr
 
 **Immediately next: B2b.** No `ANTHROPIC_API_KEY` is configured yet, so extraction runs end-to-end against a stub client. B2b is live prompt iteration to the ≥80% bar, which is also what makes the eval suite worth wiring into CI.
 
-304 pytest cases.
+319 pytest cases.
 
 ## License
 
