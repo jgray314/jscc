@@ -213,6 +213,28 @@ def test_dlq_lifecycle(conn: sqlite3.Connection) -> None:
     assert all_entries[0].resolved_at is not None
 
 
+def test_resolve_dlq_entry_omitting_application_id_does_not_clear_it(
+    conn: sqlite3.Connection,
+) -> None:
+    """Gate finding M-7: `application_id` defaulted to `None`, and the UPDATE
+    used to write it unconditionally -- so a second call that omits the
+    argument nulled out a link a previous call had set. COALESCE makes
+    "argument omitted" mean "leave it alone"."""
+    app = _sample_app()
+    create_application(conn, app)
+    entry = DLQEntry(source_url="https://x", failure_mode=FailureMode.blocked)
+    create_dlq_entry(conn, entry)
+
+    resolve_dlq_entry(conn, entry.id, Resolution.manual_paste, application_id=app.id)
+    linked = list_dlq_entries(conn, unresolved_only=False)[0]
+    assert linked.application_id == app.id
+
+    resolve_dlq_entry(conn, entry.id, Resolution.wont_fix)
+    still_linked = list_dlq_entries(conn, unresolved_only=False)[0]
+    assert still_linked.application_id == app.id
+    assert still_linked.resolution is Resolution.wont_fix
+
+
 def test_resolve_to_unresolved_rejected(conn: sqlite3.Connection) -> None:
     entry = DLQEntry(source_url="https://x", failure_mode=FailureMode.blocked)
     create_dlq_entry(conn, entry)

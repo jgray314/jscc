@@ -611,8 +611,14 @@ def resolve_dlq_entry(
     if resolution is Resolution.unresolved:
         raise ValueError("cannot resolve to 'unresolved'; use one of manual_paste, wont_fix")
     stamped_at = now if now is not None else _now()
+    # Gate finding M-7: this used to write `application_id` unconditionally,
+    # so a caller that omits it (the default) NULLed out a link a previous
+    # call had set. COALESCE makes "argument omitted" mean "leave it alone"
+    # rather than "clear it" -- a caller that actually wants to clear the
+    # link has no way to ask for that today, which is fine: nothing needs to.
     conn.execute(
-        "UPDATE dlq_entries SET resolution = ?, resolved_at = ?, application_id = ? WHERE id = ?",
+        "UPDATE dlq_entries SET resolution = ?, resolved_at = ?, "
+        "application_id = COALESCE(?, application_id) WHERE id = ?",
         (resolution.value, _iso(stamped_at), application_id, entry_id),
     )
     conn.commit()

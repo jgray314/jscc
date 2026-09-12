@@ -283,6 +283,48 @@ def test_report_rejects_a_now_without_a_timezone(
     assert "timezone" in result.output
 
 
+def test_report_bad_config_dir_is_a_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding L-6: `report` used to call load_stages bare and let a
+    missing/invalid stages.yaml crash with a raw traceback, unlike
+    validate-config's try/except around the same call."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["report", "--data-dir", str(tmp_path), "--config-dir", str(tmp_path / "no-such-dir")],
+    )
+    assert result.exit_code == 2, result.output
+    assert "stages.yaml" in result.output
+
+
+def test_report_now_in_the_past_is_a_usage_error_not_a_crash(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding M-11: `detect_stale` raises the same ValueError whether
+    the cause is corrupt data or a `--now` the caller pointed at the wrong
+    instant. `--now` exists so a reader can reproduce a pasted sample, and
+    landing it before an app's last interaction is the first mistake anyone
+    makes with it -- that should read as a usage error, not a traceback."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(
+        cli,
+        ["seed", "--data-dir", str(tmp_path), "--random-seed", "42", "--now", _PINNED],
+    )
+    result = runner.invoke(
+        cli,
+        [
+            "report",
+            "--data-dir", str(tmp_path),
+            "--config-dir", str(CONFIG_DIR),
+            "--now", "2026-08-01T12:00:00+00:00",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    assert "future reference timestamp" in result.output
+
+
 # ---- costs ----------------------------------------------------------------------
 
 def test_costs_empty_ledger(

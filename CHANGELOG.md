@@ -7,6 +7,41 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: third-pass findings (W-11, H-5, M-7, M-11, L-6)
+
+From the 9/12 third adversarial + peer review pass (full detail:
+`jscc-phase-b-rerun-gate.md`).
+
+- **W-11** - README's Status section named three mediums (M-1, M-5, M-6) as
+  open in the same sentence that claimed every medium was closed -- true
+  when written, false the moment the backlog-closure commit landed hours
+  later the same day. Rewritten with an "as of" date and the two real open
+  highs named instead, since this list is hand-maintained and has now gone
+  stale by the same mechanism twice.
+- **H-5** - `evals.py`'s replay-recording key hashed only the user prompt,
+  not the system prompt or model id, though its own docstring claimed
+  otherwise. Verified: replacing the entire extraction system prompt with
+  unrelated text replayed the same 33 recordings at the same 27/33 pass
+  rate. Re-keyed on `sha256(model | system | user)`; the 33 existing
+  recordings were re-keyed in place (same response text, not re-captured --
+  they were already produced under the current prompt) rather than
+  re-recorded from scratch.
+- **M-7** - `resolve_dlq_entry`'s `application_id` UPDATE was unconditional,
+  so a caller omitting the (optional, defaults to `None`) argument nulled
+  out a link a prior call had set. Shipped in the M-1 fix the same morning;
+  not CLI-reachable today because M-1's own idempotency guard blocks a
+  second resolution. `COALESCE`d so "omitted" means "leave it alone."
+- **M-11** - `report --now <past instant>` raised `detect_stale`'s
+  `ValueError` as a raw traceback and exit 1, indistinguishable from the
+  case's other cause (corrupt data). Since only the CLI knows whether `--now`
+  was supplied, that case now raises `click.UsageError` (exit 2); an absent
+  `--now` still crashes, correctly, since a future timestamp with no `--now`
+  in play really is unexpected. Also closes **L-6**: `report`'s
+  `load_stages` call was unguarded, unlike `validate-config`'s try/except
+  around the same call; both are usage errors now.
+
+330 tests (+4).
+
 ### Phase B -> C gate: non-blocking backlog closure (W3, M-1, M-6, L-8, L-10)
 
 Closed most of what was left open, none of it blocking, from the 9/4 rerun

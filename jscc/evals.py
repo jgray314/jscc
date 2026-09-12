@@ -244,12 +244,19 @@ def save_recording(
     path.write_text(json.dumps(responses, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _prompt_key(user: str) -> str:
-    """Recordings are keyed by a hash of the prompt the client actually
-    receives -- i.e. post-sanitizer. Keying on the case id instead would let a
-    recording keep replaying after the prompt or the redaction rules changed
-    underneath it, which is the failure mode that makes recorded suites lie."""
-    return hashlib.sha256(user.encode("utf-8")).hexdigest()
+def _prompt_key(model: str, system: str, user: str) -> str:
+    """Recordings are keyed by a hash of everything that determines the
+    response the client actually receives: the model id, the system prompt,
+    and the (post-sanitizer) user prompt.
+
+    Gate finding H-5: this used to hash `user` alone. The docstring already
+    claimed the key covered "the prompt the client actually receives", and a
+    prompt is model + system + user, not one third of it -- replacing the
+    entire system prompt with unrelated text replayed the exact same
+    recordings at the exact same pass rate, because nothing about the system
+    prompt was in the key. A NUL separator keeps `("ab", "c")` and `("a",
+    "bc")` from colliding, which plain concatenation would not."""
+    return hashlib.sha256(f"{model}\0{system}\0{user}".encode("utf-8")).hexdigest()
 
 
 class RecordingClient:
@@ -261,7 +268,7 @@ class RecordingClient:
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
         response = self._inner.complete(model=model, system=system, user=user)
-        self.captured[_prompt_key(user)] = response.text
+        self.captured[_prompt_key(model, system, user)] = response.text
         return response
 
 
@@ -273,7 +280,7 @@ class ReplayClient:
         self._recorded = recorded
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
-        key = _prompt_key(user)
+        key = _prompt_key(model, system, user)
         try:
             text = self._recorded[key]
         except KeyError:

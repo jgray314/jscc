@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import pytest
+
 from jscc.evals import (
     EvalCase,
     JD_EXTRACTION_CASES_PATH,
+    RecordingClient,
+    RecordingMissing,
+    ReplayClient,
     format_eval_summary,
     grade_extraction,
     load_cases,
     run_jd_extraction_evals,
 )
 from jscc.extraction import extract_jd
-from jscc.llm_client import StubExtractionClient
+from jscc.llm_client import LLMResponse, StubExtractionClient
 from jscc.models import ExtractedJD
 
 
@@ -273,6 +278,34 @@ def test_llm_send_error_propagates() -> None:
 
     with pytest.raises(LLMSendError):
         run_jd_extraction_evals(failing)
+
+
+# ---- replay recordings pin the system prompt too (gate finding H-5) ---------
+
+
+class _FixedClient:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        return LLMResponse(text=self._text, input_tokens=0, output_tokens=0, cost_usd=0.0)
+
+
+def test_replay_key_changes_when_the_system_prompt_changes() -> None:
+    """The whole point of keying on the prompt rather than the case id: a
+    recording made under one system prompt must not silently answer for a
+    different one. Before this fix, `_prompt_key` hashed `user` alone, so
+    this replayed the same recording no matter what `system` said."""
+    recorder = RecordingClient(_FixedClient('{"title": "X"}'))
+    recorder.complete(model="m", system="original system prompt", user="a raw jd")
+
+    replayer = ReplayClient(recorder.captured)
+    # Same model and user, different system -- must not find the recording.
+    with pytest.raises(RecordingMissing):
+        replayer.complete(model="m", system="a different system prompt", user="a raw jd")
+
+    # Unchanged inputs still replay.
+    replayer.complete(model="m", system="original system prompt", user="a raw jd")
 
 
 def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:

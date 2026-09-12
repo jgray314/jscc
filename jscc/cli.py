@@ -309,14 +309,33 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
     """
     mode = _resolve_mode_or_exit()
     now = _parse_now(now_str)
-    stages_cfg = load_stages(config_dir / "stages.yaml")
+    stages_path = config_dir / "stages.yaml"
+    # Gate finding L-6: this used to call load_stages bare and let a bad
+    # config crash with a raw traceback from whatever CWD the user happened
+    # to be in, unlike validate-config's try/except around the same call.
+    try:
+        stages_cfg = load_stages(stages_path)
+    except (LoadError, ValidationError) as e:
+        raise click.UsageError(f"{stages_path}: {e}")
     conn = _open_or_exit(mode, data_dir)
     try:
         apps = list_applications(conn)
     finally:
         conn.close()
     counts = funnel_counts(apps, stages_cfg)
-    alerts = detect_stale(apps, stages_cfg, now=now)
+    try:
+        alerts = detect_stale(apps, stages_cfg, now=now)
+    except ValueError as e:
+        # Gate finding M-11: detect_stale raises the same ValueError whether
+        # the cause is corrupt data (a genuinely unexpected bug -- let it
+        # crash) or a --now the caller passed that lands before some app's
+        # last-interaction timestamp. Only we know here which one it was:
+        # --now exists so a reader can reproduce a pasted sample, and
+        # pointing it at the wrong instant is the first mistake anyone makes
+        # with it, so treat that case as a usage error rather than a crash.
+        if now_str is not None:
+            raise click.UsageError(str(e))
+        raise
     click.echo(f"[mode: {mode.value}]")
     click.echo(format_report(counts, alerts, stages_cfg))
 
