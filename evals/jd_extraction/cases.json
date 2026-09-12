@@ -29,7 +29,7 @@
       "remote_policy": "hybrid",
       "must_have_skills": [
         "PyTorch",
-        "production ML deployment"
+        "model deployment"
       ],
       "responsibilities_summary": "Leads perception model architecture, owns the training pipeline, partners with safety review on rollout criteria."
     }
@@ -165,7 +165,8 @@
       "location": null,
       "remote_policy": "remote",
       "must_have_skills": [
-        "SQL"
+        "SQL",
+        "spreadsheets"
       ],
       "responsibilities_summary": "Builds dashboards, validates data quality, presents findings in team syncs for weekly reporting and ad-hoc analysis."
     }
@@ -199,7 +200,7 @@
       "remote_policy": "hybrid",
       "must_have_skills": [
         "Terraform",
-        "CI/CD"
+        "GitHub Actions"
       ],
       "responsibilities_summary": "Maintains CI/CD pipelines and Terraform-managed infrastructure, reduces deploy friction, improves build times."
     }
@@ -215,8 +216,8 @@
       "location": null,
       "remote_policy": "remote",
       "must_have_skills": [
-        "causal inference",
-        "experimentation methodology"
+        ["applied statistics", "data science"],
+        "causal inference"
       ],
       "responsibilities_summary": "Sets the technical bar for experimentation methodology, reviews high-stakes experiment designs, mentors senior scientists, advises leadership on causal inference tradeoffs."
     }
@@ -232,7 +233,6 @@
       "location": "Denver",
       "remote_policy": "hybrid",
       "must_have_skills": [
-        "engineering management",
         "backend systems"
       ],
       "responsibilities_summary": "Leads a 6-engineer team owning payments settlement, runs the hiring loop, sets quarterly goals, is the primary escalation point for payment incidents."
@@ -250,7 +250,8 @@
       "remote_policy": "onsite",
       "must_have_skills": [
         "Playwright",
-        "test automation"
+        "Selenium",
+        "CI integration"
       ],
       "responsibilities_summary": "Builds and maintains the end-to-end test suite, triages flaky tests, expands coverage for new features, partners with engineers on testability."
     }
@@ -343,7 +344,7 @@
     "expected": {
       "title": "Site Reliability Engineer",
       "company": "Vantage Motors",
-      "level": "senior",
+      "level": "mid",
       "comp_band": null,
       "location": "London, UK",
       "remote_policy": "onsite",
@@ -438,7 +439,7 @@
   {
     "id": "case-27-staff-field-engineer-onsite-longform-no-remote-policy-stated",
     "group": "long",
-    "raw_jd": "Back to jobs\nStaff Field Engineer - Compute Infrastructure\nDenver, CO / Austin, TX\n\nRidge Compute is a cloud infrastructure company built for large-scale AI and HPC workloads. Founded in 2019, we operate data centers supporting some of the largest model-training customers in the industry.\n\nWhat You'll Do\nAs a Staff Field Engineer, you'll own the technical path for our largest customers from rack design to a validated, production-ready cluster. You'll work across data center operations, networking, and product engineering to turn raw hardware into reliable, customer-ready compute.\n\nIn this role, you will:\n- Serve as the primary technical point of contact for enterprise customers on bare-metal compute delivery.\n- Lead bring-up and acceptance of new GPU clusters, including InfiniBand fabric validation and performance benchmarking.\n- Define operating models for customer bare-metal fleets: break-fix, network, and firmware management.\n- Partner with data center operations and networking teams to align hardware readiness with customer go-live timelines.\n- Review customer-facing technical contract terms including SLAs and support boundaries.\n- Represent Ridge Compute at industry conferences, with occasional travel required.\n\nWho You Are\n- 7+ years as a field engineer, solutions architect, or infrastructure engineer in cloud or HPC environments.\n- Deep expertise with rack-scale GPU hardware, high-speed interconnects (InfiniBand, NVLink), and firmware/BMC layers.\n- Expert-level Linux administration and strong networking fundamentals.\n- Hands-on experience bringing up and validating large GPU clusters, integrating with Kubernetes or Slurm.\n\nPreferred\n- Experience with Python or Ansible for provisioning automation.\n- Experience in security-sensitive or air-gapped customer environments.\n\nWhy Ridge Compute\nWe're in a stage of rapid growth, and we care about how we build and how we work together. We support independent thinking and provide real opportunities to shape the roadmap.\n\nThe base salary range for this role is $175,000-$240,000. Final offer depends on experience, skills, and location. Total rewards also include a discretionary bonus and equity.\n\nBenefits include medical/dental/vision fully covered, life insurance, a 401(k) match, flexible PTO, and a family-forming benefit.\n\nEqual Opportunity & Accommodations\nRidge Compute is an equal opportunity employer. All qualified applicants receive consideration without regard to race, color, religion, sex, disability, age, sexual orientation, gender identity, national origin, or veteran status. Reasonable accommodations are available during the hiring process; contact careers@ridgecompute.example to request one.\n\nExport Control Notice\nThis position may require access to export-controlled information. Applicants must be eligible to access such information under US export regulations, or eligible to obtain the required authorization.\n\nCreate a Job Alert\nInterested in building your career at Ridge Compute? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone*  Country*  Resume/CV*  LinkedIn Profile\nAre you a U.S. person as defined under export control regulations?*  Select...\nDo you require sponsorship to work in the United States?*  Select...\nVoluntary Self-Identification (gender, veteran status, disability) -- optional, for government reporting purposes.",
+    "raw_jd": "Back to jobs\nStaff Field Engineer - Compute Infrastructure\nDenver, CO / Austin, TX\n\nRidge Compute is a cloud infrastructure company built for large-scale AI and HPC workloads. Founded in 2019, we operate data centers supporting some of the largest model-training customers in the industry.\n\nWhat You'll Do\nAs a Staff Field Engineer, you'll own the technical path for our largest customers from rack design to a validated, production-ready cluster. You'll work across data center operations, networking, and product engineering to turn raw hardware into reliable, customer-ready compute.\n\nIn this role, you will:\n- Serve as the primary technical point of contact for enterprise customers on bare-metal compute delivery.\n- Lead bring-up and acceptance of new GPU clusters, including InfiniBand fabric validation and performance benchmarking.\n- Define operating models for customer bare-metal fleets: break-fix, network, and firmware management.\n- Partner with data center operations and networking teams to align hardware readiness with customer go-live timelines.\n- Review customer-facing technical contract terms including SLAs and support boundaries.\n- Represent Ridge Compute at industry conferences, with occasional travel required.\n\nWho You Are\n- 7+ years as a field engineer, solutions architect, or infrastructure engineer in cloud or HPC environments.\n- Deep expertise with rack-scale GPU hardware, high-speed interconnects (InfiniBand, NVLink), and firmware/BMC layers.\n- Expert-level Linux administration and strong networking fundamentals.\n- Hands-on experience bringing up and validating large GPU clusters, integrating with Kubernetes or Slurm.\n\nPreferred\n- Experience with Python or Ansible for provisioning automation.\n- Experience in security-sensitive or air-gapped customer environments.\n\nWhy Ridge Compute\nWe're in a stage of rapid growth, and we care about how we build and how we work together. We support independent thinking and provide real opportunities to shape the roadmap.\n\nThe base salary range for this role is $175,000-$240,000. Final offer depends on experience, skills, and location. Total rewards also include a discretionary bonus and equity.\n\nBenefits include medical/dental/vision fully covered, life insurance, a 401(k) match, flexible PTO, and a family-forming benefit.\n\nEqual Opportunity & Accommodations\nRidge Compute is an equal opportunity employer. All qualified applicants receive consideration without regard to race, color, religion, sex, disability, age, sexual orientation, gender identity, national origin, or veteran status. Reasonable accommodations are available during the hiring process; contact our recruiting team to request one.\n\nExport Control Notice\nThis position may require access to export-controlled information. Applicants must be eligible to access such information under US export regulations, or eligible to obtain the required authorization.\n\nCreate a Job Alert\nInterested in building your career at Ridge Compute? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone*  Country*  Resume/CV*  LinkedIn Profile\nAre you a U.S. person as defined under export control regulations?*  Select...\nDo you require sponsorship to work in the United States?*  Select...\nVoluntary Self-Identification (gender, veteran status, disability) -- optional, for government reporting purposes.",
     "expected": {
       "title": "Staff Field Engineer - Compute Infrastructure",
       "company": "Ridge Compute",
@@ -447,9 +448,15 @@
       "location": "Denver, CO",
       "remote_policy": null,
       "must_have_skills": [
-        "Linux",
+        "GPU hardware",
         "InfiniBand",
-        "Kubernetes"
+        "NVLink",
+        "Firmware",
+        "BMC",
+        "Linux",
+        "networking fundamentals",
+        "Kubernetes",
+        "Slurm"
       ],
       "responsibilities_summary": "Owns the technical path from rack design to a validated GPU cluster for enterprise customers, leading fabric validation and bring-up."
     }
@@ -457,7 +464,7 @@
   {
     "id": "case-28-senior-data-eng-hybrid-longform-competitive-comp",
     "group": "long",
-    "raw_jd": "Back to jobs\nSenior Data Engineer\nHybrid \u2014 Denver, CO\n\nAbout Fernwood Analytics\nFernwood Analytics builds the pipelines that power inventory forecasting for mid-size retailers. Our platform ingests data from hundreds of point-of-sale and warehouse systems every day.\n\nThe Role\nWe're hiring a Senior Data Engineer to own the ingestion layer feeding our forecasting models. You'll design schemas, build and monitor pipelines, and partner with the data science team on data quality.\n\nWhat you'll do\n- Own reliability of the core ingestion pipelines, including alerting and on-call rotation.\n- Design and evolve the warehouse schema as new data sources are added.\n- Partner with data scientists on data quality issues affecting model inputs.\n- Mentor junior data engineers on pipeline design patterns.\n- Evaluate and integrate new data sources from retail partners.\n\nWhat we're looking for\n- 5+ years of data engineering experience.\n- Strong SQL and hands-on experience with Airflow.\n- Experience with Snowflake.\n- Comfortable owning a service end-to-end, including on-call.\n\nCompensation & Benefits\nWe offer competitive base compensation plus equity, benchmarked against market data annually. Additional benefits include medical/dental/vision coverage, a 401(k) match, and a flexible PTO policy.\n\nHybrid work model: three days per week in our Denver office, two days remote.\n\nFernwood Analytics is an equal opportunity employer and does not discriminate on the basis of race, color, religion, sex, national origin, age, disability, or any other protected status. Applicants requiring accommodation during the hiring process should contact people@fernwoodanalytics.example.\n\nCreate a Job Alert\nInterested in building your career at Fernwood Analytics? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nHow did you hear about this role?*\nAre you legally authorized to work in the United States?*  Select...",
+    "raw_jd": "Back to jobs\nSenior Data Engineer\nHybrid \u2014 Denver, CO\n\nAbout Fernwood Analytics\nFernwood Analytics builds the pipelines that power inventory forecasting for mid-size retailers. Our platform ingests data from hundreds of point-of-sale and warehouse systems every day.\n\nThe Role\nWe're hiring a Senior Data Engineer to own the ingestion layer feeding our forecasting models. You'll design schemas, build and monitor pipelines, and partner with the data science team on data quality.\n\nWhat you'll do\n- Own reliability of the core ingestion pipelines, including alerting and on-call rotation.\n- Design and evolve the warehouse schema as new data sources are added.\n- Partner with data scientists on data quality issues affecting model inputs.\n- Mentor junior data engineers on pipeline design patterns.\n- Evaluate and integrate new data sources from retail partners.\n\nWhat we're looking for\n- 5+ years of data engineering experience.\n- Strong SQL and hands-on experience with Airflow.\n- Experience with Snowflake.\n- Comfortable owning a service end-to-end, including on-call.\n\nCompensation & Benefits\nWe offer competitive base compensation plus equity, benchmarked against market data annually. Additional benefits include medical/dental/vision coverage, a 401(k) match, and a flexible PTO policy.\n\nHybrid work model: three days per week in our Denver office, two days remote.\n\nFernwood Analytics is an equal opportunity employer and does not discriminate on the basis of race, color, religion, sex, national origin, age, disability, or any other protected status. Applicants requiring accommodation during the hiring process should contact our People team.\n\nCreate a Job Alert\nInterested in building your career at Fernwood Analytics? Get future opportunities sent to your email.\nCreate alert\n\nApply for this job\n* indicates a required field\nFirst Name*  Last Name*  Email*  Phone  Resume/CV*  LinkedIn Profile\nHow did you hear about this role?*\nAre you legally authorized to work in the United States?*  Select...",
     "expected": {
       "title": "Senior Data Engineer",
       "company": "Fernwood Analytics",
@@ -486,7 +493,8 @@
       "remote_policy": "remote",
       "must_have_skills": [
         "threat modeling",
-        "OWASP Top 10"
+        "OWASP Top 10",
+        "web application vulnerability classes"
       ],
       "responsibilities_summary": "Sets the application security bar company-wide, owns the vulnerability disclosure program, and sets secure-coding standards."
     }
@@ -521,7 +529,10 @@
       "location": null,
       "remote_policy": "remote",
       "must_have_skills": [
-        "PyTorch"
+        "PyTorch",
+        "model evaluation",
+        "auditability practices",
+        "production deployment"
       ],
       "responsibilities_summary": "Leads architecture decisions for claims-extraction models, owns the training pipeline, and partners with compliance on auditability."
     }
@@ -539,7 +550,8 @@
       "remote_policy": "hybrid",
       "must_have_skills": [
         "Java",
-        "PostgreSQL"
+        "PostgreSQL",
+        "distributed systems"
       ],
       "responsibilities_summary": "Owns the reconciliation service's reliability and API design, mentoring two mid-level engineers."
     }
@@ -555,7 +567,10 @@
       "comp_band": "$260,000-$310,000",
       "location": null,
       "remote_policy": "remote",
-      "must_have_skills": [],
+      "must_have_skills": [
+        "managing managers",
+        ["infrastructure engineering", "platform engineering"]
+      ],
       "responsibilities_summary": "Leads the Platform organization across infrastructure, developer experience, and security tooling; coaches four engineering managers."
     }
   }

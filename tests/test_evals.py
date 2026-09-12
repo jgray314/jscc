@@ -200,6 +200,45 @@ def test_skills_set_ignores_casing_but_not_wording() -> None:
     assert not bad.passed
 
 
+def test_skills_containment_forgives_wording_not_scope() -> None:
+    """Same skill in different words (pluralization, a superset phrase)
+    should pass; an addition with no matching expected slot should still
+    fail -- containment forgives wording, not scope."""
+    wording_variants = grade_extraction(
+        _case(must_have_skills=["spreadsheets", "GPU hardware", "model deployment"]),
+        _extracted(must_have_skills=["spreadsheet fluency", "GPUs", "production model deployment"]),
+    )
+    assert wording_variants.passed, wording_variants.diffs
+
+    real_addition = grade_extraction(
+        _case(must_have_skills=["Python"]),
+        _extracted(must_have_skills=["Python", "Kubernetes"]),
+    )
+    assert not real_addition.passed
+
+
+def test_skills_alternatives_slot_satisfied_by_either_option() -> None:
+    """A closed "X or Y" requirement in the JD is one expected slot with two
+    acceptable answers, not two separate required skills."""
+    named_first = grade_extraction(
+        _case(must_have_skills=[["applied statistics", "data science"]]),
+        _extracted(must_have_skills=["applied statistics"]),
+    )
+    assert named_first.passed, named_first.diffs
+
+    named_second = grade_extraction(
+        _case(must_have_skills=[["applied statistics", "data science"]]),
+        _extracted(must_have_skills=["data science"]),
+    )
+    assert named_second.passed, named_second.diffs
+
+    named_neither = grade_extraction(
+        _case(must_have_skills=[["applied statistics", "data science"]]),
+        _extracted(must_have_skills=["causal inference"]),
+    )
+    assert not named_neither.passed
+
+
 def test_every_extracted_jd_field_is_graded_or_explicitly_prose() -> None:
     """Guards the H2 class of bug generally: a field added to ExtractedJD
     later must be given a rule, not silently ignored."""

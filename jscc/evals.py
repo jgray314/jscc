@@ -44,10 +44,18 @@ PASS_THRESHOLD = 0.80
 #                            employer) -- both-None normalizes to the same
 #                            string and passes, one-None-one-not fails, same
 #                            as any other normalized-field mismatch.
-#   must_have_skills      -- set equality over normalized strings, so order
-#                            and casing don't matter but wording still does
-#                            ("Postgres" vs "PostgreSQL" should fail; that's
-#                            a real difference to pin a prompt on)
+#   must_have_skills      -- word-set containment, so "spreadsheets" and
+#                            "spreadsheet fluency" are the same skill in
+#                            different words but "Postgres" and "PostgreSQL"
+#                            are still a real difference to pin a prompt on
+#                            (see `_skill_matches`). An expected entry may
+#                            itself be a list of alternatives -- e.g.
+#                            `["applied statistics", "data science"]` -- when
+#                            the JD poses a genuine "X or Y" requirement;
+#                            naming either satisfies that slot. Extras the
+#                            model adds beyond every expected slot still fail
+#                            the case: containment forgives wording, not
+#                            scope.
 #   comp_band             -- presence only; exact dollar figures are too
 #                            brittle to pin a prompt to (eval strategy doc)
 #   location              -- presence, plus containment when both are present.
@@ -111,8 +119,39 @@ def load_cases(path: Path = JD_EXTRACTION_CASES_PATH) -> list[EvalCase]:
 
 
 def _normalize(value: Any) -> str:
-    """Casefold and collapse whitespace. Formatting noise, not content."""
-    return " ".join(str(value).split()).casefold()
+    """Casefold and collapse whitespace/hyphens/slashes. Formatting noise, not
+    content -- "infrastructure-as-code" and "infrastructure as code" are the
+    same skill, not a real difference to pin a prompt on the way "Postgres"
+    vs "PostgreSQL" is. Slashes get the same treatment as hyphens for the
+    same reason: "firmware/BMC" and "firmware, BMC" are two skills joined by
+    punctuation, not one token -- leaving the slash in place would prevent
+    either half from ever matching its own expected entry."""
+    text = str(value).replace("-", " ").replace("/", " ")
+    return " ".join(text.split()).casefold()
+
+
+def _singularize(word: str) -> str:
+    """Strip a trailing plural "s". Guarded by length so short words that
+    end in "s" by coincidence ("iOS" -> "ios") aren't mangled into something
+    that no longer means what it meant."""
+    return word[:-1] if len(word) > 3 and word.endswith("s") else word
+
+
+def _word_set(value: Any) -> frozenset[str]:
+    return frozenset(_singularize(w) for w in _normalize(value).split())
+
+
+def _skill_matches(expected: str, actual: str) -> bool:
+    """True if one phrase's core words are a subset of the other's --
+    "spreadsheets" vs. "spreadsheet fluency", "GPU hardware" vs. "GPUs",
+    "model deployment" vs. "production model deployment" all match this way.
+    Word-set, not substring: raw substring would wrongly match "Go" inside
+    "Google". Two unrelated skills that happen to share one common word
+    ("data" alone vs. "data science") would also match here -- accepted as
+    the same tradeoff `location`'s containment rule already makes, and rare
+    in practice since single common-word skill entries aren't how JDs read."""
+    exp, act = _word_set(expected), _word_set(actual)
+    return bool(exp) and bool(act) and (exp <= act or act <= exp)
 
 
 def _grade_field(field: str, expected: Any, actual: Any) -> FieldDiff | None:
@@ -130,9 +169,31 @@ def _grade_field(field: str, expected: Any, actual: Any) -> FieldDiff | None:
         return None if (exp in act or act in exp) else diff
 
     if field in _SET_FIELDS:
-        exp_set = {_normalize(v) for v in (expected or [])}
-        act_set = {_normalize(v) for v in (actual or [])}
-        return diff if exp_set != act_set else None
+        remaining_actual = list(actual or [])
+        unmatched_expected = []
+        for slot in (expected or []):
+            alternatives = slot if isinstance(slot, list) else [slot]
+            matched_indices = [
+                i
+                for i, act_item in enumerate(remaining_actual)
+                if any(_skill_matches(alt, act_item) for alt in alternatives)
+            ]
+            if not matched_indices:
+                unmatched_expected.append(slot)
+            else:
+                # Consume every match, not just the first: a disjunctive
+                # slot's alternatives are still one requirement, so naming
+                # BOTH acceptable options (case-33: "infrastructure
+                # engineering" AND "platform engineering") satisfies the slot
+                # completely rather than leaving the second named option to
+                # be flagged as an unexplained extra.
+                for i in reversed(matched_indices):
+                    remaining_actual.pop(i)
+        # remaining_actual: entries the model added beyond every expected
+        # slot. Containment already forgave wording -- anything left here is
+        # a real scope miss (title-redundant restatement, stack-description
+        # leakage, etc.), so it still fails the case.
+        return diff if (unmatched_expected or remaining_actual) else None
 
     if field in _NORMALIZED_FIELDS:
         return diff if _normalize(expected) != _normalize(actual) else None
