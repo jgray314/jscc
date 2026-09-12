@@ -454,7 +454,15 @@ def eval_jd_extraction(
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
-        client = RecordingClient(default_client())
+        # Gate finding M-12: persist each capture to disk the moment it
+        # happens, not only after the whole run returns -- a run that raises
+        # partway through (a safety refusal, a transient API error, Ctrl-C)
+        # used to discard every capture already paid for. save_recording
+        # merges rather than overwrites, so writing one entry at a time
+        # accumulates correctly instead of each write erasing the last.
+        client = RecordingClient(
+            default_client(), on_captured=lambda key, text: save_recording({key: text})
+        )
 
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
@@ -468,6 +476,9 @@ def eval_jd_extraction(
         conn.close()
 
     if record and client is not None:
+        # Every entry was already merged to disk by on_captured as the run
+        # went; this is a final, redundant (and harmless -- save_recording
+        # merges) flush plus the count for the message below.
         save_recording(client.captured)
         click.echo(f"recorded {len(client.captured)} responses")
 

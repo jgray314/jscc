@@ -7,6 +7,29 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: fix M-12 (`eval --record` can lose or clobber captures)
+
+From the same 9/12 third-pass review (full detail:
+`jscc-phase-b-rerun-gate.md`).
+
+- **M-12** - two related gaps in `eval --record`. First: every capture lived
+  only in `RecordingClient.captured` in memory and was written to disk once,
+  after the whole run returned -- so the deliberate
+  `SanitizerRefusal`/`LLMSendError` re-raise, a transient API error (H-6),
+  or a Ctrl-C partway through discarded every capture from a run that had
+  already spent the money on all of them. Second: `save_recording`
+  overwrote the file unconditionally, so a `--record` over a subset of
+  cases (a resumed run, or a deliberate partial re-record) silently dropped
+  every other case's recording. Fixed both: `RecordingClient` takes an
+  optional `on_captured(key, text)` callback invoked the instant each
+  response is captured, and `save_recording` now merges into whatever's
+  already on disk instead of replacing it -- so calling it once per
+  response accumulates correctly rather than each write erasing the last.
+  The final bulk `save_recording` call at the end of a run is now a
+  redundant, harmless flush rather than the only save that ever happens.
+
+342 tests (+5).
+
 ### Phase B -> C gate: decide M-9 (exit 0 means resolved, not "resolved by this run")
 
 From the same 9/12 third-pass review (full detail:

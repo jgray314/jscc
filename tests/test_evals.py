@@ -291,6 +291,64 @@ class _FixedClient:
         return LLMResponse(text=self._text, input_tokens=0, output_tokens=0, cost_usd=0.0)
 
 
+def test_recording_client_calls_on_captured_immediately_per_response() -> None:
+    """Gate finding M-12: captures used to live only in `.captured`, written
+    to disk after the whole run returned. `on_captured` lets a caller
+    persist each response the moment it arrives instead."""
+    seen: list[tuple[str, str]] = []
+    client = RecordingClient(
+        _FixedClient('{"title": "X"}'),
+        on_captured=lambda key, text: seen.append((key, text)),
+    )
+    client.complete(model="m", system="s", user="one")
+    client.complete(model="m", system="s", user="two")
+    assert len(seen) == 2
+    assert seen[0][0] != seen[1][0]  # distinct prompts, distinct keys
+
+
+def test_recording_client_persists_prior_captures_even_if_a_later_call_raises() -> None:
+    """The whole point: a run that dies partway through (a safety refusal,
+    a transient API error, Ctrl-C) must not lose captures already paid for."""
+    calls = {"n": 0}
+
+    class _FlakyClient:
+        def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise RuntimeError("transient failure")
+            return LLMResponse(text="ok", input_tokens=0, output_tokens=0, cost_usd=0.0)
+
+    persisted: dict[str, str] = {}
+    client = RecordingClient(
+        _FlakyClient(), on_captured=lambda key, text: persisted.update({key: text})
+    )
+    client.complete(model="m", system="s", user="one")
+    with pytest.raises(RuntimeError):
+        client.complete(model="m", system="s", user="two")
+    assert len(persisted) == 1
+
+
+def test_save_recording_merges_rather_than_overwrites(tmp_path) -> None:
+    """Gate finding M-12: this used to overwrite the file unconditionally,
+    so a --record over a subset of cases silently dropped every recording
+    not in that run's responses."""
+    from jscc.evals import load_recording, save_recording
+
+    path = tmp_path / "recorded.json"
+    save_recording({"a": "1"}, path)
+    save_recording({"b": "2"}, path)
+    assert load_recording(path) == {"a": "1", "b": "2"}
+
+
+def test_save_recording_lets_a_new_value_replace_an_old_one_for_the_same_key(tmp_path) -> None:
+    from jscc.evals import load_recording, save_recording
+
+    path = tmp_path / "recorded.json"
+    save_recording({"a": "1"}, path)
+    save_recording({"a": "2"}, path)
+    assert load_recording(path) == {"a": "2"}
+
+
 def test_replay_key_changes_when_the_system_prompt_changes() -> None:
     """The whole point of keying on the prompt rather than the case id: a
     recording made under one system prompt must not silently answer for a

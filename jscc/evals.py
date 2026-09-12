@@ -240,8 +240,19 @@ def load_recording(path: Path = JD_EXTRACTION_RECORDING_PATH) -> dict[str, str]:
 def save_recording(
     responses: dict[str, str], path: Path = JD_EXTRACTION_RECORDING_PATH
 ) -> None:
+    """Merge `responses` into whatever's already on disk at `path` and write
+    the result.
+
+    Gate finding M-12: this used to overwrite the file unconditionally, so a
+    `--record` over a subset of cases (a resumed run after a crash, or a
+    deliberate partial re-record) silently dropped every recording that
+    wasn't in this call's `responses`. Merging means the file can only gain
+    or update keys that were actually captured this call -- it can't lose
+    ones that weren't."""
+    existing = load_recording(path)
+    merged = {**existing, **responses}
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(responses, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _prompt_key(model: str, system: str, user: str) -> str:
@@ -260,15 +271,30 @@ def _prompt_key(model: str, system: str, user: str) -> str:
 
 
 class RecordingClient:
-    """Wraps a real client and captures each response for later replay."""
+    """Wraps a real client and captures each response for later replay.
 
-    def __init__(self, inner: Any) -> None:
+    Gate finding M-12: `eval --record` used to hold every capture in memory
+    (`.captured`) and write it to disk only after the whole run returned --
+    so the deliberate `SanitizerRefusal`/`LLMSendError` re-raise, a
+    transient API error (H-6), or a Ctrl-C at case 31 of 33 discarded every
+    capture from a run that had already spent the money on all of them.
+    `on_captured`, when given, is called with each (key, response text) pair
+    the moment it's captured, so a caller can persist it immediately rather
+    than trust the run to finish."""
+
+    def __init__(
+        self, inner: Any, *, on_captured: Callable[[str, str], None] | None = None
+    ) -> None:
         self._inner = inner
+        self._on_captured = on_captured
         self.captured: dict[str, str] = {}
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
         response = self._inner.complete(model=model, system=system, user=user)
-        self.captured[_prompt_key(model, system, user)] = response.text
+        key = _prompt_key(model, system, user)
+        self.captured[key] = response.text
+        if self._on_captured is not None:
+            self._on_captured(key, response.text)
         return response
 
 

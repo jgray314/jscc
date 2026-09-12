@@ -1507,6 +1507,29 @@ def test_record_then_replay_round_trips(
     assert "33" in play.output
 
 
+def test_record_preserves_an_unrelated_stale_recording_instead_of_clobbering_it(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding M-12, at the CLI: `--record` used to overwrite the whole
+    file, so a key from a prior run (or a run against a different case set)
+    that this run didn't touch was silently dropped."""
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    recording = _eval_paths(tmp_path, monkeypatch)
+    recording.write_text(json.dumps({"stale-key-from-a-prior-run": "some response"}), encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        ["eval", "jd_extraction", "--record", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    saved = json.loads(recording.read_text(encoding="utf-8"))
+    assert saved["stale-key-from-a-prior-run"] == "some response"
+    assert len(saved) == 34  # the stale key plus this run's 33
+
+
 def test_replay_without_a_recording_is_a_usage_error(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
