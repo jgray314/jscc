@@ -82,7 +82,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (345 tests)
+tests/          pytest suite (348 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -126,7 +126,7 @@ The pre-commit scanner refuses commits that match email/phone patterns, an Anthr
 
 **Phase B → C gate, as of 2026-09-12.** Two cold two-lens reviews (adversarial + outside-reviewer walkthrough) have run against the Phase B slices above (2026-09-04, 2026-09-12). The first review's critical/high/medium findings are closed. The second, run the same morning B2b's manual-capture eval closed, found two open highs specific to that milestone: recorded eval fixtures don't pin the extraction system prompt, so replay can't detect a prompt change even though its own docstring says it does (`jscc/evals.py`); and a transient LLM API error (rate limit, overload, timeout) crashes `ingest`/`resolve-dlq` with a raw traceback and loses the fetched JD instead of routing it to the DLQ. Neither is reachable through the stub client this README's quick start uses. A further batch of medium and low findings — duplicate-application detection, exit-code semantics for a no-op resolve, unenforced `level`/`remote_policy` vocabularies, a few stale docstrings — are open and explicitly non-blocking. Full findings and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
 
-345 pytest cases.
+348 pytest cases.
 
 ## License
 

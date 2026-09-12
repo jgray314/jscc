@@ -349,6 +349,20 @@ def test_save_recording_lets_a_new_value_replace_an_old_one_for_the_same_key(tmp
     assert load_recording(path) == {"a": "2"}
 
 
+def test_prompt_key_is_prefixed_for_the_scanner(tmp_path) -> None:
+    """Gate finding L-14: a bare sha256 hex digest is indistinguishable from
+    a phone number to the pre-commit scanner's digit-run heuristic, which is
+    why `recorded.json` used to be excluded from scanning wholesale --
+    exempting its values along with its keys. The `sha256:` prefix lets the
+    scanner strip exactly the key and scan the value like anything else."""
+    client = RecordingClient(_FixedClient('{"title": "X"}'))
+    response = client.complete(model="m", system="s", user="one")
+    (key,) = client.captured.keys()
+    assert key.startswith("sha256:")
+    assert len(key) == len("sha256:") + 64
+    assert response.text == '{"title": "X"}'
+
+
 def test_replay_key_changes_when_the_system_prompt_changes() -> None:
     """The whole point of keying on the prompt rather than the case id: a
     recording made under one system prompt must not silently answer for a

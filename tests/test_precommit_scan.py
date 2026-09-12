@@ -428,6 +428,31 @@ def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
     assert precommit_scan.main([str(f)]) == 1
 
 
+def test_sha256_prefixed_key_does_not_false_positive_as_a_phone_number(tmp_path: Path) -> None:
+    """Gate finding L-14: a bare 64-char hex digest can contain a digit run
+    long enough to trip the phone heuristic, which is why recorded.json used
+    to be excluded wholesale. The `sha256:` prefix is stripped by
+    `_SHA256_KEY_RE` before matching, so a key alone should never hit."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    key = "a" * 32 + "9" * 12 + "b" * 20  # deliberately contains a 12-digit run
+    f = _write(tmp_path / "recorded.json", f'{{\n  "sha256:{key}": "some value"\n}}\n')
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 0
+
+
+def test_recorded_json_shaped_file_still_catches_a_leaked_value(tmp_path: Path) -> None:
+    """The other half of L-14's fix: stripping the key must not also exempt
+    the rest of the line. A real leak sitting in the *value* next to a
+    sha256 key still has to be caught now that the file is no longer
+    excluded wholesale."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    key = "b" * 64
+    f = _write(
+        tmp_path / "recorded.json",
+        f'{{\n  "sha256:{key}": "reach me at alice@example.com"\n}}\n',
+    )
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
 def test_a_staged_file_holding_an_api_key_is_blocked(tmp_path: Path) -> None:
     """End-to-end proof the shared definition reaches the scanner.
 

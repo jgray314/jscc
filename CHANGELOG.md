@@ -7,6 +7,27 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: L-5 (documented), L-14 (fixed)
+
+From the third-pass review (full detail: `jscc-phase-b-rerun-gate.md`).
+
+- **L-14 (fixed)** - `evals/jd_extraction/recorded.json` was excluded from
+  the pre-commit scanner wholesale because its sha256 recording keys -- 64
+  hex chars, no separators -- can contain a digit run long enough to trip
+  the phone heuristic. That exclusion also covered the file's *values*
+  (real model output), which it was never meant to cover. `_prompt_key` now
+  prefixes every key `sha256:`; the scanner strips exactly that literal
+  shape before matching (`precommit_scan.py`'s `_SHA256_KEY_RE`), so the key
+  can't false-positive and the exclusion is gone -- the file's values are
+  scanned like everything else now. Existing recordings migrated in place
+  (same 33 responses, re-keyed).
+- **L-5 (documented, not fixed)** - `_check_url`'s address-family check
+  rejects the `::ffff:`-mapped IPv6 form of a private IPv4 address but not
+  the equivalent NAT64 (`64:ff9b::/96`) encoding. Named in D6 alongside the
+  existing DNS TOCTOU residual (L-2) rather than fixed: exploiting it needs
+  a NAT64 gateway actually in the resolution path, which this CLI's target
+  environment doesn't have.
+
 ### Phase B -> C gate: low-severity backlog (L-1, L-2, L-9, L-11 to L-13, L-15 to L-17)
 
 From both reviews (full detail: `jscc-phase-b-rerun-gate.md`).

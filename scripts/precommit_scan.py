@@ -114,13 +114,26 @@ class Hit:
         return f"{self.path}:{self.line_no}: {self.reason} -- {self.match!r}"
 
 
+# Gate finding L-14: `evals/jd_extraction/recorded.json` used to be excluded
+# from scanning wholesale because its sha256 recording keys -- 64 hex chars,
+# no separators -- can contain a digit run long enough to trip the phone
+# heuristic. That exclusion covered the file's *values* too (real model
+# output), which is what the exclusion was never meant to cover. `_prompt_key`
+# now prefixes every key with `sha256:`; stripping exactly that literal shape
+# here means the key can no longer false-positive and the file no longer
+# needs excluding, so its values are scanned like everything else.
+_SHA256_KEY_RE = re.compile(r"\bsha256:[0-9a-f]{64}\b")
+
+
 def scan_line(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str]]:
     """Return (reason, matched-substring) tuples for every rule that fires.
 
-    Thin alias over the shared definition so existing callers and tests keep
-    working; the rules themselves live in `jscc/personal_data.py`.
+    Strips this project's own `sha256:<hex>` recording-key literal before
+    delegating to the shared rules in `jscc/personal_data.py` -- see
+    `_SHA256_KEY_RE`. Everything else about the line, including any value
+    text sitting next to a stripped key, is scanned unchanged.
     """
-    return find_personal(line, danger_terms)
+    return find_personal(_SHA256_KEY_RE.sub("sha256:<key>", line), danger_terms)
 
 
 def scan_file(path: Path, danger_terms: Iterable[str]) -> list[Hit]:

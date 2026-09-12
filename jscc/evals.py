@@ -266,8 +266,18 @@ def _prompt_key(model: str, system: str, user: str) -> str:
     entire system prompt with unrelated text replayed the exact same
     recordings at the exact same pass rate, because nothing about the system
     prompt was in the key. A NUL separator keeps `("ab", "c")` and `("a",
-    "bc")` from colliding, which plain concatenation would not."""
-    return hashlib.sha256(f"{model}\0{system}\0{user}".encode("utf-8")).hexdigest()
+    "bc")` from colliding, which plain concatenation would not.
+
+    Gate finding L-14: the `sha256:` prefix isn't cosmetic. A bare hex digest
+    is indistinguishable from a phone number to the pre-commit scanner's
+    digit-run heuristic, which is why `recorded.json` used to be excluded
+    from scanning wholesale -- covering its *values* (real model output)
+    along with the keys the exclusion was actually for. `scripts/
+    precommit_scan.py` strips exactly this `"sha256:<hex>"` shape before
+    matching, so the file no longer needs the blanket exclude and its values
+    get scanned like everything else."""
+    digest = hashlib.sha256(f"{model}\0{system}\0{user}".encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class RecordingClient:
