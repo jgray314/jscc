@@ -7,6 +7,23 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: decide M-9 (exit 0 means resolved, not "resolved by this run")
+
+From the same 9/12 third-pass review (full detail:
+`jscc-phase-b-rerun-gate.md`).
+
+- **M-9** - the idempotent `resolve-dlq` no-op exits 0, which the original
+  exit-code contract's rationale phrased as "an Application was created" --
+  a mismatch a test now pins as correct. Decided: keep 0, redefine what it
+  means. `EXIT_OK` documents that a record-producing command's exit code
+  answers "does the record end up in the right state", not "did this
+  invocation do the work" -- the same sense `db init` already exits 0 in
+  against an already-initialized DB. Which run actually did something is in
+  the output text, not the exit code. Documentation only; no behavior
+  changed.
+
+337 tests, scanner clean.
+
 ### Phase B -> C gate: third-pass findings, cont'd (M-8, M-10)
 
 From the same 9/12 third-pass review (full detail:

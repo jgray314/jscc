@@ -890,8 +890,11 @@ def test_resolve_dlq_is_idempotent(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Gate finding M-1: re-running `resolve-dlq` against an already-resolved
-    entry used to create a second Application every time, re-stamping
-    `resolved_at` and quietly duplicating the funnel."""
+    entry used to create a second Application every time, quietly
+    duplicating the funnel. Both runs exit 0 (gate finding M-9): the exit
+    code says the entry ends up resolved, which is true of both invocations
+    -- which run actually did the resolving is in the output text, not the
+    exit code."""
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 

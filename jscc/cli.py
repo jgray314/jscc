@@ -86,6 +86,16 @@ def _open_or_exit(mode: Mode, data_dir: Path):
 # script looping over URLs has to be able to tell them apart. Folding both into
 # 1 erases exactly the distinction the queue exists to make; leaving the queued
 # case at 0 tells a caller that an Application was created when none was.
+#
+# Gate finding M-9: EXIT_OK on a record-producing command means "the record
+# this command is about is in the state it should be" -- not "this specific
+# invocation was the one that produced it". `resolve-dlq` against an
+# already-resolved entry exits 0 for the same reason `db init` against an
+# already-initialized DB does: nothing was wrong, there was just nothing
+# left to do. A caller that needs to know whether *this run* did the work
+# has that in the output text ("already resolved" vs. "created application
+# <id>"), not the exit code -- the code answers "did this leave the system
+# in a good state", the message answers "what happened this time".
 EXIT_OK = 0
 EXIT_UNEXPECTED = 1
 EXIT_USAGE = 2
@@ -822,6 +832,11 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
                 f"DLQ entry {entry_id} is already resolved ({entry.resolution.value}); "
                 "not creating another application"
             )
+            # Gate finding M-9: exits 0, deliberately -- see EXIT_OK's
+            # comment above. The entry *is* resolved, which is the state
+            # this command exists to bring about; that this particular
+            # invocation didn't do the resolving is what the message above
+            # says, not what the exit code says.
             return
 
         fallback_company_val = (
