@@ -7,6 +7,50 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: non-blocking backlog closure (W3, M-1, M-6, L-8, L-10)
+
+Closed most of what was left open, none of it blocking, from the 9/4 rerun
+gate (full detail: `jscc-phase-b-rerun-gate.md`).
+
+- **W3** - README's intro, eval-driven-design pitch, and Status section
+  updated to reflect B2b closed (76-82% band) and Phase B substantially
+  shipped, naming the gate's remaining open items as low-severity. Also
+  closes **L-7**, a bare repeat of the same finding.
+- **M-1** - `resolve-dlq` used to skip the entry's current resolution
+  entirely, so re-running it against an already-resolved entry created a
+  duplicate Application every time and re-stamped `resolved_at`. Now checks
+  `entry.resolution` first and refuses to touch an already-resolved entry.
+  Also sets `DLQEntry.application_id` on resolution, which was never set at
+  all before. Documented gap kept at the guard: there's no "reopen" path, so
+  a `wont_fix` entry can't be converted to `manual_paste` from here either.
+- **M-6** - `Application.fetch_status` defaulted to `ok` on every creation
+  path, including paste and DLQ resolution, so the DB claimed "fetched
+  cleanly" about records never fetched. `ingest --paste` now sets `manual`;
+  `resolve-dlq` maps the DLQ entry's original `failure_mode` to the matching
+  `dlq_*` status.
+- **M-5** - decided, not extended. The type-level choke point genuinely
+  stops at `send_to_llm`, exactly as found, but extending it now would be
+  building for D9/D10 call sites that don't exist yet. Decision and its
+  exact revisit trigger (a second `.complete()` caller) recorded in
+  ADR-005's addendum.
+- **L-3, L-4** - documented as `TODO` comments at the exact lines in
+  `sanitizer.py` rather than fixed: the `model`-key redaction exemption
+  applies at any nesting depth, and `contains_personal` is only checked at
+  the payload's top level with non-string scalars never redacted. Both are
+  real but low-severity given today's flat, string-only payloads.
+- **L-8** (repeat of the 9/1 gate's L-4) - a 3xx status code `fetch_jd`'s
+  redirect loop doesn't follow (missing `Location`, or one requests doesn't
+  call a redirect, like 304) used to fall through every status check below
+  400 and get extracted as a normal page. Now caught explicitly as
+  `FailureMode.blocked`.
+- **L-10** - the email regex's TLD character class excluded `.` but not
+  `,;:!?'"` or closing brackets, so trailing sentence punctuation right
+  after an address got swallowed into the redacted span. Class widened.
+- **Backlog re-checked against current code:** L-1, L-2, L-5, L-6, L-9
+  remain open and untouched — none were resolved incidentally by other work.
+
+326 tests (+4).
+
 ### B2b round 4 - two prompt fixes validated, 82% on a fresh capture
 
 A targeted look at the four cases still failing after the grading fix (below)

@@ -656,7 +656,7 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
-    from jscc.models import DLQEntry, FailureMode
+    from jscc.models import DLQEntry, FailureMode, FetchStatus, Resolution
     from jscc.mode import Mode
     from jscc.storage import create_dlq_entry, list_applications, list_dlq_entries, open_for_mode
 
@@ -686,11 +686,89 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
 
     conn = open_for_mode(Mode.synthetic, tmp_path)
     apps = list_applications(conn)
+    all_entries = list_dlq_entries(conn, unresolved_only=False)
     unresolved = list_dlq_entries(conn, unresolved_only=True)
     conn.close()
     assert len(apps) == 1
     assert apps[0].source_url == "https://example.com/jobs/5"
+    # Gate finding M-6: fetch_status used to default to `ok` regardless of how
+    # the record was actually produced. A DLQ resolution carries the
+    # original failure mode forward as the matching `dlq_*` status.
+    assert apps[0].fetch_status == FetchStatus.dlq_blocked
     assert unresolved == []
+    resolved_entry = next(e for e in all_entries if e.id == entry_id)
+    assert resolved_entry.resolution == Resolution.manual_paste
+    assert resolved_entry.application_id == apps[0].id
+
+
+def test_resolve_dlq_is_idempotent(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding M-1: re-running `resolve-dlq` against an already-resolved
+    entry used to create a second Application every time, re-stamping
+    `resolved_at` and quietly duplicating the funnel."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.models import DLQEntry, FailureMode
+    from jscc.mode import Mode
+    from jscc.storage import create_dlq_entry, list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/6",
+            failure_mode=FailureMode.timeout,
+            error_detail="timed out",
+        ),
+    )
+    conn.close()
+
+    args = [
+        "resolve-dlq",
+        entry_id,
+        "--paste-text",
+        "Senior Engineer at Rift Cloud. " * 20,
+        "--data-dir",
+        str(tmp_path),
+    ]
+    first = runner.invoke(cli, args)
+    second = runner.invoke(cli, args)
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert "already resolved" in second.output
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+
+
+def test_ingest_paste_sets_manual_fetch_status(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding M-6: a pasted JD was never fetched, but the stored record
+    said `fetch_status: ok` -- indistinguishable from a real fetch."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(
+        cli,
+        ["ingest", "--paste", "--data-dir", str(tmp_path)],
+        input="Senior Engineer at Rift Cloud. " * 20,
+    )
+    assert result.exit_code == 0, result.output
+
+    from jscc.models import FetchStatus
+    from jscc.mode import Mode
+    from jscc.storage import list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert len(apps) == 1
+    assert apps[0].fetch_status == FetchStatus.manual
 
 
 def test_resolve_dlq_unknown_id_exits_nonzero(

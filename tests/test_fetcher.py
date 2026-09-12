@@ -99,6 +99,19 @@ def test_fetch_jd_401_is_blocked():
     assert result.failure_mode is FailureMode.blocked
 
 
+def test_fetch_jd_unresolved_redirect_is_blocked_not_extracted():
+    """Gate finding L-8/L-4: a 3xx that `_get_guarded` doesn't follow (no
+    Location header, or a code requests doesn't treat as `is_redirect`, like
+    304) used to fall through every status check below 400 and get extracted
+    as if it were a normal page."""
+    resp = _mock_response(304, "")
+    resp.is_redirect = False
+    with patch("jscc.fetcher.requests.get", return_value=resp):
+        result = fetch_jd("https://example.com/jobs/1")
+    assert result.ok is False
+    assert result.failure_mode is FailureMode.blocked
+
+
 def test_fetch_jd_402_is_paywall():
     with patch("jscc.fetcher.requests.get", return_value=_mock_response(402, "payment required")):
         result = fetch_jd("https://example.com/jobs/1")

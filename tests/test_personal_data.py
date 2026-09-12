@@ -83,6 +83,17 @@ def test_does_not_redact_ordinary_prose() -> None:
     assert redact(text) == text
 
 
+def test_redacts_email_without_consuming_trailing_punctuation() -> None:
+    """Gate finding L-10: the TLD class used to allow `,;:!?'"` and closing
+    brackets, so sentence punctuation right after the address got swallowed
+    into the match and redacted along with it."""
+    out = redact(f"Reach {RECRUITER_EMAIL}, thanks!")
+    assert out == f"Reach {EMAIL_TOKEN}, thanks!"
+
+    out = redact(f"({RECRUITER_EMAIL})")
+    assert out == f"({EMAIL_TOKEN})"
+
+
 def test_redacts_danger_list_terms_case_insensitively() -> None:
     out = redact("Referred by ExRealCompanyName Corp.", danger_terms=["exrealcompanyname corp"])
     assert "ExRealCompanyName" not in out

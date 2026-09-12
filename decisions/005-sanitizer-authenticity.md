@@ -95,3 +95,28 @@ Three coupled mechanisms:
 - Follow-on for Phase B: the actual `send_to_llm()` function will accept
   only `SanitizedPayload` and call `verify()` as its first line, refusing
   any object that fails.
+
+## Addendum (2026-09-12) — gate finding M-5, decided not extended
+
+The Phase B → C rerun gate (9/4) found that the type-level choke point this
+ADR describes stops at `send_to_llm`: its caller unpacks the verified dict
+into three bare `str` kwargs (`model=`, `system=`, `user=`) to call
+`LLMClient.complete`, so nothing at the type level (or at runtime) stops a
+future caller from assembling those three strings itself and calling
+`complete` directly, skipping `sanitize_for_llm`/`send_to_llm` entirely.
+
+**Decided: not extended now.** `extraction.py` is still the only caller.
+Wrapping `complete`'s three parameters in a second authenticated type,
+mirroring `SanitizedPayload`, would be solving for D9's scorer and D10's
+router/composer — call sites that don't exist yet, in phases that haven't
+started. That is designing for a hypothetical requirement rather than a real
+one, and the extra hop (`verified["model"]` → `some_wrapper.model`, plus a
+second `verify()`-shaped check at the socket boundary) is cost paid today
+for a benefit that starts on the day a second caller is written, not before.
+
+**Revisit exactly when:** the moment `extraction.py` stops being the only
+module that calls `.complete()` — i.e., when D9's scorer or D10's
+router/composer lands. At that point the choke point genuinely needs to
+extend past `send_to_llm`, because "convention holds, there's one caller" is
+no longer true. Wrap `LLMClient.complete`'s three kwargs in a single typed
+request object at that point, not before.

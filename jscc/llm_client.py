@@ -105,6 +105,14 @@ class LLMResponse(BaseModel):
 
 
 class LLMClient(Protocol):
+    # Gate finding M-5 (9/4 rerun gate), decided not extended -- see ADR-005's
+    # addendum. ADR-005's type-level choke point (`SanitizedPayload`, refused
+    # at runtime by `verify()`) stops at `send_to_llm`; this method takes
+    # three bare strings, so nothing stops a future caller from assembling
+    # them itself and skipping the sanitizer. `extraction.py` is still the
+    # only caller today, so wrapping these in a second authenticated type
+    # would be solving for D9/D10 call sites that don't exist yet. Revisit
+    # the day a second caller (the scorer, the drafter) is written.
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse: ...
 
 

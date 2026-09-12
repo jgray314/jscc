@@ -252,9 +252,16 @@ def fetch_jd(
     try:
         if response.status_code in _PAYWALL_STATUS_CODES:
             return _failure(FailureMode.paywall, f"HTTP {response.status_code}")
-        if response.status_code in _BLOCKED_STATUS_CODES or response.status_code >= 500:
-            return _failure(FailureMode.blocked, f"HTTP {response.status_code}")
-        if response.status_code >= 400:
+        if 300 <= response.status_code < 400:
+            # `_get_guarded` only follows hops requests itself recognizes as a
+            # redirect (a Location header present). A 3xx with no Location, or
+            # one requests doesn't call a redirect (304 Not Modified), reaches
+            # here with no page to extract -- gate finding L-8/L-4: this used
+            # to fall through the status checks below (none of which catch
+            # anything under 400) and get treated as a successful, empty-ish
+            # fetch.
+            return _failure(FailureMode.blocked, f"HTTP {response.status_code} (unresolved redirect)")
+        if response.status_code in _BLOCKED_STATUS_CODES or response.status_code >= 400:
             return _failure(FailureMode.blocked, f"HTTP {response.status_code}")
 
         try:

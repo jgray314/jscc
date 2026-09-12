@@ -82,7 +82,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (322 tests)
+tests/          pytest suite (326 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -126,7 +126,7 @@ The pre-commit scanner refuses commits that match email/phone patterns, an Anthr
 
 **Phase B → C gate.** A cold two-lens review (adversarial + outside-reviewer walkthrough) has run twice against the Phase B slices above; every critical, high, and medium finding is closed. What's left is low-severity and explicitly non-blocking: DLQ resolution isn't idempotent, the sanitizer's type contract stops at the `send_to_llm` boundary rather than extending further, and `fetch_status` always reports `ok`. None of it changes what's shipped or how it behaves for the cases this README documents.
 
-322 pytest cases.
+326 pytest cases.
 
 ## License
 

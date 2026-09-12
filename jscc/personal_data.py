@@ -59,7 +59,13 @@ from .paths import PACKAGE_ROOT
 # dot-separated tail. Covers ASCII, IDN local/domain parts, Punycode TLDs
 # (`.xn--p1ai`), and non-ASCII TLDs. False positives are the design point of
 # D7 — both egress points err toward blocking.
-EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().]{2,}")
+#
+# The TLD class excludes trailing sentence punctuation (`,;:!?'"` and closing
+# brackets) as well as `.`: none of it is TLD-valid, and without the exclusion
+# "reach me at dana@x.example," redacts the comma along with the address --
+# cosmetic, not a safety gap (the address itself never survives either way),
+# but a gate finding (L-10) worth closing since the fix is one character class.
+EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().,;:!?'\"\]\)}]{2,}")
 
 # Phone char class allows separator variants seen in the wild: dashes,
 # whitespace, parens (US area-code grouping), dots (international dotted

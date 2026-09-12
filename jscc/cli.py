@@ -28,7 +28,7 @@ from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_j
 from .fetcher import fetch_jd
 from .llm_client import UnknownModelPricingError, default_client
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
-from .models import Application, DLQEntry, FailureMode, Resolution
+from .models import Application, DLQEntry, FailureMode, FetchStatus, Resolution
 from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
 from .seed import DEFAULT_SEED, seed_synthetic
@@ -454,6 +454,20 @@ def eval_jd_extraction(
 # company inference. Same "(pasted)" spelling the company default already uses.
 PASTED_SOURCE = "(pasted)"
 
+# Gate finding M-6: `Application.fetch_status` defaulted to `ok` for every
+# creation path, including paste and DLQ resolution -- so the DB claimed
+# "fetched cleanly" about records that were never fetched. This is the one
+# `FailureMode` case with no corresponding `dlq_*` status: it is defined but
+# never actually produced by `fetcher.py` today (see FailureMode.other), so
+# there is nothing live to map it to. `.get(..., FetchStatus.manual)` covers
+# it defensively without inventing a status for a code path that doesn't run.
+_DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
+    FailureMode.paywall: FetchStatus.dlq_paywall,
+    FailureMode.blocked: FetchStatus.dlq_blocked,
+    FailureMode.timeout: FetchStatus.dlq_timeout,
+    FailureMode.extraction_failed: FetchStatus.dlq_extraction_failed,
+}
+
 
 def _extract_and_create_application(
     conn,
@@ -463,6 +477,7 @@ def _extract_and_create_application(
     company_override: str | None,
     fallback_company: str,
     fallback_title: str | None,
+    fetch_status: FetchStatus = FetchStatus.ok,
 ) -> tuple[str, Application]:
     """Shared extract-then-store path for both `ingest` (URL and --paste) and
     `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
@@ -472,11 +487,16 @@ def _extract_and_create_application(
     `--company` explicitly -- that's a deliberate correction and wins over
     anything inferred), then `ExtractedJD.company` (extraction found a name
     in the JD text itself), then `fallback_company` (a URL-domain guess or
-    "(pasted)", used only when extraction comes back null)."""
+    "(pasted)", used only when extraction comes back null).
+
+    `fetch_status` defaults to `ok` for the URL path, which really did fetch
+    cleanly; callers on the paste and DLQ-resolution paths pass the status
+    that actually describes how the raw text arrived."""
     extracted = extract_jd(raw_text, conn=conn)
     app = Application(
         source_url=source_url,
         source_raw=raw_text,
+        fetch_status=fetch_status,
         title=extracted.title or fallback_title or "(untitled)",
         company=company_override or extracted.company or fallback_company,
         # The whole extraction, not just the field the title comes from: D9
@@ -569,6 +589,7 @@ def ingest(
             source_url: str | None = url
             fallback_company_val = _company_from_url(url)
             fallback_title = result.title
+            fetch_status_val = FetchStatus.ok
         else:
             raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
             if not raw_text.strip():
@@ -577,6 +598,7 @@ def ingest(
             source_url = None
             fallback_company_val = "(pasted)"
             fallback_title = None
+            fetch_status_val = FetchStatus.manual
 
         try:
             app_id, app = _extract_and_create_application(
@@ -586,6 +608,7 @@ def ingest(
                 company_override=company,
                 fallback_company=fallback_company_val,
                 fallback_title=fallback_title,
+                fetch_status=fetch_status_val,
             )
         except ExtractionParseError as e:
             # A model that wraps its JSON in prose or a ``` fence is the
@@ -677,6 +700,21 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(EXIT_USAGE)
 
+        # Gate finding M-1: this used to skip the entry's current resolution
+        # entirely, so re-running the same command against an already-resolved
+        # entry created a second Application each time and re-stamped
+        # `resolved_at` -- three runs, three duplicate Applications, feeding
+        # straight into `funnel_counts`/`detect_stale`. Guarding on
+        # `entry.resolution` also means a `wont_fix` entry can no longer be
+        # converted to `manual_paste` from here; there is no "reopen" path,
+        # which is a real, undecided gap rather than an oversight in this fix.
+        if entry.resolution is not Resolution.unresolved:
+            click.echo(
+                f"DLQ entry {entry_id} is already resolved ({entry.resolution.value}); "
+                "not creating another application"
+            )
+            return
+
         fallback_company_val = (
             "(pasted)"
             if entry.source_url == PASTED_SOURCE
@@ -690,6 +728,9 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
                 company_override=None,
                 fallback_company=fallback_company_val,
                 fallback_title=None,
+                fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(
+                    entry.failure_mode, FetchStatus.manual
+                ),
             )
         except ExtractionParseError as e:
             # No new DLQ entry here -- one already exists and stays unresolved,
@@ -698,7 +739,7 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
             click.echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
-        resolve_dlq_entry(conn, entry_id, Resolution.manual_paste)
+        resolve_dlq_entry(conn, entry_id, Resolution.manual_paste, application_id=app_id)
         click.echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:
         conn.close()

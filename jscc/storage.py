@@ -606,13 +606,14 @@ def resolve_dlq_entry(
     entry_id: str,
     resolution: Resolution,
     now: datetime | None = None,
+    application_id: str | None = None,
 ) -> None:
     if resolution is Resolution.unresolved:
         raise ValueError("cannot resolve to 'unresolved'; use one of manual_paste, wont_fix")
     stamped_at = now if now is not None else _now()
     conn.execute(
-        "UPDATE dlq_entries SET resolution = ?, resolved_at = ? WHERE id = ?",
-        (resolution.value, _iso(stamped_at), entry_id),
+        "UPDATE dlq_entries SET resolution = ?, resolved_at = ?, application_id = ? WHERE id = ?",
+        (resolution.value, _iso(stamped_at), application_id, entry_id),
     )
     conn.commit()
 

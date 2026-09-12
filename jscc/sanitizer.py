@@ -122,6 +122,13 @@ def _utcnow_iso() -> str:
 # (Same false-positive class documented in `llm_client.py`.) Deliberately as
 # small as possible: `system` is app-authored too but is left in scope, since
 # redacting it is a no-op today and a carve-out is how holes start.
+#
+# TODO (gate L-3, documented not fixed): the exemption applies at *any*
+# nesting depth, including list elements under a control key -- `_redact_tree`
+# passes the parent `key` straight through recursive calls without resetting
+# it. A phone number nested under a `model` key would survive. No live
+# payload nests anything under `model` today, so there is nothing to exploit,
+# but the carve-out is broader than the comment above describes it.
 _CONTROL_KEYS = frozenset({"model"})
 
 
@@ -136,6 +143,12 @@ def _redact_tree(value: Any, key: str | None, danger_terms: list[str],
         return [_redact_tree(v, key, danger_terms, name_roles) for v in value]
     if isinstance(value, str) and key not in _CONTROL_KEYS:
         return redact(value, danger_terms=danger_terms, name_roles=name_roles)
+    # TODO (gate L-4, documented not fixed): non-string scalars (int, float,
+    # bool) pass through unredacted regardless of key or content -- the regex
+    # rules in `personal_data.py` only operate on strings. Honest given
+    # today's payload shapes (every field that could carry personal data is
+    # already a string), but worth a real check before a numeric field is
+    # ever added to a payload that reaches this function.
     return value
 
 
@@ -196,6 +209,12 @@ def sanitize_for_llm(
     if not isinstance(payload, dict):
         raise TypeError(f"payload must be a dict, got {type(payload).__name__}")
 
+    # TODO (gate L-4, documented not fixed): only the top-level key is
+    # checked. A caller building a nested payload with `contains_personal`
+    # set on an inner dict would sail through refusal (1) below and rely on
+    # redaction (2) alone -- which is why (2) is unconditional and does not
+    # depend on this flag being right. Still worth closing so the refusal
+    # signal means what its docstring says at any depth, not just the top.
     if bool(payload.get("contains_personal")):
         raise SanitizerRefusal(
             "payload flagged contains_personal (truthy); scrub upstream before "
