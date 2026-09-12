@@ -7,6 +7,29 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: third-pass findings, cont'd (H-6)
+
+From the same 9/12 third-pass review (full detail:
+`jscc-phase-b-rerun-gate.md`).
+
+- **H-6** - a transient Anthropic API error (rate limit, overload,
+  connection reset, timeout) propagated straight out of the SDK call with
+  no exception handling anywhere between it and `ingest`/`resolve-dlq` --
+  crashing with a raw traceback and, on `--paste`, losing the pasted text
+  for good, since nothing durable exists yet at the point of failure. This
+  is the most likely live-key failure the extraction stage has, and D6's
+  contract ("produces an Application or a DLQEntry, never crashes") held
+  for neither command. Both now catch `anthropic.APIError` (the SDK's
+  common base for all of the above) and route it to a `FailureMode.other`
+  DLQ entry, exit 3 -- `FailureMode.other` was defined and never produced
+  by anything until now (see M-6). `resolve-dlq` creates no second entry;
+  the one being resolved stays unresolved, same as the existing
+  `ExtractionParseError` handling. Whether `source_raw` should be persisted
+  before extraction is attempted, so a URL-path retry doesn't need a
+  re-fetch, is a separate open decision -- not changed here.
+
+332 tests (+2).
+
 ### Phase B -> C gate: third-pass findings (W-11, H-5, M-7, M-11, L-6)
 
 From the 9/12 third adversarial + peer review pass (full detail:

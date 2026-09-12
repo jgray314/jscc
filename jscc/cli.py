@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+import anthropic
 import click
 from pydantic import ValidationError
 
@@ -642,6 +643,27 @@ def ingest(
             click.echo(f"extraction failed; added to DLQ ({entry_id})")
             click.echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
+        except anthropic.APIError as e:
+            # Gate finding H-6: a transient API error (rate limit, overload,
+            # timeout, connection reset) propagated straight out of
+            # `_raw_extraction_call` uncaught -- crashing `ingest` with a raw
+            # traceback and, on `--paste`, losing the pasted text for good,
+            # since nothing durable exists yet at the point of failure. D6's
+            # contract is "produces an Application or a DLQEntry, never
+            # crashes"; this did neither, for the single most likely failure
+            # a live key introduces. Routed to `FailureMode.other`, which
+            # M-6's own comment notes is defined and never produced by
+            # `fetcher.py` -- there was already a slot waiting for exactly
+            # this. Retry is `resolve-dlq`, same as any other DLQ entry.
+            entry = DLQEntry(
+                source_url=source_url or PASTED_SOURCE,
+                failure_mode=FailureMode.other,
+                error_detail=str(e),
+            )
+            entry_id = create_dlq_entry(conn, entry)
+            click.echo(f"LLM API error; added to DLQ ({entry_id})")
+            click.echo(f"  {e}", err=True)
+            sys.exit(EXIT_QUEUED)
         except UnknownModelPricingError as e:
             # Deliberately *not* DLQ'd, unlike the reviewer's suggested shape.
             # An unpriced model is a misconfiguration, not a bad JD: every
@@ -756,6 +778,13 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             # which is the correct record. Creating a second would duplicate the
             # queue on every retry.
             click.echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
+            click.echo(f"  {e}", err=True)
+            sys.exit(EXIT_QUEUED)
+        except anthropic.APIError as e:
+            # Gate finding H-6, same class as ingest's -- see the comment
+            # there. No new DLQ entry: the one being resolved stays
+            # unresolved, which is already the correct record.
+            click.echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
             click.echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste, application_id=app_id)

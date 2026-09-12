@@ -1001,6 +1001,73 @@ def test_valid_json_of_the_wrong_shape_also_dlqs(
     assert len(entries) == 1
 
 
+# ---- transient API errors reach the DLQ, not a traceback (gate finding H-6) --
+#
+# H-2 fixed the *parse*-failure route to the DLQ; a transient transport
+# failure (rate limit, overload, connection reset, timeout) had no route at
+# all and propagated straight out of the SDK call, crashing `ingest` with a
+# raw traceback and, on `--paste`, losing the pasted text for good.
+
+
+class _RaisingClient:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def complete(self, *, model: str, system: str, user: str):
+        raise self._error
+
+
+def _api_connection_error() -> "anthropic.APIConnectionError":
+    import anthropic
+    import httpx2
+
+    return anthropic.APIConnectionError(
+        request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    )
+
+
+def test_transient_api_error_dlqs_instead_of_crashing(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _RaisingClient(_api_connection_error())
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, client)
+    _assert_queued(result)
+    apps, entries = _rows(tmp_path)
+    assert apps == []
+    assert len(entries) == 1
+    assert entries[0].failure_mode.value == "other"
+    assert entries[0].error_detail
+
+
+def test_transient_api_error_during_resolve_dlq_leaves_entry_unresolved(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same class as ingest's, one command over -- the entry being resolved
+    must stay unresolved (and un-duplicated) rather than crash uncaught."""
+    from jscc.models import Resolution
+
+    _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient("not json"))
+    _apps, entries = _rows(tmp_path)
+    entry_id = entries[0].id
+
+    monkeypatch.setattr(
+        "jscc.extraction.default_client", lambda: _RaisingClient(_api_connection_error())
+    )
+    result = runner.invoke(
+        cli,
+        [
+            "resolve-dlq", entry_id,
+            "--paste-text", "some jd text",
+            "--data-dir", str(tmp_path),
+        ],
+    )
+    _assert_queued(result)
+    _apps, entries = _rows(tmp_path)
+    assert _apps == []
+    assert len(entries) == 1
+    assert entries[0].resolution is Resolution.unresolved
+
+
 def test_pasted_dlq_entry_round_trips_through_resolve(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
