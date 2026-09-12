@@ -70,6 +70,13 @@ EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().,;:!?'\"\]\)}]{2,}")
 # Phone char class allows separator variants seen in the wild: dashes,
 # whitespace, parens (US area-code grouping), dots (international dotted
 # format). Real disambiguation from noise happens in the digit-count filter.
+#
+# Same false-positive class as a model id or a uv.lock hash (gate finding
+# L-18): a long enough requisition-ID digit run in a real fetched JD --
+# "Req ID 2026-04-118823" -- redacts as a phone number. Not fixed, on
+# purpose: D7's design point is to err toward blocking, and this repo has
+# no fetched-JD fixtures today to make it visible. It will be visible in a
+# live run's redacted `source_raw`.
 PHONE_RE = re.compile(r"\+?\d[\d\-\s().]{7,14}\d")
 
 # Anthropic API keys. Narrow on purpose: the `sk-ant-` prefix plus a long

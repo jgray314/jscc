@@ -7,6 +7,17 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: L-18 (documented, closes the gate's low-severity backlog)
+
+`PHONE_RE`'s digit-count heuristic redacts a real requisition-ID digit run
+("Req ID 2026-04-118823") as a phone number in fetched JD text -- same
+false-positive class as a model id or a `uv.lock` hash, and D7's stated
+design point is to err toward blocking, so this is documented rather than
+fixed. One-line note added at `PHONE_RE` in `jscc/personal_data.py` so a
+future reader of a redacted `source_raw` isn't left guessing where a req ID
+went. No test/behavior change. This closes the last open item across all
+three Phase B -> C gate passes.
+
 ### Phase B -> C gate: L-5 (documented), L-14 (fixed)
 
 From the third-pass review (full detail: `jscc-phase-b-rerun-gate.md`).
