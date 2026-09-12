@@ -49,14 +49,21 @@ def test_instrumented_records_call_end_to_end(conn: sqlite3.Connection) -> None:
 
 
 def test_instrumented_hashes_prompt_not_stores_it(conn: sqlite3.Connection) -> None:
+    """Gate finding L-1: asserting a plaintext substring is absent from a
+    64-char hex digest is vacuously true regardless of whether hashing
+    happened -- assert the exact expected hash instead, which is what
+    actually fails if the prompt were ever stored unhashed."""
+    import hashlib
+
     @instrumented("extraction")
     def fake_llm_call(conn, model, prompt):
         return LLMResult(output=None, input_tokens=1, output_tokens=1, cost_usd=0.0)
 
-    fake_llm_call(conn, "claude-haiku", "contains a real JD, not for storage")
+    prompt = "contains a real JD, not for storage"
+    fake_llm_call(conn, "claude-haiku", prompt)
 
     row = conn.execute("SELECT prompt_hash FROM llm_calls").fetchone()
-    assert "contains a real JD" not in row["prompt_hash"]
+    assert row["prompt_hash"] == hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
 
 def test_instrumented_records_multiple_calls_separately(conn: sqlite3.Connection) -> None:

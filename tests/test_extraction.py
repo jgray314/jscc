@@ -124,10 +124,18 @@ def test_extract_jd_without_conn_does_not_require_a_database() -> None:
 
 
 def test_extract_jd_prompt_hash_does_not_leak_raw_jd(conn: sqlite3.Connection) -> None:
+    """Gate finding L-1: asserting a plaintext substring is absent from a
+    64-char hex digest is vacuously true regardless of whether hashing
+    happened at all -- this text contains no PII, so the sanitizer passes it
+    through unchanged, and asserting the exact expected hash is what makes
+    the test able to fail (e.g. if the prompt were ever stored unhashed)."""
+    import hashlib
+
+    raw_jd = "a raw JD containing sensitive-looking text"
     fake = _FakeClient(_VALID_RESPONSE)
-    extract_jd("a raw JD containing sensitive-looking text", conn=conn, client=fake)
+    extract_jd(raw_jd, conn=conn, client=fake)
     row = conn.execute("SELECT prompt_hash FROM llm_calls").fetchone()
-    assert "sensitive-looking" not in row["prompt_hash"]
+    assert row["prompt_hash"] == hashlib.sha256(raw_jd.encode("utf-8")).hexdigest()
 
 
 # ---- the ledger records billed calls that fail to parse (gate finding M2) ---

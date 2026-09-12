@@ -7,6 +7,52 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase B -> C gate: low-severity backlog (L-1, L-2, L-9, L-11 to L-13, L-15 to L-17)
+
+From both reviews (full detail: `jscc-phase-b-rerun-gate.md`).
+
+**Fixed:**
+
+- **L-1** - two "does not leak" tests asserted a plaintext substring was
+  absent from a 64-char SHA-256 hex digest -- vacuously true regardless of
+  whether hashing happened at all. Now assert the exact expected hash.
+- **L-11** - `resolve-dlq` didn't catch `UnknownModelPricingError` the way
+  `ingest` does, though both funnel through the same helper; the same
+  misconfiguration reached the caller as a raw traceback there instead of a
+  clean exit-2 message.
+- **L-12** - `resolve-dlq` had no `--company` override; `ingest --paste`
+  does, for the same "the model got the company wrong" case, and both
+  exist to produce the same `Application` shape through the same helper.
+- **L-13** - `redact()` ran the danger-term pass before `name_roles`, so a
+  name containing a danger-list word (e.g. a surname matching a listed
+  term) lost its `[contact:role]` tag silently -- the name was still
+  redacted (safety was never the gap), just not the way `name_roles`
+  documents. Swapped the order.
+- **L-16** - a dead `... if False else ...` branch in
+  `test_readme_claims.py`. Removed.
+- **L-17** - `test_resolve_dlq_is_idempotent`'s docstring named
+  `resolved_at` re-stamping as part of the original bug with no assertion
+  checking it; already closed as part of the M-9 pass's docstring rewrite.
+
+**Documented, not changed (accepted residuals or scope corrections):**
+
+- **L-2** - the DNS TOCTOU between `_check_url`'s resolution check and
+  `requests`'s own connection is a real, reasoned-acceptable residual on a
+  personal CLI; D6 previously named only the Playwright residual, implying
+  the rest was airtight. Named alongside it now.
+- **L-9** - D7 M4 said "logs by ID, never by content" unqualified; the CLI
+  defensibly echoes `app.title`/`source_url` for an interactive tool.
+  Qualified the principle in `design-principles.md` rather than changing
+  CLI behavior.
+- **L-15** - three docstrings/help strings still described the pre-B2b
+  world: `extraction.py`'s "blocked until a key is set", `eval
+  jd_extraction --help`'s "0/15" (there are 33 cases, and the real reason
+  CI doesn't gate on it has changed), and `costs`'s "empty until Phase B's
+  first `@instrumented` call lands" (it landed in B2). All three rewritten
+  to describe the current state.
+
+345 tests (+3).
+
 ### Phase B -> C gate: fix M-12 (`eval --record` can lose or clobber captures)
 
 From the same 9/12 third-pass review (full detail:

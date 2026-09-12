@@ -112,6 +112,22 @@ def test_name_roles_match_case_insensitively() -> None:
     assert "[contact:recruiter]" in out
 
 
+def test_name_role_survives_a_danger_term_inside_the_name() -> None:
+    """Gate finding L-13: `name_roles` used to run *after* the danger-term
+    pass. A surname that happens to match a danger-list entry got rewritten
+    to a danger token first, so it no longer matched the full-name key by
+    the time `name_roles` ran -- the name was still gone (safety was never
+    the gap), but the `[contact:recruiter]` tag was silently lost instead of
+    produced. Running name substitution first closes that."""
+    out = redact(
+        "Spoke with Dana Reyes today.",
+        danger_terms=["reyes"],
+        name_roles={"Dana Reyes": "recruiter"},
+    )
+    assert "Dana Reyes" not in out
+    assert "[contact:recruiter]" in out
+
+
 def test_redacts_all_three_classes_in_one_pass() -> None:
     text = f"Dana Reyes, {RECRUITER_EMAIL}, {RECRUITER_PHONE}, via ExampleCorp"
     out = redact(

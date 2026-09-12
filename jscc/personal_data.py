@@ -237,14 +237,23 @@ def redact(
     scanner *blocks* it. That is deliberate. Blocking is the half that matters
     for a key -- a committed key is the damage -- while the sanitizer's contract
     is to rewrite unconditionally and never refuse work it can make safe.
+
+    Gate finding L-13: `name_roles` now runs before the danger-term pass, not
+    after. A name that happens to contain a listed danger term (a surname
+    like "Reyes" matching a danger-list entry `reyes`) used to hit the danger
+    pass first and become `Dana [redacted]`, which no longer matches
+    `name_roles`'s full-name key -- the name was still gone (safety was never
+    the gap), but the `[contact:recruiter]` tag `name_roles` exists to
+    produce was silently lost instead. Running name substitution first means
+    a term inside an already-tagged name has nothing left to match.
     """
     if not text:
         return text
     out = CREDENTIAL_RE.sub(CREDENTIAL_TOKEN, text)
     out = EMAIL_RE.sub(EMAIL_TOKEN, out)
     out = _redact_phones(out)
-    for term in danger_terms:
-        out = _replace_case_insensitive(out, term, DANGER_TOKEN)
     for name, role in (name_roles or {}).items():
         out = _replace_case_insensitive(out, name, f"[contact:{role}]")
+    for term in danger_terms:
+        out = _replace_case_insensitive(out, term, DANGER_TOKEN)
     return out

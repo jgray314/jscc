@@ -37,8 +37,7 @@ def test_readme_reports_the_real_test_count(request: pytest.FixtureRequest) -> N
     if any(Path(a.split("::")[0]).is_file() for a in args):
         pytest.skip("specific files named; collected count is a subset")
 
-    collected = config.pluginmanager.get_plugin("session").testscollected \
-        if False else request.session.testscollected
+    collected = request.session.testscollected
 
     match = _COUNT_RE.search(README.read_text(encoding="utf-8"))
     assert match, "README no longer states a test count in the expected form"

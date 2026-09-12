@@ -886,6 +886,95 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
     assert resolved_entry.application_id == apps[0].id
 
 
+def test_resolve_dlq_company_override(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding L-12: `resolve-dlq` had no `--company` override even
+    though it funnels through the same helper `ingest --paste`'s does, which
+    documents the override as its highest-precedence source."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.models import DLQEntry, FailureMode
+    from jscc.mode import Mode
+    from jscc.storage import create_dlq_entry, list_applications, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/9",
+            failure_mode=FailureMode.blocked,
+            error_detail="HTTP 403",
+        ),
+    )
+    conn.close()
+
+    result = runner.invoke(
+        cli,
+        [
+            "resolve-dlq", entry_id,
+            "--paste-text", "Senior Engineer at Rift Cloud. " * 20,
+            "--company", "Corrected Co",
+            "--data-dir", str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert apps[0].company == "Corrected Co"
+
+
+def test_resolve_dlq_unpriced_model_is_a_usage_error_not_a_crash(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding L-11: `ingest` already turns `UnknownModelPricingError`
+    into a clean exit-2 configuration message; `resolve-dlq` funnels through
+    the same helper but only caught `ExtractionParseError`, so the same
+    misconfiguration reached the caller as a raw traceback."""
+    from jscc.llm_client import UnknownModelPricingError
+    from jscc.models import DLQEntry, FailureMode
+    from jscc.mode import Mode
+    from jscc.storage import create_dlq_entry, list_applications, open_for_mode
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/10",
+            failure_mode=FailureMode.blocked,
+            error_detail="HTTP 403",
+        ),
+    )
+    conn.close()
+
+    class _UnpricedClient:
+        def complete(self, *, model: str, system: str, user: str):
+            raise UnknownModelPricingError(f"no cost rate on file for model {model!r}")
+
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _UnpricedClient())
+    result = runner.invoke(
+        cli,
+        [
+            "resolve-dlq", entry_id,
+            "--paste-text", "some jd text",
+            "--data-dir", str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    assert "configuration error" in result.output
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    apps = list_applications(conn)
+    conn.close()
+    assert apps == []
+
+
 def test_resolve_dlq_is_idempotent(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

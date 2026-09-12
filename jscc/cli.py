@@ -364,8 +364,11 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
 def costs(data_dir: Path) -> None:
     """Print per-feature LLM cost/latency summary for the active mode.
 
-    Empty until Phase B's first `@instrumented` call lands (D5) — this ledger
-    exists ahead of that call on purpose, so nothing is uninstrumented from day one.
+    Empty for a mode that has made no LLM calls yet (gate finding L-15: this
+    used to say "empty until Phase B's first `@instrumented` call lands" --
+    that call landed in B2, so it's been possible for this to be non-empty
+    since then). The ledger exists ahead of Phase B's first real call on
+    purpose (D5), so nothing has ever been uninstrumented.
     """
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
@@ -429,12 +432,15 @@ def eval_group() -> None:
 def eval_jd_extraction(
     data_dir: Path, record: bool, replay: bool, min_pass_rate: float
 ) -> None:
-    """Run the JD-extraction eval suite against the current `extract_jd`.
+    """Run the JD-extraction eval suite (33 cases) against the current `extract_jd`.
 
     Exits non-zero when the pass *rate* falls below `--min-pass-rate`, which
-    defaults to `PASS_THRESHOLD`. Not a CI gate yet: against the stub client
-    every case fails, so wiring it in today would gate on 0/15 rather than on
-    the prompt.
+    defaults to `PASS_THRESHOLD`. Not a CI gate yet (gate finding L-15: this
+    used to say wiring it in "would gate on 0/15" -- there are 33 cases, and
+    the real reason is different now): without live traffic there's nothing
+    for CI to run against beyond the fixed `--replay` recording, so gating
+    today would gate on a frozen fixture's response to the prompt that
+    produced it, not on the prompt's judgment against new input.
 
     Calls are recorded to the `llm_calls` ledger under the `extraction_eval`
     feature (D5), separate from production `extraction` traffic so prompt
@@ -809,13 +815,22 @@ def dlq_list(data_dir: Path, show_all: bool) -> None:
     help="Pasted JD text to use in place of the failed fetch.",
 )
 @click.option(
+    "--company",
+    default=None,
+    help=(
+        "Company name override, same precedence as ingest --paste's (gate "
+        "finding L-12: this path funnels through the same helper but had no "
+        "way to reach the correction it documents as highest-precedence)."
+    ),
+)
+@click.option(
     "--data-dir",
     type=click.Path(path_type=Path),
     default=DEFAULT_DATA_DIR,
     show_default=True,
     help="Directory holding mode DBs.",
 )
-def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
+def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: Path) -> None:
     """Resolve a DLQ entry by pasting the JD text manually (D6 escape hatch).
 
     Creates the Application the original fetch couldn't, then marks the
@@ -860,7 +875,7 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
                 conn,
                 raw_text=paste_text,
                 source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
-                company_override=None,
+                company_override=company,
                 fallback_company=fallback_company_val,
                 fallback_title=None,
                 fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(
@@ -881,6 +896,12 @@ def resolve_dlq(entry_id: str, paste_text: str, data_dir: Path) -> None:
             click.echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
             click.echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
+        except UnknownModelPricingError as e:
+            # Gate finding L-11: `ingest` already turns this into a clean
+            # exit-2 configuration message; this path funnels through the
+            # same helper and used to let it out as a raw traceback instead.
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste, application_id=app_id)
         click.echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:
