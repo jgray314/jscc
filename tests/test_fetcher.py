@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import io
+import socket
 from unittest.mock import Mock, patch
 
 import pytest
@@ -464,6 +466,90 @@ def test_a_redirect_is_never_followed_below_the_guard(monkeypatch: pytest.Monkey
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
     assert _METADATA_IP in result.error_detail
+
+
+# ---- DNS-rebinding pin (gate finding G1, Phase C->D pass) -------------------
+#
+# `_check_url` and the real connection used to resolve the host independently.
+# A record with a short enough TTL can answer the check with a public address
+# and the connection, moments later, with a private one -- classic DNS
+# rebinding. `_pinned_resolution` closes it by forcing any lookup for that
+# host, for the duration of the one request, to return exactly what
+# `_check_url` already validated.
+
+
+def test_pinned_resolution_overrides_a_rebinding_answer(monkeypatch: pytest.MonkeyPatch):
+    """Simulates the rebind directly at the resolver level: the "live"
+    resolver (what a real second DNS query would return by connection time)
+    disagrees with the address `_check_url` validated. Inside the pin, the
+    live answer must not be reachable; outside it, the live resolver is
+    restored rather than left globally patched.
+    """
+    from jscc.fetcher import _pinned_resolution
+
+    rebinding_address = "198.51.100.9"
+
+    def live_getaddrinfo(host, port, *args, **kwargs):
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (rebinding_address, port))
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", live_getaddrinfo)
+
+    # Without a pin in effect, this is what the connection would actually get.
+    assert socket.getaddrinfo("example.com", 443)[0][4][0] == rebinding_address
+
+    with _pinned_resolution("example.com", [_PUBLIC_IP]):
+        pinned = socket.getaddrinfo("example.com", 443)
+    assert pinned[0][4][0] == _PUBLIC_IP
+
+    # Restored afterward -- the patch does not leak past the block.
+    assert socket.getaddrinfo("example.com", 443)[0][4][0] == rebinding_address
+
+
+def test_pinned_resolution_leaves_other_hosts_untouched(monkeypatch: pytest.MonkeyPatch):
+    """The pin is keyed on hostname -- a lookup for a different host during
+    the same block must reach the underlying resolver, not the pinned
+    address. Stubs the underlying resolver too, so this doesn't depend on
+    real DNS being reachable from the test runner."""
+    from jscc.fetcher import _pinned_resolution
+
+    other_address = "203.0.113.7"
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **kw: [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (other_address, port))
+        ],
+    )
+    with _pinned_resolution("example.com", [_PUBLIC_IP]):
+        other = socket.getaddrinfo("other.example.org", 443)
+    assert other[0][4][0] == other_address
+
+
+def test_get_guarded_pins_resolution_for_every_request(monkeypatch: pytest.MonkeyPatch):
+    """Behavioural version: each request `_get_guarded` sends -- including a
+    redirect hop, which is where this class of bug tends to hide -- must go
+    out inside a pin keyed on that hop's own checked host and addresses, not
+    just the first one."""
+    calls: list[tuple[str, list[str]]] = []
+
+    @contextlib.contextmanager
+    def fake_pin(host: str, addresses: list[str]):
+        calls.append((host, list(addresses)))
+        yield
+
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP])
+    monkeypatch.setattr("jscc.fetcher._pinned_resolution", fake_pin)
+
+    responses = iter(
+        [_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)]
+    )
+    with patch("jscc.fetcher.requests.get", side_effect=lambda *a, **kw: next(responses)):
+        result = fetch_jd("https://example.com/jobs/1")
+
+    assert result.ok is True
+    assert calls == [("example.com", [_PUBLIC_IP]), ("example.com", [_PUBLIC_IP])]
 
 
 # ---- decoding ---------------------------------------------------------------

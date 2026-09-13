@@ -11,7 +11,10 @@ network- or content-shaped failures -- only for programmer error.
 
 Requests leave here through `_get_guarded`, which enforces an http(s)
 scheme allowlist, rejects hosts resolving to non-public addresses,
-re-checks every redirect hop, and caps the body size.
+pins the actual connection to the addresses it just checked (closing a
+DNS-rebinding gap a rating of "reasoned not exploited" once missed --
+see `_pinned_resolution`), re-checks every redirect hop, and caps the
+body size.
 Known residual: the Playwright fallback is handed an already-checked URL,
 but the browser then follows its own redirects without those guards. It is
 off by default and opt-in per config.
@@ -19,6 +22,7 @@ off by default and opt-in per config.
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import re
 import socket
@@ -67,13 +71,25 @@ def _resolve_host(host: str) -> list[str]:
     return [info[4][0] for info in socket.getaddrinfo(host, None)]
 
 
-def _check_url(url: str) -> None:
+def _check_url(url: str) -> tuple[str, list[str]]:
     """Raise `_UrlRejected` unless `url` is a public http(s) destination.
 
     Checks the *resolved* addresses, not just the literal host: a hostname
     whose A record points into the link-local metadata range is the same
     attack as the address literal, and a scheme allowlist alone would wave
     it through.
+
+    Returns `(host, addresses)` -- the caller pins the actual request to
+    exactly these addresses (see `_pinned_resolution`). Checking here and
+    letting `requests` re-resolve independently for the real connection is a
+    DNS-rebinding gap: a short-TTL record can answer this lookup with a
+    public address and the connection's own lookup, moments later, with the
+    cloud instance-metadata address or any other private one (same false
+    positive as the top-of-file comment; described here rather than quoted
+    for the same scanner reason). Gate finding G1 (Phase C->D pass) found
+    this in production, contradicting an earlier pass's "reasoned not
+    exploited" rating (L-2) of the same gap -- the two resolutions were
+    never actually pinned together.
     """
     parts = urlsplit(url)
     scheme = parts.scheme.lower()
@@ -90,6 +106,41 @@ def _check_url(url: str) -> None:
         ip = ipaddress.ip_address(address.split("%")[0])
         if not ip.is_global or ip.is_multicast:
             raise _UrlRejected(f"{host} resolves to non-public address {address}")
+    return host, addresses
+
+
+@contextlib.contextmanager
+def _pinned_resolution(host: str, addresses: list[str]):
+    """Force any DNS lookup for `host` to return exactly `addresses` for the
+    duration of the block.
+
+    `urllib3` (under `requests`) resolves the host itself via
+    `socket.getaddrinfo` when it opens the connection -- a second, entirely
+    independent lookup from the one `_check_url` already validated. Without
+    this, a rebinding-capable DNS answer could pass `_check_url` and still
+    hand the real connection a different, unchecked address. Patching the
+    module-level `socket.getaddrinfo` (rather than something urllib3-specific)
+    works regardless of urllib3's internal connection-pooling API and is
+    restored in `finally` even if the request raises.
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def _pinned(node, port, family=0, type=0, proto=0, flags=0):
+        if node != host:
+            return real_getaddrinfo(node, port, family, type, proto, flags)
+        results = []
+        for address in addresses:
+            is_v6 = ":" in address
+            fam = socket.AF_INET6 if is_v6 else socket.AF_INET
+            sockaddr = (address, port or 0, 0, 0) if is_v6 else (address, port or 0)
+            results.append((fam, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", sockaddr))
+        return results
+
+    socket.getaddrinfo = _pinned
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = real_getaddrinfo
 
 
 def _get_guarded(url: str, timeout: float) -> requests.Response:
@@ -98,11 +149,14 @@ def _get_guarded(url: str, timeout: float) -> requests.Response:
     `allow_redirects=False` plus an explicit loop is the point: requests
     would otherwise follow a 302 into a private address without the guard
     ever seeing the second URL, which is the usual way this hole is reached.
+    Each hop's request also runs inside `_pinned_resolution` so the
+    connection can't resolve to anything other than what was just checked.
     """
     current = url
     for _ in range(_MAX_REDIRECTS + 1):
-        _check_url(current)
-        response = requests.get(current, timeout=timeout, allow_redirects=False, stream=True)
+        host, addresses = _check_url(current)
+        with _pinned_resolution(host, addresses):
+            response = requests.get(current, timeout=timeout, allow_redirects=False, stream=True)
         if not response.is_redirect:
             return response
         location = response.headers.get("location", "")
