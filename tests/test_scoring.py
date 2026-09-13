@@ -122,6 +122,28 @@ def test_score_fit_raises_on_json_missing_required_field() -> None:
         score_fit(_extracted(), "raw jd", _profile(), client=fake)
 
 
+@pytest.mark.parametrize(
+    "bad_score_json",
+    [
+        '{"score": -40, "rationale": "x"}',
+        '{"score": 9001, "rationale": "x"}',
+        '{"score": NaN, "rationale": "x"}',
+        '{"score": Infinity, "rationale": "x"}',
+    ],
+)
+def test_score_fit_raises_on_out_of_contract_score(bad_score_json: str) -> None:
+    """Gate finding G2 (Phase C->D pass): the prompt contracts `score` to
+    0-100, but nothing checked that against a live response -- a model
+    returning NaN, Infinity, or a value outside the range used to parse
+    cleanly into `FitResult` and persist silently. `json.loads` accepts all
+    four of these tokens by default; each must now surface as a parse
+    failure like any other malformed response, not a stored garbage value.
+    """
+    fake = _FakeClient(bad_score_json)
+    with pytest.raises(ScoringParseError):
+        score_fit(_extracted(), "raw jd", _profile(), client=fake)
+
+
 # ---- instrumentation (D5) ---------------------------------------------------------
 
 

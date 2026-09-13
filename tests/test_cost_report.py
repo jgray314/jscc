@@ -20,6 +20,7 @@ def _call(
     output_tokens: int = 0,
     cost_usd: float = 0.0,
     latency_ms: float = 100.0,
+    error: str | None = None,
 ) -> LLMCallRecord:
     return LLMCallRecord(
         feature=feature,
@@ -29,6 +30,7 @@ def _call(
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         latency_ms=latency_ms,
+        error=error,
     )
 
 
@@ -66,6 +68,31 @@ def test_summarize_costs_groups_by_feature_and_computes_percentiles() -> None:
     scoring = summaries["scoring"]
     assert scoring.calls == 1
     assert scoring.total_cost_usd == pytest.approx(0.50)
+
+
+def test_summarize_costs_excludes_failure_marker_rows() -> None:
+    """Gate finding G3: a row with `error` set carries zeroed usage by
+    construction (the call raised before real figures came back) -- folding
+    it into an average would understate cost/latency for calls that actually
+    completed, the same reason an unpriced model is skipped in
+    `find_cost_regressions`."""
+    calls = [
+        _call(feature="scoring", cost_usd=0.50, latency_ms=300.0),
+        _call(feature="scoring", cost_usd=0.0, latency_ms=5.0, error="ConnectionError: reset"),
+    ]
+    summaries = {s.feature: s for s in summarize_costs(calls)}
+    assert summaries["scoring"].calls == 1
+    assert summaries["scoring"].total_cost_usd == pytest.approx(0.50)
+
+
+def test_summarize_costs_omits_a_feature_whose_only_calls_all_failed() -> None:
+    calls = [_call(feature="scoring", error="TimeoutError: read timed out")]
+    assert summarize_costs(calls) == []
+
+
+def test_find_cost_regressions_skips_failure_marker_rows() -> None:
+    call = _call(model=EXTRACTION_MODEL, cost_usd=0.0, error="ConnectionError: reset")
+    assert find_cost_regressions([call]) == []
 
 
 def test_find_cost_regressions_skips_calls_with_no_published_rate() -> None:

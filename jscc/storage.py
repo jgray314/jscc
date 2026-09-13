@@ -64,7 +64,7 @@ class ModeMismatchError(RuntimeError):
     """A DB stamped with one mode is being opened under a different mode."""
 
 
-DB_SCHEMA_VERSION = 3
+DB_SCHEMA_VERSION = 4  # bumped for llm_calls.error (gate finding G3, Phase C->D pass)
 
 SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS applications (
@@ -142,7 +142,8 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     output_tokens INTEGER NOT NULL,
     cost_usd REAL NOT NULL,
     latency_ms REAL NOT NULL,
-    ts TEXT NOT NULL
+    ts TEXT NOT NULL,
+    error TEXT
 );
 
 CREATE INDEX IF NOT EXISTS ix_llm_calls_feature ON llm_calls(feature);
@@ -631,8 +632,8 @@ def record_llm_call(conn: sqlite3.Connection, record: LLMCallRecord) -> str:
         """
         INSERT INTO llm_calls (
             id, feature, model, prompt_hash,
-            input_tokens, output_tokens, cost_usd, latency_ms, ts
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            input_tokens, output_tokens, cost_usd, latency_ms, ts, error
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record.id,
@@ -644,6 +645,7 @@ def record_llm_call(conn: sqlite3.Connection, record: LLMCallRecord) -> str:
             record.cost_usd,
             record.latency_ms,
             _iso(record.ts),
+            record.error,
         ),
     )
     conn.commit()
@@ -663,6 +665,7 @@ def list_llm_calls(conn: sqlite3.Connection) -> list[LLMCallRecord]:
             cost_usd=r["cost_usd"],
             latency_ms=r["latency_ms"],
             ts=_parse_dt(r["ts"]),
+            error=r["error"],
         )
         for r in rows
     ]

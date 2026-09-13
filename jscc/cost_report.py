@@ -59,9 +59,20 @@ _REGRESSION_ABSOLUTE_FLOOR_USD = 0.0005
 
 
 def summarize_costs(calls: list[LLMCallRecord]) -> list[FeatureCostSummary]:
-    """One row per feature (D5's cost-isolation label), sorted by feature name."""
+    """One row per feature (D5's cost-isolation label), sorted by feature name.
+
+    Rows with `error` set (gate finding G3: a call that raised mid-request,
+    possibly after billing, before any real usage figures were returned) are
+    excluded here the same way an unpriced model is excluded from regression
+    detection below -- their zeroed cost/latency isn't a real measurement, so
+    averaging it in would understate both. `list_llm_calls` still returns
+    them; a reader who needs failed-attempt visibility reads the ledger
+    directly rather than through this summary.
+    """
     by_feature: dict[str, list[LLMCallRecord]] = {}
     for call in calls:
+        if call.error is not None:
+            continue
         by_feature.setdefault(call.feature, []).append(call)
 
     summaries: list[FeatureCostSummary] = []
@@ -88,6 +99,11 @@ def find_cost_regressions(calls: list[LLMCallRecord]) -> list[CostRegressionFind
     """
     findings: list[CostRegressionFinding] = []
     for call in calls:
+        if call.error is not None:
+            # Zeroed usage by construction (gate finding G3) -- nothing to
+            # compare against a rate; would trivially match at 0 == 0 anyway,
+            # but skip explicitly so that stays true if that ever changes.
+            continue
         try:
             input_rate, output_rate = rates_for(call.model)
         except UnknownModelPricingError:

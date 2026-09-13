@@ -77,3 +77,45 @@ def test_instrumented_records_multiple_calls_separately(conn: sqlite3.Connection
     records = list_llm_calls(conn)
     assert len(records) == 2
     assert records[0].id != records[1].id
+
+
+def test_instrumented_records_a_failure_row_when_the_call_raises(
+    conn: sqlite3.Connection,
+) -> None:
+    """Gate finding G3 (Phase C->D pass): a network fault mid-call used to
+    leave no ledger row at all -- not even a marker -- because the row was
+    only ever written after `fn` returned normally. Tokens may already be
+    billed on the provider's side by the time a connection reset or
+    read-timeout surfaces, so the gap was exactly the "billed but unlogged"
+    class this ledger exists to catch.
+    """
+
+    @instrumented("scoring")
+    def flaky_llm_call(conn, model, prompt):
+        raise ConnectionError("connection reset by peer")
+
+    with pytest.raises(ConnectionError, match="connection reset"):
+        flaky_llm_call(conn, "claude-sonnet", "a prompt that never got a response")
+
+    records = list_llm_calls(conn)
+    assert len(records) == 1
+    record = records[0]
+    assert record.feature == "scoring"
+    assert record.model == "claude-sonnet"
+    assert record.input_tokens == 0
+    assert record.output_tokens == 0
+    assert record.cost_usd == 0.0
+    assert record.error is not None
+    assert "ConnectionError" in record.error
+    assert "connection reset" in record.error
+
+
+def test_instrumented_success_leaves_error_unset(conn: sqlite3.Connection) -> None:
+    """The common path must not regress into always stamping something."""
+
+    @instrumented("extraction")
+    def fake_llm_call(conn, model, prompt):
+        return LLMResult(output=None, input_tokens=1, output_tokens=1, cost_usd=0.0)
+
+    fake_llm_call(conn, "claude-haiku", "prompt")
+    assert list_llm_calls(conn)[0].error is None

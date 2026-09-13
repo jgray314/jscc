@@ -136,9 +136,17 @@ class ExtractedJD(BaseModel):
 class FitResult(BaseModel):
     """Structured output of `score_fit` (D9 step 2). The contract Slice C2's
     prompt is written against and the eval suite (Slice C1) grades against.
+
+    `score` is bounded 0-100 per the scoring prompt's own contract (gate
+    finding G2, Phase C->D pass): `json.loads` accepts `NaN`/`Infinity` by
+    default, and nothing upstream of this model checked the range against a
+    live model's response -- only `evals.py`'s fixture grading did, which
+    never runs against a live `score` CLI call. `Field(ge=0, le=100)` rejects
+    NaN/Infinity too, since every comparison against either is False and the
+    bound check fails either way -- verified directly, not assumed.
     """
 
-    score: float
+    score: float = Field(ge=0, le=100)
     rationale: str
 
 
@@ -147,6 +155,17 @@ class LLMCallRecord(BaseModel):
 
     Exists ahead of any real LLM call (Phase B) on purpose: instrumentation
     is Phase A foundation so every call from B2 onward is caught from day one.
+
+    `error`, when set, marks a row written for a call that raised before
+    `LLMResult` could be built -- a connection reset or read-timeout mid-call,
+    possibly after Anthropic already generated/billed tokens (gate finding
+    G3, Phase C->D pass). `input_tokens`/`output_tokens`/`cost_usd` are 0 on
+    such a row because the real figures were never returned; the point of the
+    row is that the attempt is visible at all in a ledger whose stated
+    purpose is cost transparency, not that its cost is known. M2 (Phase B)
+    covers the sibling case -- a billed call that returns cleanly and then
+    fails to *parse* -- which already gets real token counts, since the
+    response was fully received.
     """
 
     id: str = Field(default_factory=_new_id)
@@ -158,3 +177,4 @@ class LLMCallRecord(BaseModel):
     cost_usd: float
     latency_ms: float
     ts: datetime = Field(default_factory=_now)
+    error: str | None = None

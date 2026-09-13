@@ -51,13 +51,42 @@ def instrumented(feature: str) -> Callable[[Callable[..., LLMResult]], Callable[
             conn: sqlite3.Connection, model: str, prompt: str, *args: Any, **kwargs: Any
         ) -> Any:
             start = time.perf_counter()
-            result = fn(conn, model, prompt, *args, **kwargs)
+            prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            try:
+                result = fn(conn, model, prompt, *args, **kwargs)
+            except Exception as e:
+                # `fn` owns the actual network call; if it raises, tokens may
+                # already be billed on the provider's side (a connection reset
+                # or read-timeout after the response started generating) but
+                # there is no `LLMResult` to read real figures from. Gate
+                # finding G3 (Phase C->D pass): previously this wrote nothing
+                # at all, so the ledger -- whose stated purpose is cost
+                # transparency -- had no record an attempt was even made.
+                # Record what's known (zeroed usage, the error) and re-raise
+                # unchanged; callers' existing except-and-route-to-DLQ
+                # behavior is untouched.
+                latency_ms = (time.perf_counter() - start) * 1000
+                record_llm_call(
+                    conn,
+                    LLMCallRecord(
+                        feature=feature,
+                        model=model,
+                        prompt_hash=prompt_hash,
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost_usd=0.0,
+                        latency_ms=latency_ms,
+                        ts=_now(),
+                        error=f"{type(e).__name__}: {e}",
+                    ),
+                )
+                raise
             latency_ms = (time.perf_counter() - start) * 1000
 
             record = LLMCallRecord(
                 feature=feature,
                 model=model,
-                prompt_hash=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                prompt_hash=prompt_hash,
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
                 cost_usd=result.cost_usd,
