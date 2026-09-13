@@ -7,6 +7,88 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Phase C -> D gate: G1 (SSRF pin), G2 (score bounds), G3 (failure-marker ledger row)
+
+A cold two-lens review (adversarial + outside-reviewer walkthrough) ran
+against everything Phase C shipped -- the first review pass to touch
+`scoring.py`, `cost_report.py`, or `evals/fit_scoring/`. `/backlog-prune`
+ran first, per the gate skill's own step 0 (see `jscc.md`'s backlog and
+"Open decisions" sections for that disposition).
+
+- **G1 (CONTRADICTS-L-2) -- fixed.** The fetcher's URL guard checked one DNS
+  resolution (`_check_url`) but let `requests` perform its own, independent
+  resolution to actually connect -- a short-TTL DNS record could answer the
+  check with a public address and the real connection, moments later, with
+  a private or cloud-metadata one. An earlier gate pass (L-2) rated this
+  "reasoned not exploited" and closed it by documenting the residual in D6;
+  this pass re-examined it with a concrete attack path and found the "not
+  exploited" call didn't hold. `_check_url` now returns the validated
+  `(host, addresses)`, and `_get_guarded` wraps every request -- including
+  each redirect hop -- in a new `_pinned_resolution` context manager that
+  forces any DNS lookup for that host, for the duration of the request, to
+  return exactly what was already checked. Verified with a test that
+  simulates a "live" resolver answering a different (rebinding) address and
+  confirms the pinned block still connects to the validated one, with the
+  patch restored (not left globally active) once the block exits.
+  `docs/design-principles.md`'s D6 section rewritten to say "fixed, not just
+  documented" for this gap specifically, naming the earlier rating as wrong
+  rather than quietly dropping it.
+- **G2 (NEW) -- fixed.** `FitResult.score` had no range or finite-value
+  check, even though the scoring prompt contracts it to 0-100. `json.loads`
+  accepts `NaN`/`Infinity` by default, so a live model response containing
+  either -- or any out-of-contract value like `-40` or `9001` -- parsed
+  cleanly and would have persisted silently. `score: float = Field(ge=0,
+  le=100)` closes it; verified directly (not assumed) that the range check
+  also rejects `NaN`/`Infinity`, since every comparison against either is
+  `False`.
+- **G3 (NEW, extends M2's class) -- fixed.** M2 (Phase B) covers a billed
+  call that returns cleanly and then fails to *parse*. This is the sibling
+  gap: a network fault (connection reset, read-timeout) raised *during* the
+  call, possibly after tokens were already generated/billed on the
+  provider's side, left no ledger row at all -- not even a failure marker --
+  because `instrumented`'s wrapper only wrote a row after the wrapped call
+  returned normally. `llm_calls` gained a nullable `error` column
+  (`DB_SCHEMA_VERSION` 3 -> 4; this project has no live migration path
+  pre-v1, per the existing schema-version convention). `instrumented` now
+  catches an exception from the wrapped call, writes a marker row (zeroed
+  usage, `error` set to the exception's type and message, real latency),
+  and re-raises unchanged -- callers' existing DLQ-routing behavior for
+  these exceptions is untouched. `summarize_costs`/`find_cost_regressions`
+  exclude `error`-set rows from cost/latency math, the same treatment an
+  unpriced model already gets, since a zeroed row isn't a real measurement;
+  `list_llm_calls` still returns them for a reader who wants failed-attempt
+  visibility.
+- **G4 (NEW) -- re-deferred, not fixed.** `scoring.py` sends the full
+  `Profile` (including `display_name` and free-text `style_samples`) to the
+  scoring LLM though none of the five weighted factors use either field.
+  Discovered mid-fix: any change to the scoring payload changes the exact
+  "user" prompt text, which invalidates all 25 of C2b's just-closed
+  manual-capture recordings (keyed by a hash of model+system+user, per
+  H-5). Not worth burning a just-closed validation round for a Low-severity
+  minimization finding -- re-deferred to next time the scoring prompt
+  changes for another reason anyway.
+- **G5 (REPEAT-OF-L-3)** -- reconfirmed still open, no severity change; the
+  `_CONTROL_KEYS`/`model`-key redaction exemption in `sanitizer.py` still
+  applies at any nesting depth. No live payload nests under `model` today.
+- **W-15 confirmed live, fixed.** The walkthrough lens flagged a *pattern*
+  (README status prose going stale within hours of a shipping commit) with
+  no current instance found -- checking anyway turned up a real one:
+  README's opening paragraphs and "Built and shipped" section still
+  described "Phase B shipped, before Phase C" days after Phase C actually
+  closed, directly contradicting the Status table two screens below in the
+  same file. All four spots rewritten; a new "Phase C -> D gate" paragraph
+  added alongside the existing "Phase B -> C gate" one. Cost envelope
+  paragraph (deferred since Phase A) written for real rather than
+  re-deferred again -- see below.
+- **W-12 (NEW), W-13 (NEW), W-14 (NEW)** -- not fixed this pass. CHANGELOG's
+  length (now past 1,500 lines), `cli.py`'s size, and fit_scoring's
+  single-round validation are all logged in `jscc.md`'s cleanup backlog with
+  their own dispositions (a docs-restructuring decision for Jess, a
+  Phase-D-triggered refactor, and a second manual-capture round only Jess
+  can run, respectively).
+- 404 tests (+12 total this pass), lint/format/scanner clean. Full findings
+  and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
+
 ### C3 - cost/latency reporting, Phase C closed
 
 Instrumentation (D5) has landed one `llm_calls` row per call since Phase A;
@@ -256,14 +338,21 @@ same pass:
   section now has a connecting sentence before "Reasons ranked."
 - **CHANGELOG "read this to see the arc" pointer -- done.** Added at the
   top of README's Status section.
-- **Demo GIF/asciinema of `report`** -- re-scoped, not done. Thin as
-  originally scoped (`report` alone) now that more of the pipeline exists;
-  re-deferred to record one GIF covering the whole ingest -> extract ->
-  score path once Phase C ships end-to-end.
-- **Cost envelope paragraph** -- kept deferred, not done. No real cost
-  data exists yet (B2b ran on manual capture, not live billed calls);
-  re-deferred to once Phase C runs live extraction with real
-  per-application cost data.
+- **Demo GIF/asciinema of `report`** -- re-deferred trigger fired 2026-09-12
+  (Phase C shipped end-to-end) and dispositioned by `/backlog-prune`:
+  **killed, not recorded.** F2's video walkthrough (Phase F) already covers
+  this exact ingest -> extract -> score path; a standalone GIF ahead of that
+  would be redundant work for no incremental signal.
+- ~~**Cost envelope paragraph**~~ -- **written, 2026-09-12.** Its re-deferred
+  trigger ("Phase C runs live extraction with real per-application cost
+  data") never fired -- Phase C ran entirely on stub clients and manual
+  Claude.ai-chat capture, same as B2b, because there is still no
+  `ANTHROPIC_API_KEY`/Console account for this project. Rather than wait on
+  a trigger the standing no-Console-account decision makes unreachable,
+  README's Status section now states the honest version: the
+  cost-transparency machinery (instrumentation, ledger, `jscc costs`) is
+  built and tested, but no real dollar figures exist yet, and that second
+  claim waits on a live key that may never come.
 
 L-json-default-sanitizer-1, L-report-format-injection-1, L-sanitizer-1 (the
 other three items from the same A9/A10-era backlog) not yet dispositioned --
