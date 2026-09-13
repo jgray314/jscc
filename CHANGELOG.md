@@ -7,6 +7,31 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### C2b prep — `--manual` capture tooling
+
+`jd_extraction`'s manual-capture round (B2b) had no tooling to speak of --
+`recorded.json` was hand-edited, one entry at a time, by whoever ran the
+prompt through Claude.ai chat. Before starting fit_scoring's own round,
+built the thing B2b was missing rather than repeating the same by-hand
+process for a second suite.
+
+- `evals.py`: `ManualCaptureClient`, an `LLMClient` whose "network call" is
+  a human pasting a prompt into Claude.ai chat and pasting the completion
+  back. Prints the exact model id, system prompt, and user message; reads
+  the response back line-by-line until a line that is exactly `END` (a
+  real completion can contain blank lines, so a blank line can't be the
+  sentinel). Reports zero tokens/cost, honestly -- no billed call happened.
+- `cli.py`: `eval fit_scoring --manual`. Implemented as `RecordingClient`
+  wrapping `ManualCaptureClient` instead of the real API client, so M-12's
+  persist-immediately behavior (a capture already paid for -- here, already
+  typed -- surviving a mid-run failure) comes for free rather than needing
+  its own version. `--manual` implies `--record`; both remain mutually
+  exclusive with `--replay`.
+- +4 tests (380 total): `ManualCaptureClient`'s prompt display, response
+  parsing, and blank-line-vs-`END` sentinel behavior; a CLI test driving
+  `--manual` through `CliRunner`'s stdin across all 25 cases and confirming
+  the recording file lands with one entry per case.
+
 ### fit_scoring case sizing — resized 10 -> 25 before C2b spends any capture effort
 
 Caught proactively rather than discovered mid-round: at the >=80% threshold,

@@ -9,6 +9,7 @@ from jscc.evals import (
     PASS_THRESHOLD,
     EvalCase,
     FitEvalCase,
+    ManualCaptureClient,
     RecordingClient,
     RecordingMissing,
     ReplayClient,
@@ -490,3 +491,44 @@ def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> 
     assert summary.total == 25
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
+
+
+# ---- ManualCaptureClient (C2b) -------------------------------------------------
+#
+# No ANTHROPIC_API_KEY for this project, so C2b's real capture is a human
+# pasting each prompt into Claude.ai chat rather than a live call. These
+# tests drive it with fake input/output functions -- no terminal needed.
+
+
+def test_manual_capture_client_shows_the_full_prompt() -> None:
+    printed: list[str] = []
+    client = ManualCaptureClient(
+        input_fn=iter(["a pasted response", "END"]).__next__, output_fn=printed.append
+    )
+    client.complete(model="m", system="the system prompt", user="the user prompt")
+    shown = "\n".join(printed)
+    assert "the system prompt" in shown
+    assert "the user prompt" in shown
+    assert "m" in shown
+
+
+def test_manual_capture_client_returns_the_pasted_response() -> None:
+    client = ManualCaptureClient(
+        input_fn=iter(["line one", "line two", "END"]).__next__, output_fn=lambda _: None
+    )
+    result = client.complete(model="m", system="s", user="u")
+    assert result.text == "line one\nline two"
+    assert result.input_tokens == 0
+    assert result.output_tokens == 0
+    assert result.cost_usd == 0.0
+
+
+def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> None:
+    """A real completion can contain blank lines -- only a bare `END` ends
+    the paste, not the first empty line."""
+    client = ManualCaptureClient(
+        input_fn=iter(["first paragraph", "", "second paragraph", "END"]).__next__,
+        output_fn=lambda _: None,
+    )
+    result = client.complete(model="m", system="s", user="u")
+    assert result.text == "first paragraph\n\nsecond paragraph"

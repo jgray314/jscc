@@ -19,6 +19,7 @@ from .config import (
 from .evals import (
     FIT_SCORING_RECORDING_PATH,
     PASS_THRESHOLD,
+    ManualCaptureClient,
     RecordingClient,
     ReplayClient,
     format_eval_summary,
@@ -516,25 +517,41 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
     help="Serve recorded responses instead of calling the model. No key, no spend.",
 )
 @click.option(
+    "--manual",
+    "manual",
+    is_flag=True,
+    default=False,
+    help=(
+        "Capture via a human pasting each prompt into Claude.ai chat instead "
+        "of a live API call (no ANTHROPIC_API_KEY needed). Implies --record."
+    ),
+)
+@click.option(
     "--min-pass-rate",
     type=float,
     default=PASS_THRESHOLD,
     show_default=True,
     help="Fail below this pass rate.",
 )
-def eval_fit_scoring(data_dir: Path, record: bool, replay: bool, min_pass_rate: float) -> None:
+def eval_fit_scoring(
+    data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
+) -> None:
     """Run the fit-scoring eval suite (25 cases) against the current `score_fit`.
 
     Same shape as `eval jd_extraction` (C2a mirrors B2a): --record/--replay
-    exist so C2b can validate the prompt against real model output by hand
-    through Claude.ai chat, the same manual-capture path B2b took, since no
-    ANTHROPIC_API_KEY is configured for this project.
+    exist so C2b can validate the prompt against real model output. No
+    ANTHROPIC_API_KEY is configured for this project, so `--manual` is how
+    that actually happens -- one case at a time, this command prints the
+    exact prompt to paste into Claude.ai chat and waits for the pasted-back
+    response, persisting it immediately (M-12) the same way a live `--record`
+    run would.
 
     Calls are recorded to the `llm_calls` ledger under the `scoring_eval`
     feature (D5), separate from production `scoring` traffic.
     """
-    if record and replay:
-        raise click.UsageError("--record and --replay are mutually exclusive")
+    if replay and (record or manual):
+        raise click.UsageError("--replay is mutually exclusive with --record/--manual")
+    record = record or manual
 
     client = None
     if replay:
@@ -544,8 +561,9 @@ def eval_fit_scoring(data_dir: Path, record: bool, replay: bool, min_pass_rate: 
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
+        inner = ManualCaptureClient() if manual else default_scoring_client()
         client = RecordingClient(
-            default_scoring_client(),
+            inner,
             on_captured=lambda key, text: save_recording({key: text}, FIT_SCORING_RECORDING_PATH),
         )
 

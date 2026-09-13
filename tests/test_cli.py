@@ -1709,6 +1709,34 @@ def test_eval_fit_scoring_records_calls_under_its_own_feature_label(
     assert {c.feature for c in calls} == {"scoring_eval"}
 
 
+def test_eval_fit_scoring_manual_prompts_for_each_case_and_records_the_pasted_responses(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--manual is the C2b mechanism: no ANTHROPIC_API_KEY, so capture means
+    a human pasting each prompt into Claude.ai chat. This drives it through
+    CliRunner's stdin instead of a real terminal."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    recording_path = tmp_path / "fit_scoring_recorded.json"
+    monkeypatch.setattr("jscc.cli.FIT_SCORING_RECORDING_PATH", recording_path)
+
+    canned_response = '{"score": 50, "rationale": "manual capture test response."}\nEND\n'
+    result = runner.invoke(
+        cli,
+        ["eval", "fit_scoring", "--manual", "--data-dir", str(tmp_path)],
+        input=canned_response * 25,
+    )
+    assert result.exit_code in (0, 1), result.output  # the pasted score may or may not clear bands
+    assert "MODEL:" in result.output
+    assert "SYSTEM PROMPT" in result.output
+
+    import json
+
+    saved = json.loads(recording_path.read_text(encoding="utf-8"))
+    assert len(saved) == 25  # one prompt hash per case's distinct payload
+
+
 def test_eval_fit_scoring_fails_below_the_threshold_and_says_the_number(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

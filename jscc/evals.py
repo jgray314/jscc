@@ -283,6 +283,60 @@ def _prompt_key(model: str, system: str, user: str) -> str:
     return f"sha256:{digest}"
 
 
+class ManualCaptureClient:
+    """An `LLMClient` whose "network call" is a human pasting a prompt into
+    Claude.ai chat and pasting the completion back -- the mechanism C2b (and
+    B2b before it) needs when no `ANTHROPIC_API_KEY` is configured for this
+    project. Wrap it in `RecordingClient` to get M-12's persist-immediately
+    behavior for free; nothing about capture-safety needed reinventing here.
+
+    `input_fn`/`output_fn` are injectable so tests can drive this without a
+    real terminal. Real usage takes the defaults: `output_fn` prints the
+    exact system+user text the eval harness would have sent a real client,
+    and `input_fn` reads the pasted-back response line by line until a line
+    that is exactly `END` (a completion can itself contain blank lines, so a
+    single blank line can't be the sentinel).
+
+    Reports zero tokens/cost, honestly -- no billed API call happened."""
+
+    _END_SENTINEL = "END"
+
+    def __init__(
+        self,
+        *,
+        input_fn: Callable[[], str] = input,
+        output_fn: Callable[[str], None] = print,
+    ) -> None:
+        self._input_fn = input_fn
+        self._output_fn = output_fn
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        out = self._output_fn
+        out("=" * 70)
+        out(f"MODEL: {model}")
+        out("--- SYSTEM PROMPT (paste into Claude.ai chat as the system prompt) ---")
+        out(system)
+        out("--- USER MESSAGE ---")
+        out(user)
+        out("=" * 70)
+        out(
+            f"Paste the model's full response below, then a line containing only {self._END_SENTINEL}:"
+        )
+        lines: list[str] = []
+        while True:
+            line = self._input_fn()
+            if line.strip() == self._END_SENTINEL:
+                break
+            lines.append(line)
+        return LLMResponse(
+            text="\n".join(lines),
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            stop_reason="end_turn",
+        )
+
+
 class RecordingClient:
     """Wraps a real client and captures each response for later replay.
 
