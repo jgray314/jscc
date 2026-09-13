@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import pytest
 
+from jscc.config import Profile
 from jscc.evals import (
+    FIT_SCORING_CASES_PATH,
     JD_EXTRACTION_CASES_PATH,
     EvalCase,
+    FitEvalCase,
     RecordingClient,
     RecordingMissing,
     ReplayClient,
     format_eval_summary,
     grade_extraction,
+    grade_fit_score,
     load_cases,
+    load_fit_cases,
+    run_fit_scoring_evals,
     run_jd_extraction_evals,
 )
 from jscc.extraction import extract_jd
 from jscc.llm_client import LLMResponse, StubExtractionClient
-from jscc.models import ExtractedJD
+from jscc.models import ExtractedJD, FitResult
+from jscc.scoring import FitScoringNotImplementedError, score_fit
 
 
 def _case(**expected_overrides) -> EvalCase:
@@ -387,5 +394,93 @@ def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
 
     summary = run_jd_extraction_evals(broken)
     assert summary.total == 33
+    assert summary.passed == 0
+
+
+# ---- fit_scoring (Slice C1) ---------------------------------------------------
+
+
+def test_fit_cases_file_has_ten_cases() -> None:
+    """10 (JD, profile) pairs across the fit spectrum per the sub-plan's C1."""
+    cases = load_fit_cases(FIT_SCORING_CASES_PATH)
+    assert len(cases) == 10
+    assert len({c.id for c in cases}) == 10  # unique ids
+
+
+def _fit_case(**overrides) -> FitEvalCase:
+    fields = dict(
+        id="t1",
+        extracted_jd={
+            "title": "Senior Engineering Manager",
+            "level": "senior",
+            "comp_band": "$300,000-$400,000",
+            "location": None,
+            "remote_policy": "remote",
+            "must_have_skills": [],
+            "responsibilities_summary": "Leads a team.",
+        },
+        raw_jd_text="raw text",
+        profile={
+            "display_name": "Sample Candidate",
+            "role_focus": ["engineering manager"],
+            "level_target": "L6",
+            "experience_years": 12,
+            "comp_target": {"min_usd": 300000, "max_usd": 500000},
+        },
+        min_score=70,
+        max_score=100,
+    )
+    fields.update(overrides)
+    return FitEvalCase(**fields)
+
+
+def test_grade_fit_score_within_band_passes() -> None:
+    result = grade_fit_score(
+        _fit_case(min_score=70, max_score=100), FitResult(score=85, rationale="Strong match.")
+    )
+    assert result.passed, result.diffs
+
+
+def test_grade_fit_score_outside_band_fails() -> None:
+    result = grade_fit_score(
+        _fit_case(min_score=70, max_score=100), FitResult(score=40, rationale="Weak match.")
+    )
+    assert not result.passed
+    assert any(d.field == "score" for d in result.diffs)
+
+
+def test_grade_fit_score_empty_rationale_fails() -> None:
+    result = grade_fit_score(
+        _fit_case(min_score=0, max_score=100), FitResult(score=50, rationale="")
+    )
+    assert not result.passed
+    assert any(d.field == "rationale" for d in result.diffs)
+
+
+def test_score_fit_stub_raises_not_implemented() -> None:
+    cases = load_fit_cases(FIT_SCORING_CASES_PATH)
+    case = cases[0]
+    with pytest.raises(FitScoringNotImplementedError):
+        score_fit(
+            ExtractedJD(**case.extracted_jd),
+            case.raw_jd_text,
+            Profile(**case.profile),
+        )
+
+
+def test_run_fit_scoring_evals_against_stub_reports_all_failed() -> None:
+    """No prompt exists yet — every case is expected to fail. That failure is
+    the harness working correctly, same DoD shape as B1's jd_extraction stub."""
+    summary = run_fit_scoring_evals(score_fit)
+    assert summary.total == 10
+    assert summary.passed == 0
+
+
+def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> None:
+    def broken(extracted, raw_jd_text, profile) -> FitResult:
+        raise ValueError("model returned nonsense")
+
+    summary = run_fit_scoring_evals(broken)
+    assert summary.total == 10
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

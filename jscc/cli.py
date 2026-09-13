@@ -22,6 +22,7 @@ from .evals import (
     ReplayClient,
     format_eval_summary,
     load_recording,
+    run_fit_scoring_evals,
     run_jd_extraction_evals,
     save_recording,
 )
@@ -32,6 +33,7 @@ from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import Application, DLQEntry, FailureMode, FetchStatus, Resolution
 from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
+from .scoring import score_fit
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
     ModeMismatchError,
@@ -488,6 +490,18 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
             err=True,
         )
         sys.exit(1)
+
+
+@eval_group.command("fit_scoring")
+def eval_fit_scoring() -> None:
+    """Run the fit-scoring eval suite (10 cases) against the current `score_fit`.
+
+    No CLI options yet (data-dir, --record/--replay) — Slice C1 mirrors B1's
+    minimal wiring; that machinery lands with C2 once there's a real prompt
+    worth iterating against, same as extraction's did at B2a.
+    """
+    summary = run_fit_scoring_evals(score_fit)
+    click.echo(format_eval_summary(summary))
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The

@@ -1,6 +1,6 @@
 # Evals
 
-One suite per LLM stage. One stage exists today — `jd_extraction`. Scoring arrives in Phase C (D9 splits extraction from scoring so facts and judgment regress independently) and routing/composition in Phase D (D10). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
+One suite per LLM stage. Two stages exist today — `jd_extraction` and `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently). Routing/composition arrives in Phase D (D10). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
 
 ## jd_extraction (Slice B1)
 
@@ -24,6 +24,16 @@ Run: `python -m jscc eval jd_extraction`. Exits non-zero if the combined pass ra
 
 Append an object to `cases.json` with a unique `id`, `raw_jd` (never real personal/company data — synthetic or scrubbed only, per D7/D8), an optional `group` (`"short"` default, `"long"` for fetch-shaped noise), and an `expected` dict matching `ExtractedJD`'s fields. Cover both presence and absence of `comp_band` and a mix of `remote_policy` values — the grading logic branches on those. Avoid "X or Y" phrasing in a requirements section you expect graded by `must_have_skills` — the set-equality check can't credit a model for picking either disjunct, so it fails a correct answer either way.
 
-## fit_scoring, routing, composition (not yet built)
+## fit_scoring (Slice C1)
 
-Land with their respective Phase C/D slices (C1, D1, D3 in the sub-plan).
+`evals/fit_scoring/cases.json` — 10 hand-authored (JD, profile) pairs spanning the fit spectrum: a clear high fit, comp below target, level mismatch, a deal-breaker present, must-haves entirely missing, a borderline hybrid case, comp above target (not a downside), an ambiguous minimal posting, a total role mismatch, and a single must-have miss on an otherwise strong match. All ten cases use the same base profile (matching `config/profile.example.yaml`'s shape); the JD varies.
+
+Grading (`grade_fit_score` in `jscc/evals.py`):
+- **Band, not exact score:** each case names a `min_score`/`max_score`. A real score band is inherently fuzzy — the eval strategy doc calls this out explicitly ("high fit 75-95", "clear pass <30") rather than pretending a fit judgment has one right answer.
+- **Rationale:** checked for non-empty only. Real quality grading (does it name the right factors, no hallucinated claims) is an LLM-judge rubric, deferred until there's a real prompt worth judging — same deferral `jd_extraction`'s prose field got at B1.
+
+Run: `python -m jscc eval fit_scoring`. No `--record`/`--replay`/`--min-pass-rate` yet — `score_fit` is a stub (`FitScoringNotImplementedError`) until Slice C2 lands a real prompt, so there's nothing live to gate on. Expect 0/10 until then; that's the harness working, not a bug, same DoD shape as B1's `jd_extraction` stub.
+
+## routing, composition (not yet built)
+
+Land with their respective Phase D slices (D1, D3 in the sub-plan).

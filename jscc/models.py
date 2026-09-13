@@ -133,6 +133,15 @@ class ExtractedJD(BaseModel):
     responsibilities_summary: str
 
 
+class FitResult(BaseModel):
+    """Structured output of `score_fit` (D9 step 2). The contract Slice C2's
+    prompt is written against and the eval suite (Slice C1) grades against.
+    """
+
+    score: float
+    rationale: str
+
+
 class LLMCallRecord(BaseModel):
     """One row per LLM call, captured by the `@instrumented` decorator (D5).
 

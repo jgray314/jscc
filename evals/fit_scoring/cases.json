@@ -1,0 +1,262 @@
+[
+  {
+    "id": "case-01-clear-high-fit",
+    "raw_jd_text": "We're hiring an Engineering Manager, Platform to lead our platform team. You'll own CI/CD and deployment infrastructure end to end. Fully remote. $320,000-$420,000.",
+    "extracted_jd": {
+      "title": "Engineering Manager, Platform",
+      "company": "Acme Corp",
+      "level": "senior",
+      "comp_band": "$320,000-$420,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["distributed systems", "CI/CD"],
+      "responsibilities_summary": "Leads a platform team owning CI/CD and deployment infrastructure."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 80,
+    "max_score": 100
+  },
+  {
+    "id": "case-02-good-fit-comp-below-range",
+    "raw_jd_text": "Staff Engineering Manager needed for our infra org. Remote-first team. Salary band $220,000-$260,000.",
+    "extracted_jd": {
+      "title": "Staff Engineering Manager",
+      "company": "Nimbus Systems",
+      "level": "senior",
+      "comp_band": "$220,000-$260,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["infrastructure", "team leadership"],
+      "responsibilities_summary": "Manages an infrastructure team with a remote-first culture."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 50,
+    "max_score": 75
+  },
+  {
+    "id": "case-03-level-mismatch-junior-ic",
+    "raw_jd_text": "Junior Backend Engineer wanted. Great mentorship program. Onsite in our downtown office.",
+    "extracted_jd": {
+      "title": "Junior Backend Engineer",
+      "company": "Fresh Startup Inc",
+      "level": "junior",
+      "comp_band": null,
+      "location": "downtown",
+      "remote_policy": "onsite",
+      "must_have_skills": ["SQL", "REST APIs"],
+      "responsibilities_summary": "Builds backend features under senior engineer mentorship."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 25
+  },
+  {
+    "id": "case-04-deal-breaker-present",
+    "raw_jd_text": "Senior Engineering Manager, on-call team of 6. Expect on-call rotations of two weeks per month. Fully remote. $340,000-$400,000.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Uptime Labs",
+      "level": "senior",
+      "comp_band": "$340,000-$400,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["incident response", "on-call management"],
+      "responsibilities_summary": "Manages an on-call rotation covering two weeks per month per engineer."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 20
+  },
+  {
+    "id": "case-05-must-haves-entirely-missing",
+    "raw_jd_text": "Staff Software Engineer, mainframe modernization team. Must relocate onsite. Deep COBOL experience required. $310,000-$360,000.",
+    "extracted_jd": {
+      "title": "Staff Software Engineer",
+      "company": "Legacy Systems Co",
+      "level": "staff",
+      "comp_band": "$310,000-$360,000",
+      "location": null,
+      "remote_policy": "onsite",
+      "must_have_skills": ["COBOL", "mainframe"],
+      "responsibilities_summary": "Maintains and modernizes decades-old mainframe systems onsite."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 40
+  },
+  {
+    "id": "case-06-borderline-hybrid-comp-unstated",
+    "raw_jd_text": "Senior Engineering Manager, hybrid (2 days/week in office). Comp not disclosed in posting. Modern tech stack, some legacy pieces.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Midpoint Technologies",
+      "level": "senior",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "hybrid",
+      "must_have_skills": ["team leadership"],
+      "responsibilities_summary": "Manages a hybrid team split between modern and legacy systems."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 35,
+    "max_score": 65
+  },
+  {
+    "id": "case-07-excellent-match-comp-above-range",
+    "raw_jd_text": "Director of Engineering, remote. Own multiple platform teams. $450,000-$600,000. Fully modernized CI/CD stack.",
+    "extracted_jd": {
+      "title": "Director of Engineering",
+      "company": "Skyline Cloud",
+      "level": "director",
+      "comp_band": "$450,000-$600,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["multi-team leadership", "CI/CD"],
+      "responsibilities_summary": "Owns multiple platform teams on a fully modernized CI/CD stack."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 75,
+    "max_score": 100
+  },
+  {
+    "id": "case-08-ambiguous-minimal-detail",
+    "raw_jd_text": "Engineering role, mid-level. Details to be discussed during interview process.",
+    "extracted_jd": {
+      "title": "Software Engineer",
+      "company": null,
+      "level": "mid",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": null,
+      "must_have_skills": [],
+      "responsibilities_summary": "General software engineering work; posting gives minimal detail."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 15,
+    "max_score": 55
+  },
+  {
+    "id": "case-09-total-role-mismatch",
+    "raw_jd_text": "Sales Engineer needed to support our enterprise sales team with technical demos. Some travel required.",
+    "extracted_jd": {
+      "title": "Sales Engineer",
+      "company": "DemoWorks",
+      "level": "mid",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "hybrid",
+      "must_have_skills": ["customer demos", "presentation skills"],
+      "responsibilities_summary": "Supports enterprise sales with technical product demonstrations."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 25
+  },
+  {
+    "id": "case-10-must-have-miss-otherwise-strong",
+    "raw_jd_text": "Staff Engineering Manager, must be onsite full-time at our HQ. Excellent modern tooling and CI/CD culture. $360,000-$430,000.",
+    "extracted_jd": {
+      "title": "Staff Engineering Manager",
+      "company": "Ironclad Systems",
+      "level": "staff",
+      "comp_band": "$360,000-$430,000",
+      "location": null,
+      "remote_policy": "onsite",
+      "must_have_skills": ["modern CI/CD", "team leadership"],
+      "responsibilities_summary": "Leads an engineering team onsite full-time with a strong modern CI/CD culture."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 15,
+    "max_score": 50
+  }
+]

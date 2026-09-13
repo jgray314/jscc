@@ -7,6 +7,32 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### C1 — fit scoring eval suite
+
+Per D9, extraction and scoring are split so scoring judgment can be graded
+independently of extraction facts. This suite is that independence made
+concrete, ahead of any real prompt -- the same shape B1 took ahead of B2.
+
+- `FitResult` model: the contract Slice C2's prompt is written against.
+- `scoring.py`: `score_fit(extracted, raw_jd_text, profile) -> FitResult`
+  stub, raises `FitScoringNotImplementedError` until C2. Signature is final
+  now, matching D9's locked decision that the scorer sees both the
+  extracted structured JD and the raw text.
+- `evals/fit_scoring/cases.json`: 10 hand-authored (JD, profile) pairs
+  across the fit spectrum -- clear high fit, comp below target, level
+  mismatch, a deal-breaker present, must-haves entirely missing, a
+  borderline hybrid case, comp above target, an ambiguous minimal posting, a
+  total role mismatch, and a single must-have miss on an otherwise strong
+  match.
+- `evals.py`: band-based grading (`min_score`/`max_score`, not an exact
+  figure -- a fit judgment doesn't have one right answer) plus a
+  non-empty-rationale check, deferring real rationale-quality grading to an
+  LLM-judge rubric once there's a prompt worth judging, the same deferral
+  `responsibilities_summary` got at B1.
+- `python -m jscc eval fit_scoring` CLI command, no `--record`/`--replay`
+  yet -- that machinery lands with C2, same as extraction's did at B2a.
+- +7 tests (359 total). DoD met: runs, reports 0/10 passed (no prompt yet).
+
 ### Backlog sweep: Cleanup-backlog items from A2
 
 - **`update_application` field whitelist -- fixed.** `_UPDATABLE_APPLICATION_FIELDS`

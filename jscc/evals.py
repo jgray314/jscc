@@ -18,13 +18,15 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .config import Profile
 from .llm_client import LLMResponse
-from .models import ExtractedJD
+from .models import ExtractedJD, FitResult
 from .paths import PACKAGE_ROOT
 from .sanitizer import LLMSendError, SanitizerRefusal
 
 JD_EXTRACTION_CASES_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "cases.json"
 JD_EXTRACTION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "recorded.json"
+FIT_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "cases.json"
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
 # property of the object: a threshold in a README is a promise about a
@@ -385,3 +387,63 @@ def format_eval_summary(summary: EvalSummary) -> str:
         for diff in result.diffs:
             lines.append(f"    {diff.field}: expected={diff.expected!r} actual={diff.actual!r}")
     return "\n".join(lines)
+
+
+# --- fit_scoring (Slice C1) ---------------------------------------------
+#
+# Per the eval strategy doc, band placement is graded, not an exact score:
+# "expected score bands (not exact scores) — bands like 'high fit 75-95',
+# 'clear pass <30'". `rationale` is checked for non-empty only, the same
+# treatment `responsibilities_summary` gets above — real quality grading
+# (does the rationale actually name the right factors?) is an LLM-judge
+# rubric, deferred until there's a real prompt worth judging.
+
+
+class FitEvalCase(BaseModel):
+    id: str
+    extracted_jd: dict[str, Any]
+    raw_jd_text: str
+    profile: dict[str, Any]
+    min_score: float
+    max_score: float
+
+
+def load_fit_cases(path: Path = FIT_SCORING_CASES_PATH) -> list[FitEvalCase]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [FitEvalCase(**item) for item in raw]
+
+
+def grade_fit_score(case: FitEvalCase, result: FitResult) -> EvalCaseResult:
+    diffs: list[FieldDiff] = []
+    if not (case.min_score <= result.score <= case.max_score):
+        diffs.append(
+            FieldDiff(
+                field="score",
+                expected=f"[{case.min_score}, {case.max_score}]",
+                actual=result.score,
+            )
+        )
+    if not result.rationale.strip():
+        diffs.append(FieldDiff(field="rationale", expected="<non-empty>", actual=result.rationale))
+    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+
+
+def run_fit_scoring_evals(
+    score_fn: Callable[[ExtractedJD, str, Profile], FitResult],
+    cases_path: Path = FIT_SCORING_CASES_PATH,
+) -> EvalSummary:
+    cases = load_fit_cases(cases_path)
+    results: list[EvalCaseResult] = []
+    for case in cases:
+        try:
+            extracted = ExtractedJD(**case.extracted_jd)
+            profile = Profile(**case.profile)
+            result = score_fn(extracted, case.raw_jd_text, profile)
+        except (SanitizerRefusal, LLMSendError):
+            raise
+        except Exception as e:  # scorer stub, prompt bugs, malformed fixtures, etc.
+            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            continue
+        results.append(grade_fit_score(case, result))
+    passed = sum(1 for r in results if r.passed)
+    return EvalSummary(total=len(results), passed=passed, results=results)
