@@ -7,6 +7,35 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### C2b round 1 - 84% on the first capture, above the 80% bar
+
+Ran `eval fit_scoring --manual` for real: all 25 cases hand-captured through
+Sonnet 4.5 chat (Jess's own session; a coding agent generating the
+completions itself would misrepresent the data's provenance in a project
+whose signature signal is honest eval-driven validation). 21/25 passed.
+
+Four misses:
+
+- case-02, case-06, case-08 -- comp/level boundary judgment landing just
+  outside a band, consistent with the pre-round notes' prediction that
+  these are inherently unstable judgment calls, not wording gaps.
+- case-14 (director/VP posting, one level above the profile's L6-L7
+  target, comp above range) -- scored 38 against a 70-95 expected band.
+  Spot-checked with a second independent capture: 22, same reasoning both
+  times ("far outside role_focus"). Two consistent fails rules out
+  capture-to-capture noise -- this is a real ambiguity in the prompt's
+  role/level factor, not sampling variance. `role_focus` names only exact
+  target titles, so an adjacent higher title reads as categorically
+  outside it rather than as one step up that comp should be allowed to
+  compensate for. Deferred, not fixed here -- 84% clears the bar and
+  doesn't block C3; tracked as a between-phases refinement in
+  [jscc.md](../context-directory/projects/ai-portfolio/jscc.md)'s cleanup
+  backlog.
+
+Both deal-breaker cases built to be detectable only from raw text or
+boilerplate (case-11, case-22) and both IC-profile cases (case-19,
+case-20) passed clean.
+
 ### C2b prep — `--manual` capture tooling
 
 `jd_extraction`'s manual-capture round (B2b) had no tooling to speak of --
