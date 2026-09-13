@@ -370,6 +370,78 @@ def test_costs_summarizes_recorded_calls(
     assert "0.5000" in result.output
 
 
+def test_costs_reports_latency_percentiles_across_multiple_calls(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C3: percentiles, not just an average, so a slow tail is visible.
+
+    Writes rows straight to the ledger (rather than through `@instrumented`)
+    so the test controls latency directly instead of actually sleeping.
+    """
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.mode import Mode
+    from jscc.models import LLMCallRecord
+    from jscc.storage import open_for_mode, record_llm_call
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        for latency in [100.0, 200.0, 300.0, 400.0, 5000.0]:
+            record_llm_call(
+                conn,
+                LLMCallRecord(
+                    feature="extraction",
+                    model="claude-haiku",
+                    prompt_hash="hash",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_usd=0.0,
+                    latency_ms=latency,
+                ),
+            )
+    finally:
+        conn.close()
+
+    result = runner.invoke(cli, ["costs", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "p50_ms" in result.output
+    assert "p95_ms" in result.output
+
+
+def test_costs_flags_a_recorded_cost_that_no_longer_matches_the_published_rate(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C3: same discrepancy shape B12 caught by hand -- a call priced under
+    the model's currently-published rate should surface without a manual review."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    from jscc.instrumentation import LLMResult, instrumented
+    from jscc.llm_client import EXTRACTION_MODEL
+    from jscc.mode import Mode
+    from jscc.storage import open_for_mode
+
+    @instrumented("extraction")
+    def underpriced_call(conn, model, prompt):
+        # EXTRACTION_MODEL is $1.00/$5.00 per MTok; this call is 20% under
+        # what today's rate would compute -- the B12 shape.
+        return LLMResult(
+            output=None, input_tokens=1_000_000, output_tokens=1_000_000, cost_usd=4.80
+        )
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        underpriced_call(conn, EXTRACTION_MODEL, "prompt")
+    finally:
+        conn.close()
+
+    result = runner.invoke(cli, ["costs", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "Cost regressions (1)" in result.output
+    assert "rate mismatch" in result.output
+
+
 # ---- ingest / dlq ---------------------------------------------------------------
 
 

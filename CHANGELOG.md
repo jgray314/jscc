@@ -7,6 +7,35 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### C3 - cost/latency reporting, Phase C closed
+
+Instrumentation (D5) has landed one `llm_calls` row per call since Phase A;
+this slice is the reporting layer that finally reads it back. New
+`cost_report.py`, pure functions in `report.py`'s style -- no DB access, the
+CLI is a thin wrapper.
+
+- `summarize_costs`: groups by feature, reports calls/total-cost/avg-cost
+  plus `p50`/`p95` latency (nearest-rank `percentile`) instead of just an
+  average, so a slow tail doesn't hide behind a good mean.
+- `find_cost_regressions`: turns "per-slice cost regression tracking" into
+  something concrete without inventing a new schema field. For every call
+  whose model has a rate on file, recompute the expected cost from its
+  token counts and flag a drift beyond 1% relative / $0.0005 absolute (float
+  noise floor) -- the exact discrepancy shape B12 caught by hand, where a
+  stale rate silently under-recorded every call by a fixed factor. A call
+  against an unknown model (stub clients, test fixtures) is skipped, not
+  flagged -- it was never priced against a real rate to drift from.
+- `costs` CLI command (the minimal per-feature/avg-latency version that
+  already existed ahead of this slice) rewired onto the new module; same
+  command, richer report.
+- +12 tests (392 total): percentile edge cases, per-feature aggregation, a
+  correctly-priced call passing, a B12-shaped mispriced call flagged, float
+  rounding tolerated, and two CLI integration tests.
+
+**Phase C closed.** C1 (eval suite), C2a (prompt + plumbing), C2b (84% on
+round 1 manual capture, one deferred finding), and C3 (this slice) are all
+shipped. Phase D (routing/drafter) is next.
+
 ### C2b round 1 - 84% on the first capture, above the 80% bar
 
 Ran `eval fit_scoring --manual` for real: all 25 cases hand-captured through

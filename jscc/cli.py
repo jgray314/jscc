@@ -16,6 +16,7 @@ from .config import (
     load_stages,
     resolve_profile_path,
 )
+from .cost_report import find_cost_regressions, format_cost_report, summarize_costs
 from .evals import (
     FIT_SCORING_RECORDING_PATH,
     PASS_THRESHOLD,
@@ -383,19 +384,9 @@ def costs(data_dir: Path) -> None:
         conn.close()
 
     click.echo(f"[mode: {mode.value}]")
-    if not calls:
-        click.echo("no LLM calls recorded yet")
-        return
-
-    by_feature: dict[str, list] = {}
-    for call in calls:
-        by_feature.setdefault(call.feature, []).append(call)
-
-    click.echo(f"{'feature':<20}{'calls':>8}{'cost_usd':>12}{'avg_latency_ms':>16}")
-    for feature, feature_calls in sorted(by_feature.items()):
-        total_cost = sum(c.cost_usd for c in feature_calls)
-        avg_latency = sum(c.latency_ms for c in feature_calls) / len(feature_calls)
-        click.echo(f"{feature:<20}{len(feature_calls):>8}{total_cost:>12.4f}{avg_latency:>16.1f}")
+    summaries = summarize_costs(calls)
+    regressions = find_cost_regressions(calls)
+    click.echo(format_cost_report(summaries, regressions))
 
 
 @cli.group("eval")
