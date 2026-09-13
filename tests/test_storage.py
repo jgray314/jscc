@@ -19,6 +19,8 @@ from jscc.models import (
     Resolution,
 )
 from jscc.storage import (
+    _IMMUTABLE_APPLICATION_FIELDS,
+    _UPDATABLE_APPLICATION_FIELDS,
     DB_SCHEMA_VERSION,
     _connect,
     _init_db,
@@ -139,6 +141,17 @@ def test_update_application_rejects_unknown_field(conn: sqlite3.Connection) -> N
     create_application(conn, app)
     with pytest.raises(ValueError, match="cannot update fields"):
         update_application(conn, app.id, id="something-else")
+
+
+def test_update_application_whitelist_matches_model() -> None:
+    """Cleanup backlog (A2): the whitelist was hand-maintained with no check
+    against `Application`'s actual fields, so a field added to the model
+    could silently stay un-updatable (or a renamed/removed field could stay
+    in the whitelist as dead weight) with nothing to catch the drift.
+    Asserts the whitelist is exactly the model's fields minus the three that
+    are deliberately never caller-settable."""
+    model_fields = set(Application.model_fields)
+    assert _UPDATABLE_APPLICATION_FIELDS == model_fields - _IMMUTABLE_APPLICATION_FIELDS
 
 
 def test_contact_requires_existing_application(conn: sqlite3.Connection) -> None:

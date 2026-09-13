@@ -74,6 +74,7 @@ jscc/           library code
   seed.py       deterministic synthetic fixture (evaluation infrastructure)
   sanitizer.py  the LLM-egress choke point; redacts, then HMAC-wraps
   personal_data.py  one definition of "personal" — shared by the scanner + sanitizer
+  json_utils.py one definition of the JSON serialization fallback — shared by storage + sanitizer
   paths.py      one definition of where this installation's files live (package-anchored, never cwd)
   instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
@@ -82,7 +83,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (348 tests)
+tests/          pytest suite (352 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -139,7 +140,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Phase B → C gate, as of 2026-09-12: closed.** Three cold two-lens reviews (adversarial + outside-reviewer walkthrough) ran against the Phase B slices above (2026-09-01, 2026-09-04, 2026-09-12). Every finding across all three — including two highs found the same morning B2b's manual-capture eval closed (eval fixtures not pinning the extraction system prompt; a transient LLM API error crashing `ingest`/`resolve-dlq` instead of routing to the DLQ) and a low-severity backlog (duplicate-application detection, exit-code semantics for a no-op resolve, unenforced `level`/`remote_policy` vocabularies, a handful of residuals reasoned acceptable rather than fixed) — is now fixed or documented. Full findings and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
 
-348 pytest cases. Lint and format enforced via ruff (see Development, above).
+352 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

@@ -30,6 +30,37 @@ def test_verify_true_for_real_output() -> None:
     assert verify(out) is True
 
 
+def test_unsupported_type_raises_instead_of_silently_stringifying() -> None:
+    """Gate finding L-json-default-sanitizer-1: the HMAC input used to fall
+    back to `default=str`, silently stringifying any type it didn't
+    recognize. A caller passing something the schema never decided about
+    (a raw object, a stray non-serializable value) is a real bug and should
+    surface as one, the same way it already does in storage._dump_json."""
+
+    class Unrecognized:
+        pass
+
+    with pytest.raises(TypeError):
+        sanitize_for_llm({"a": Unrecognized()})
+
+
+def test_known_types_still_serialize_through_the_shared_default() -> None:
+    """The stricter default must still handle everything Phase B/C actually
+    produces -- datetime, set, and pydantic-model values -- not just reject
+    everything it doesn't recognize outright. `_transform` snapshots the
+    payload through `_stable_json` (M-sanitizer-toctou-1), so `out.data`
+    already reflects the JSON-normalized form these types serialize to."""
+    from pydantic import BaseModel
+
+    class Small(BaseModel):
+        x: int
+
+    out = sanitize_for_llm({"when": datetime(2026, 1, 1), "tags": {"b", "a"}, "score": Small(x=1)})
+    assert verify(out) is True
+    assert out.data["tags"] == ["a", "b"]
+    assert out.data["score"] == {"x": 1}
+
+
 def test_verify_false_for_bare_dict() -> None:
     """C2 regression: a bare dict must not pass verify(), even one shaped like a payload."""
     assert verify({"data": {"a": 1}, "sanitized_at": "2026-01-01T00:00:00+00:00"}) is False

@@ -54,6 +54,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from .json_utils import json_default
 from .personal_data import default_danger_terms, redact
 
 # Process-scoped secret. Generated once per Python process; not persisted.
@@ -100,11 +101,19 @@ class SanitizedPayload:
 
 
 def _stable_json(payload: dict[str, Any]) -> str:
-    """Deterministic JSON for HMAC input. sort_keys locks map ordering; the
-    `default=str` fallback keeps this from crashing on non-serializable values
-    inside the HMAC computation itself (verify would still reject a payload
-    whose content couldn't be authenticated cleanly)."""
-    return json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False)
+    """Deterministic JSON for HMAC input. sort_keys locks map ordering.
+
+    Gate finding L-json-default-sanitizer-1: this used to fall back to
+    `default=str`, silently stringifying any type it didn't recognize --
+    while storage's equivalent (`_dump_json`) raised on the same case. An
+    unexpected type here is a real bug (a stray `bytes` object, a class that
+    slipped past a schema), and it matters more here than in a log line: the
+    stringified form is what the canonical snapshot's redaction pass runs
+    against and what the HMAC authenticates, so a silent `str()` could feed
+    both a value that no longer matches the payload's real structure. Now
+    shares `json_utils.json_default` with storage, which raises `TypeError`
+    on anything neither module has decided how to handle."""
+    return json.dumps(payload, sort_keys=True, default=json_default, ensure_ascii=False)
 
 
 def _compute_authenticator(data: dict[str, Any], sanitized_at: str) -> str:

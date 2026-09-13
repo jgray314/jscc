@@ -7,6 +7,57 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### Backlog sweep: Cleanup-backlog items from A2
+
+- **`update_application` field whitelist -- fixed.** `_UPDATABLE_APPLICATION_FIELDS`
+  was hand-maintained with nothing checking it against `Application`'s real
+  fields. New `test_update_application_whitelist_matches_model` asserts the
+  whitelist is exactly the model's fields minus `_IMMUTABLE_APPLICATION_FIELDS`
+  (`id`, `created_at`, `updated_at`) -- a field added to the model without a
+  matching whitelist decision now fails loudly instead of staying silently
+  un-updatable.
+- **`test_update_application_touches_updated_at`'s `>=` assertion -- kept
+  deferred, re-scoped.** Genuinely low value on this OS/filesystem
+  combination without a suspected bug. Re-deferred to "if `updated_at`
+  logic is ever touched again" rather than fixed speculatively.
+
+352 tests passing (+1), lint clean, format clean, scanner clean.
+
+### Backlog sweep: L-json-default-sanitizer-1, L-report-format-injection-1, L-sanitizer-1
+
+Last three items from the A9-era backlog, all dispositioned as **fix now**
+rather than deferred further -- two of their original triggers had already
+fired.
+
+- **L-report-format-injection-1 -- fixed.** `format_report` rendered
+  `company`/`title` straight into terminal text with no escaping. The
+  original deferred trigger ("once real fetched JDs feed into
+  report-adjacent output") already fired via B3a/B3b's real URL fetching --
+  both fields are attacker-influenceable from arbitrary web content today,
+  not hypothetically. `_sanitize_for_terminal` strips ASCII control bytes
+  (including ESC, `\x1b`) before rendering; every raw ANSI/terminal-control
+  sequence needs a leading ESC byte to do anything, so this closes the
+  primitive without a full escape-sequence parser.
+- **L-json-default-sanitizer-1 -- fixed.** `sanitizer.py`'s `_stable_json`
+  fell back to `default=str`, silently stringifying any type it didn't
+  recognize, while `storage.py`'s `_dump_json` raised on the same case.
+  Phase C is about to push a new payload shape (fit-scoring input) through
+  the sanitizer for the first time -- exactly the "richer types" trigger
+  this was deferred for. New `jscc/json_utils.py` holds one `json_default`
+  shared by both modules (same "one definition, two egress points"
+  pattern as `personal_data.py` for M3/M5); it raises `TypeError` on
+  anything neither module has decided how to handle.
+- **L-sanitizer-1 -- fixed.** ADR-005 already documented the cross-process
+  HMAC-failure mechanism but didn't explicitly warn future Phase C/D
+  worker-pool plumbing about it. Added the forward-looking note: a
+  `SanitizedPayload` pickled into a worker process will fail `verify()`
+  there even though nothing about it was forged -- sanitize inside the
+  worker, not before crossing into it.
+
+351 tests passing (+2), lint clean, format clean, scanner clean. Closes
+the entire A9/A10-era backlog sweep started by walkthrough #5-#7 above --
+nothing left open from Phase A.
+
 ### Backlog sweep: Phase A walkthrough findings #5-#7 dispositioned
 
 Deferred since A10 (2026-08-29), untouched across two phase boundaries (A->B,

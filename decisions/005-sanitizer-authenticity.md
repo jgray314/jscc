@@ -79,7 +79,13 @@ Three coupled mechanisms:
   `sanitized.data["field"]` — one extra `.data` hop. Acceptable.
 - Cost: `SanitizedPayload` is serializable but the HMAC is process-local, so
   a payload persisted and reloaded in a different process cannot re-verify.
-  That's the intended semantics; document it in the module docstring.
+  That's the intended semantics; documented in `send_to_llm`'s docstring.
+  **Gate finding L-sanitizer-1:** flagging explicitly for whoever builds
+  Phase C/D worker-pool plumbing — a `SanitizedPayload` handed to a worker
+  process (via `multiprocessing`, a task queue, anything that pickles
+  across a process boundary) will fail `verify()` there even though nothing
+  about it was forged. Sanitize inside the worker process, not before
+  crossing into it.
 - Cost: `verify()` recomputes an HMAC on every call. SHA-256 over a
   typical prompt is microseconds — not on any hot path.
 - Revisit if: cross-process payload passing becomes a real need (Phase E

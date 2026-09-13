@@ -159,6 +159,30 @@ def test_format_report_none_when_no_alerts(stages_cfg: StagesConfig) -> None:
     assert "(total)" in text
 
 
+def test_format_report_strips_control_chars_from_company_and_title(
+    stages_cfg: StagesConfig,
+) -> None:
+    """Gate finding L-report-format-injection-1: company/title can come from
+    a fetched job posting's own text, so a raw ESC byte (or other control
+    char) in either must not reach the terminal -- it needs a leading ESC to
+    do anything as an ANSI/terminal-control sequence."""
+    counts = funnel_counts([], stages_cfg)
+    alerts = [
+        StaleAlert(
+            application_id="a1",
+            title="Staff SWE\x1b[31m",
+            company="Evil\x1bCorp",
+            stage="applied",
+            days_since_last_interaction=25,
+            threshold_days=14,
+        )
+    ]
+    text = format_report(counts, alerts, stages_cfg)
+    assert "\x1b" not in text
+    assert "EvilCorp" in text
+    assert "Staff SWE" in text
+
+
 def test_report_e2e_against_seed(tmp_path: Path) -> None:
     """Seed a DB, run funnel + detect_stale against a pinned `now`, verify structure."""
     db_path = tmp_path / "e2e.db"

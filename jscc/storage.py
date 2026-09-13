@@ -25,6 +25,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from .json_utils import json_default
 from .mode import Mode, resolve_db_path
 from .models import (
     Application,
@@ -325,33 +326,8 @@ def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value)
 
 
-def _json_default(obj: Any) -> Any:
-    """Fallback serializer for `_dump_json`. Handles the value types Phase B
-    is likely to embed in `extracted_jd` (datetimes, sets, pydantic models,
-    enums) without silently swallowing types the schema hasn't decided about."""
-    from enum import Enum
-
-    from pydantic import BaseModel
-
-    if isinstance(obj, datetime):
-        if obj.tzinfo is None:
-            obj = obj.replace(tzinfo=UTC)
-        return obj.astimezone(UTC).isoformat()
-    if isinstance(obj, date):
-        return obj.isoformat()
-    if isinstance(obj, BaseModel):
-        return obj.model_dump(mode="json")
-    if isinstance(obj, Enum):
-        return obj.value
-    if isinstance(obj, (set, frozenset)):
-        # Sort for determinism; if elements aren't comparable, TypeError bubbles
-        # up as a real schema-design signal rather than being silently masked.
-        return sorted(obj, key=repr)
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON-serializable")
-
-
 def _dump_json(value: Any) -> str | None:
-    return None if value is None else json.dumps(value, sort_keys=True, default=_json_default)
+    return None if value is None else json.dumps(value, sort_keys=True, default=json_default)
 
 
 def _load_json(value: str | None) -> Any:
@@ -429,6 +405,14 @@ def list_applications(
         ).fetchall()
     return [_application_row_to_model(r) for r in rows]
 
+
+# Application fields update_application() deliberately never accepts:
+# `id` and `created_at` are set once at creation and never change; `updated_at`
+# is stamped by update_application() itself below, not passed in by a caller.
+# A cleanup-backlog test (`test_update_application_whitelist_matches_model`)
+# asserts `_UPDATABLE_APPLICATION_FIELDS` is exactly `Application`'s fields
+# minus this set, so the two can't drift silently as the model grows.
+_IMMUTABLE_APPLICATION_FIELDS = {"id", "created_at", "updated_at"}
 
 _UPDATABLE_APPLICATION_FIELDS = {
     "source_url",
