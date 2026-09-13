@@ -83,7 +83,7 @@ jscc/           library code
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (359 tests)
+tests/          pytest suite (376 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction so far); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
@@ -129,18 +129,18 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 |---|---|---|
 | **Phase A — foundations** | Config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs. Closed after three gate rounds. | — |
 | **Phase B — ingestion + extraction** | Eval suite, extraction prompt validated against real model output (76%–82% band, see below), fetcher + Playwright fallback + DLQ, paste-only path, three-value exit contract, ruff lint/format gate. Phase B → C gate fully closed. | — |
-| **Phase C — fit scoring** | Eval suite (C1): `FitResult` model, `score_fit` stub (final signature), 10 (JD, profile) cases across the fit spectrum, band-based grading. | Prompt v1 (C2). |
+| **Phase C — fit scoring** | Eval suite (C1) + prompt + client plumbing (C2a): `FitResult` model, real scoring prompt against `SCORING_MODEL` (Sonnet), `score` CLI command, `eval fit_scoring --record/--replay`. Runs end-to-end against a stub client (no key configured). | Manual-capture validation (C2b), mirroring B2b. |
 | **Phase D — follow-up drafter** | — | Not built. Routing-first, routine-only per [D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition) — anything non-routine gets a briefing card, not a prose draft. |
 
 **Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B so far: B1 (eval suite), B2 (extraction prompt + client plumbing, validated against real model output — see below), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay.
 
-**Not built.** The fit-scoring prompt itself (Slice C2) and the drafter and its routing (Phase D). C1's eval suite and `score_fit`'s final signature are shipped; the stub raises until C2 lands a real prompt, mirroring how B1 preceded B2.
+**Not built.** C2b's manual-capture validation of the scoring prompt against real model output, and the drafter and its routing (Phase D). C1's eval suite and C2a's real prompt + call path are shipped and run end-to-end against `StubScoringClient` — the same honest-zero state extraction was in between B2a and B2b.
 
 **B2b closed.** No `ANTHROPIC_API_KEY` is configured — this project isn't using the Anthropic Console, so extraction runs end-to-end against a stub client by default. B2b validates the prompt against real (not stub) model output captured by hand through Claude.ai chat and replayed via the eval harness's `--record`/`--replay` fixtures, rather than against live API traffic. The eval clears the ≥80% bar, but the honest number is a band, not a point figure: two independent capture rounds measured 76%–82% on the same 33-case suite holding the prompt fixed, so pass rate itself carries several points of model variance under manual capture. See CHANGELOG for the categorized breakdown — one grader gap (abbreviation pairs like "infra-as-code" vs "infrastructure as code") and a couple of documented model-consistency limits (ambiguous-title leveling; case-by-case wording variance) are left as disclosed gaps rather than chased further. Not CI-gated, since a manual-capture eval has no live traffic to gate on.
 
 **Phase B → C gate, as of 2026-09-12: closed.** Three cold two-lens reviews (adversarial + outside-reviewer walkthrough) ran against the Phase B slices above (2026-09-01, 2026-09-04, 2026-09-12). Every finding across all three — including two highs found the same morning B2b's manual-capture eval closed (eval fixtures not pinning the extraction system prompt; a transient LLM API error crashing `ingest`/`resolve-dlq` instead of routing to the DLQ) and a low-severity backlog (duplicate-application detection, exit-code semantics for a no-op resolve, unenforced `level`/`remote_policy` vocabularies, a handful of residuals reasoned acceptable rather than fixed) — is now fixed or documented. Full findings and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
 
-359 pytest cases. Lint and format enforced via ruff (see Development, above).
+376 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

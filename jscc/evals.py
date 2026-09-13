@@ -27,6 +27,7 @@ from .sanitizer import LLMSendError, SanitizerRefusal
 JD_EXTRACTION_CASES_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "cases.json"
 JD_EXTRACTION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "recorded.json"
 FIT_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "cases.json"
+FIT_SCORING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "recorded.json"
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
 # property of the object: a threshold in a README is a promise about a

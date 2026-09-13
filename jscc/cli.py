@@ -17,6 +17,7 @@ from .config import (
     resolve_profile_path,
 )
 from .evals import (
+    FIT_SCORING_RECORDING_PATH,
     PASS_THRESHOLD,
     RecordingClient,
     ReplayClient,
@@ -28,12 +29,12 @@ from .evals import (
 )
 from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
 from .fetcher import fetch_jd
-from .llm_client import UnknownModelPricingError, default_client
+from .llm_client import UnknownModelPricingError, default_client, default_scoring_client
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
-from .models import Application, DLQEntry, FailureMode, FetchStatus, Resolution
+from .models import Application, DLQEntry, ExtractedJD, FailureMode, FetchStatus, Resolution
 from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
-from .scoring import score_fit
+from .scoring import SCORING_EVAL_FEATURE, SCORING_FEATURE, ScoringParseError, score_fit
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
     ModeMismatchError,
@@ -493,15 +494,88 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
 
 
 @eval_group.command("fit_scoring")
-def eval_fit_scoring() -> None:
-    """Run the fit-scoring eval suite (10 cases) against the current `score_fit`.
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
+)
+@click.option(
+    "--record",
+    "record",
+    is_flag=True,
+    default=False,
+    help="Capture each live response to evals/fit_scoring/recorded.json.",
+)
+@click.option(
+    "--replay",
+    "replay",
+    is_flag=True,
+    default=False,
+    help="Serve recorded responses instead of calling the model. No key, no spend.",
+)
+@click.option(
+    "--min-pass-rate",
+    type=float,
+    default=PASS_THRESHOLD,
+    show_default=True,
+    help="Fail below this pass rate.",
+)
+def eval_fit_scoring(data_dir: Path, record: bool, replay: bool, min_pass_rate: float) -> None:
+    """Run the fit-scoring eval suite (25 cases) against the current `score_fit`.
 
-    No CLI options yet (data-dir, --record/--replay) — Slice C1 mirrors B1's
-    minimal wiring; that machinery lands with C2 once there's a real prompt
-    worth iterating against, same as extraction's did at B2a.
+    Same shape as `eval jd_extraction` (C2a mirrors B2a): --record/--replay
+    exist so C2b can validate the prompt against real model output by hand
+    through Claude.ai chat, the same manual-capture path B2b took, since no
+    ANTHROPIC_API_KEY is configured for this project.
+
+    Calls are recorded to the `llm_calls` ledger under the `scoring_eval`
+    feature (D5), separate from production `scoring` traffic.
     """
-    summary = run_fit_scoring_evals(score_fit)
+    if record and replay:
+        raise click.UsageError("--record and --replay are mutually exclusive")
+
+    client = None
+    if replay:
+        recorded = load_recording(FIT_SCORING_RECORDING_PATH)
+        if not recorded:
+            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            sys.exit(EXIT_USAGE)
+        client = ReplayClient(recorded)
+    elif record:
+        client = RecordingClient(
+            default_scoring_client(),
+            on_captured=lambda key, text: save_recording({key: text}, FIT_SCORING_RECORDING_PATH),
+        )
+
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        summary = run_fit_scoring_evals(
+            lambda extracted, raw_jd_text, profile: score_fit(
+                extracted,
+                raw_jd_text,
+                profile,
+                conn=conn,
+                client=client,
+                feature=SCORING_EVAL_FEATURE,
+            )
+        )
+    finally:
+        conn.close()
+
+    if record and client is not None:
+        save_recording(client.captured, FIT_SCORING_RECORDING_PATH)
+        click.echo(f"recorded {len(client.captured)} responses")
+
     click.echo(format_eval_summary(summary))
+    if summary.pass_rate < min_pass_rate:
+        click.echo(
+            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
+            err=True,
+        )
+        sys.exit(1)
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
@@ -773,6 +847,80 @@ def ingest(
             sys.exit(EXIT_USAGE)
         verb = "updated" if existing is not None else "created"
         click.echo(f"{verb} application {app_id}: {app.title}")
+    finally:
+        conn.close()
+
+
+@cli.command("score")
+@click.argument("application_id")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+@click.option(
+    "--config-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_CONFIG_DIR,
+    show_default=True,
+    help="Directory containing profile.*.yaml.",
+)
+def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
+    """Score an existing application's fit against the active profile.
+
+    Requires the application to already have `extracted_jd` populated (from
+    `ingest`) -- there's nothing to score against otherwise. Per D9, the
+    scorer sees both that structured extraction and the application's raw
+    JD text, plus the profile loaded via `resolve_profile_path` (private if
+    present, else the public example).
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        app = get_application(conn, application_id)
+        if app is None:
+            click.echo(f"no application found with id {application_id!r}", err=True)
+            sys.exit(EXIT_USAGE)
+        if app.extracted_jd is None:
+            click.echo(
+                f"application {application_id} has no extracted_jd yet -- run "
+                "`ingest`/`resolve-dlq` first.",
+                err=True,
+            )
+            sys.exit(EXIT_USAGE)
+
+        try:
+            profile_path = resolve_profile_path(config_dir)
+            profile = load_profile(profile_path)
+        except (LoadError, ValidationError) as e:
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+
+        extracted = ExtractedJD(**app.extracted_jd)
+        try:
+            result = score_fit(
+                extracted, app.source_raw, profile, conn=conn, feature=SCORING_FEATURE
+            )
+        except ScoringParseError as e:
+            click.echo(f"scoring failed: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except anthropic.APIError as e:
+            # Same reasoning as `ingest`'s H-6 handling: a transient API
+            # error should not crash with a raw traceback. Scoring has no
+            # DLQ concept (nothing was fetched to re-queue) so this is a
+            # plain failure, not a queued one -- retry is just `score` again.
+            click.echo(f"LLM API error: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except UnknownModelPricingError as e:
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+
+        update_application(
+            conn, application_id, fit_score=result.score, fit_rationale=result.rationale
+        )
+        click.echo(f"scored application {application_id}: {result.score} — {result.rationale}")
     finally:
         conn.close()
 

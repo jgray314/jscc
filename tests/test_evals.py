@@ -6,6 +6,7 @@ from jscc.config import Profile
 from jscc.evals import (
     FIT_SCORING_CASES_PATH,
     JD_EXTRACTION_CASES_PATH,
+    PASS_THRESHOLD,
     EvalCase,
     FitEvalCase,
     RecordingClient,
@@ -20,9 +21,9 @@ from jscc.evals import (
     run_jd_extraction_evals,
 )
 from jscc.extraction import extract_jd
-from jscc.llm_client import LLMResponse, StubExtractionClient
+from jscc.llm_client import LLMResponse, StubExtractionClient, StubScoringClient
 from jscc.models import ExtractedJD, FitResult
-from jscc.scoring import FitScoringNotImplementedError, score_fit
+from jscc.scoring import score_fit
 
 
 def _case(**expected_overrides) -> EvalCase:
@@ -400,11 +401,16 @@ def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
 # ---- fit_scoring (Slice C1) ---------------------------------------------------
 
 
-def test_fit_cases_file_has_ten_cases() -> None:
-    """10 (JD, profile) pairs across the fit spectrum per the sub-plan's C1."""
+def test_fit_cases_file_has_twenty_five_cases() -> None:
+    """25 (JD, profile) pairs across the fit spectrum. Resized up from the
+    original 10 before C2b's manual capture spent effort against a suite too
+    small to make the >=80% threshold mean much: at n=10 the binomial standard
+    error on the pass rate is ~13 points (worse than jd_extraction's original
+    n=15 problem, ~10 points); at n=25 it's ~8 points, matching the precision
+    jd_extraction settled on at n=33. See CHANGELOG for the reasoning."""
     cases = load_fit_cases(FIT_SCORING_CASES_PATH)
-    assert len(cases) == 10
-    assert len({c.id for c in cases}) == 10  # unique ids
+    assert len(cases) == 25
+    assert len({c.id for c in cases}) == 25  # unique ids
 
 
 def _fit_case(**overrides) -> FitEvalCase:
@@ -457,23 +463,23 @@ def test_grade_fit_score_empty_rationale_fails() -> None:
     assert any(d.field == "rationale" for d in result.diffs)
 
 
-def test_score_fit_stub_raises_not_implemented() -> None:
-    cases = load_fit_cases(FIT_SCORING_CASES_PATH)
-    case = cases[0]
-    with pytest.raises(FitScoringNotImplementedError):
-        score_fit(
-            ExtractedJD(**case.extracted_jd),
-            case.raw_jd_text,
-            Profile(**case.profile),
-        )
+def _score_via_stub(extracted: ExtractedJD, raw_jd_text: str, profile: Profile) -> FitResult:
+    return score_fit(extracted, raw_jd_text, profile, client=StubScoringClient())
 
 
-def test_run_fit_scoring_evals_against_stub_reports_all_failed() -> None:
-    """No prompt exists yet — every case is expected to fail. That failure is
-    the harness working correctly, same DoD shape as B1's jd_extraction stub."""
-    summary = run_fit_scoring_evals(score_fit)
-    assert summary.total == 10
-    assert summary.passed == 0
+def test_run_fit_scoring_evals_against_stub_stays_far_below_the_bar() -> None:
+    """StubScoringClient always returns score=0 -- not a real judgment. Unlike
+    jd_extraction's exact/structural grading, a constant score can coincide
+    with a genuinely low-fit case's band (case-03 through case-05, case-09
+    all expect a near-zero score), so "every case fails" isn't the right
+    invariant here the way it was for B1/B2a's stub. What is testable: the
+    suite's bands collectively span the full 0-100 range, so no constant
+    score clears the pass bar -- 0 gets a handful of low-fit cases right by
+    coincidence and still stays far under PASS_THRESHOLD."""
+    summary = run_fit_scoring_evals(_score_via_stub)
+    assert summary.total == 25
+    assert summary.passed < 10
+    assert summary.pass_rate < PASS_THRESHOLD
 
 
 def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> None:
@@ -481,6 +487,6 @@ def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> 
         raise ValueError("model returned nonsense")
 
     summary = run_fit_scoring_evals(broken)
-    assert summary.total == 10
+    assert summary.total == 25
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

@@ -7,6 +7,69 @@ bearing. Review findings are recorded here rather than in code comments.
 
 ## [Unreleased]
 
+### fit_scoring case sizing — resized 10 -> 25 before C2b spends any capture effort
+
+Caught proactively rather than discovered mid-round: at the >=80% threshold,
+the binomial standard error on a pass rate is `sqrt(p(1-p)/n)`. At n=10
+that's ~13 points -- worse than the exact problem `jd_extraction` hit at
+n=15 (~10 points), which is what forced its own resize to 33 cases (~7
+points) partway through B2b. C2b's validation is manual capture through
+Claude.ai chat -- expensive per round -- so spending it against a suite
+whose >=80% reading could swing ~25 points on model variance alone would
+have repeated jd_extraction's mistake with full knowledge it was coming.
+
+- Added 15 cases (case-11 through case-25): comp partially-below/missing
+  bands, level above target with executive scope, role-focus matching only
+  one of two profile entries or neither, a deal-breaker detectable only from
+  raw JD text (not the structured extraction) including one buried in
+  unrelated boilerplate, a must-have satisfied only via raw-text nuance, an
+  empty skills list that shouldn't tank an otherwise-strong match, an
+  ambiguous "Tech Lead" title, and two cases against a second IC-focused
+  profile to prove grading isn't hard-coded to one profile shape.
+- n=25 brings the standard error to ~8 points, matching the precision
+  `jd_extraction` settled on at n=33.
+- The stub's fixed score of 0 now clears 8/25 bands by coincidence (32%),
+  still far under the 80% bar -- same qualitative result as before the
+  resize, just measured against a suite whose eventual pass/fail reading
+  will mean something.
+- No new tests (the resize changes fixture size, not test count); updated
+  hardcoded `10`s to `25`s in `test_evals.py` and `test_cli.py`.
+
+### C2a — fit scoring prompt + client plumbing
+
+Mirrors B2a's shape: the real prompt and the full call path land now, but
+with no `ANTHROPIC_API_KEY` configured for this project, `default_scoring_
+client()` resolves to `StubScoringClient` and the eval suite runs end-to-end
+at $0 rather than against real judgment. C2b (manual capture through
+Claude.ai chat, same as B2b) is what actually validates the prompt.
+
+- `llm_client.py`: `SCORING_MODEL` (Sonnet, per D9's cost/quality split from
+  extraction's Haiku), its published rate, `StubScoringClient`, and
+  `default_scoring_client()`.
+- `scoring.py`: real `SCORING_SYSTEM_PROMPT` weighing deal-breakers first
+  (score capped below 20 if one is clearly met), then role/level fit, comp
+  band against the profile's target range, must-haves, and skill overlap
+  last -- in that order, matching how a real fit judgment should weigh
+  disqualifiers over nice-to-haves. `score_fit` now builds the same
+  sanitize -> verify -> instrumented-call path `extract_jd` uses, feeding
+  the model the extracted JD, the raw JD text, and the full profile as one
+  JSON user payload.
+- `cli.py`: new `score <application-id>` command -- reads `extracted_jd`
+  and `source_raw` off an existing `Application`, loads the active
+  profile, scores it, and persists `fit_score`/`fit_rationale` via
+  `update_application`. `eval fit_scoring` gained `--record`/`--replay`/
+  `--min-pass-rate`/`--data-dir` parity with `eval jd_extraction`, backed
+  by its own `evals/fit_scoring/recorded.json`.
+- The stub's fixed score of 0 happens to fall inside a few of C1's
+  deliberately-low-fit bands, so "every case fails" isn't the right
+  invariant here the way it was for extraction's stub (whose placeholder
+  values structurally can't match anything) -- what's testable instead is
+  that the pass rate stays far below `PASS_THRESHOLD`, since the 10 cases'
+  bands collectively span 0-100 and no constant score clears the bar.
+- +17 tests (376 total). Verified end-to-end: `ingest --paste` then
+  `score <id>` persists a score/rationale and shows up under its own
+  `scoring` ledger feature in `jscc costs`, separate from `extraction`.
+
 ### C1 — fit scoring eval suite
 
 Per D9, extraction and scoring are split so scoring judgment can be graded

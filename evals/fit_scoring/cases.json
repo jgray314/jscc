@@ -258,5 +258,395 @@
     },
     "min_score": 15,
     "max_score": 50
+  },
+  {
+    "id": "case-11-dealbreaker-via-raw-text-only",
+    "raw_jd_text": "Senior Engineering Manager, remote, $340,000-$400,000. Team practices a rotating on-call schedule: one full week on-call every two weeks.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Uptime Labs",
+      "level": "senior",
+      "comp_band": "$340,000-$400,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["incident response"],
+      "responsibilities_summary": "Manages a team with a recurring on-call rotation."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 20
+  },
+  {
+    "id": "case-12-comp-missing-otherwise-strong",
+    "raw_jd_text": "Senior Engineering Manager leading our infra platform. Remote. Compensation discussed during the interview process.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Infra Collective",
+      "level": "senior",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["infrastructure", "team leadership"],
+      "responsibilities_summary": "Leads the infrastructure platform team."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 65,
+    "max_score": 90
+  },
+  {
+    "id": "case-13-comp-partially-below-range",
+    "raw_jd_text": "Staff Engineering Manager, remote. Salary range $260,000-$340,000.",
+    "extracted_jd": {
+      "title": "Staff Engineering Manager",
+      "company": "Midtier Cloud",
+      "level": "staff",
+      "comp_band": "$260,000-$340,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["team leadership"],
+      "responsibilities_summary": "Leads a staff-level engineering management function."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 45,
+    "max_score": 70
+  },
+  {
+    "id": "case-14-level-above-target-executive-scope",
+    "raw_jd_text": "VP of Engineering, remote, owns the entire engineering org across 5 teams. $480,000-$650,000.",
+    "extracted_jd": {
+      "title": "VP of Engineering",
+      "company": "Skyline Cloud",
+      "level": "director",
+      "comp_band": "$480,000-$650,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["org leadership"],
+      "responsibilities_summary": "Owns the engineering org across five teams."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 70,
+    "max_score": 95
+  },
+  {
+    "id": "case-15-role-focus-matches-second-entry",
+    "raw_jd_text": "Senior Staff Engineer (IC track), remote. Deep systems design work. $330,000-$430,000.",
+    "extracted_jd": {
+      "title": "Senior Staff Engineer",
+      "company": "Corewave Systems",
+      "level": "staff",
+      "comp_band": "$330,000-$430,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["systems design"],
+      "responsibilities_summary": "Designs and builds core systems as a senior IC."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 65,
+    "max_score": 90
+  },
+  {
+    "id": "case-16-role-focus-matches-neither",
+    "raw_jd_text": "Senior Product Manager, remote. Owns roadmap for our checkout product. $250,000-$300,000.",
+    "extracted_jd": {
+      "title": "Senior Product Manager",
+      "company": "Checkout Labs",
+      "level": "senior",
+      "comp_band": "$250,000-$300,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["product strategy"],
+      "responsibilities_summary": "Owns the checkout product roadmap."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 20
+  },
+  {
+    "id": "case-17-must-have-satisfied-only-via-raw-text",
+    "raw_jd_text": "Senior Engineering Manager. We're a remote-friendly team -- most of engineering works from home, with an optional office for those nearby. $310,000-$390,000.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Homebase Technologies",
+      "level": "senior",
+      "comp_band": "$310,000-$390,000",
+      "location": null,
+      "remote_policy": null,
+      "must_have_skills": ["team leadership"],
+      "responsibilities_summary": "Leads an engineering team in a remote-friendly org."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 55,
+    "max_score": 85
+  },
+  {
+    "id": "case-18-thin-skills-list-still-scores-well",
+    "raw_jd_text": "Senior Engineering Manager, remote, leads platform team. $340,000-$420,000.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Platform Works",
+      "level": "senior",
+      "comp_band": "$340,000-$420,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": [],
+      "responsibilities_summary": "Leads a platform team."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 70,
+    "max_score": 95
+  },
+  {
+    "id": "case-19-ic-profile-em-jd-dealbreaker",
+    "raw_jd_text": "Director of Engineering Management, remote, manages a team of 4 engineering managers who each manage their own teams. $420,000-$520,000.",
+    "extracted_jd": {
+      "title": "Director of Engineering Management",
+      "company": "Orgchart Inc",
+      "level": "director",
+      "comp_band": "$420,000-$520,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["managing managers"],
+      "responsibilities_summary": "Manages a team of engineering managers."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["staff engineer", "principal engineer"],
+      "level_target": "L6 equivalent",
+      "experience_years": 10,
+      "comp_target": {"min_usd": 280000, "max_usd": 420000},
+      "must_haves": ["remote or hybrid", "no people management"],
+      "deal_breakers": ["required people management duties"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 15
+  },
+  {
+    "id": "case-20-ic-profile-staff-ic-jd-highfit",
+    "raw_jd_text": "Staff Software Engineer, remote, deep backend systems work, no direct reports. $350,000-$400,000.",
+    "extracted_jd": {
+      "title": "Staff Software Engineer",
+      "company": "Backend Forge",
+      "level": "staff",
+      "comp_band": "$350,000-$400,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["distributed systems"],
+      "responsibilities_summary": "Works on backend systems as a senior IC with no direct reports."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["staff engineer", "principal engineer"],
+      "level_target": "L6 equivalent",
+      "experience_years": 10,
+      "comp_target": {"min_usd": 280000, "max_usd": 420000},
+      "must_haves": ["remote or hybrid", "no people management"],
+      "deal_breakers": ["required people management duties"],
+      "style_samples": []
+    },
+    "min_score": 75,
+    "max_score": 100
+  },
+  {
+    "id": "case-21-terse-minimal-ic-profile",
+    "raw_jd_text": "Engineering role. Details to be discussed during interview process.",
+    "extracted_jd": {
+      "title": "Software Engineer",
+      "company": null,
+      "level": "mid",
+      "comp_band": null,
+      "location": null,
+      "remote_policy": null,
+      "must_have_skills": [],
+      "responsibilities_summary": "General software engineering work; posting gives minimal detail."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["staff engineer", "principal engineer"],
+      "level_target": "L6 equivalent",
+      "experience_years": 10,
+      "comp_target": {"min_usd": 280000, "max_usd": 420000},
+      "must_haves": ["remote or hybrid", "no people management"],
+      "deal_breakers": ["required people management duties"],
+      "style_samples": []
+    },
+    "min_score": 15,
+    "max_score": 55
+  },
+  {
+    "id": "case-22-dealbreaker-exact-wording-buried-in-noise",
+    "raw_jd_text": "Senior Engineering Manager, remote, $350,000-$420,000. Benefits include health/dental/vision, 401k match, generous PTO. Team culture: collaborative, inclusive, fast-paced. On-call rotations exceed 1 week/month during incident-heavy quarters.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Resilient Systems",
+      "level": "senior",
+      "comp_band": "$350,000-$420,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["incident response"],
+      "responsibilities_summary": "Manages a team with heavier on-call load during incident-heavy quarters."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 0,
+    "max_score": 20
+  },
+  {
+    "id": "case-23-compensating-factors-partial-miss-and-high-comp",
+    "raw_jd_text": "Senior Engineering Manager, hybrid 3 days/week onsite. $420,000-$520,000. Modern CI/CD but legacy monolith still in production.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Monolith & Co",
+      "level": "senior",
+      "comp_band": "$420,000-$520,000",
+      "location": null,
+      "remote_policy": "hybrid",
+      "must_have_skills": ["team leadership"],
+      "responsibilities_summary": "Manages a team split between modern CI/CD and a legacy monolith."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 50,
+    "max_score": 80
+  },
+  {
+    "id": "case-24-ambiguous-tech-lead-title",
+    "raw_jd_text": "Tech Lead, remote. Leads a small team of 4 engineers while still writing code daily. $290,000-$360,000.",
+    "extracted_jd": {
+      "title": "Tech Lead",
+      "company": "Smallteam Software",
+      "level": "senior",
+      "comp_band": "$290,000-$360,000",
+      "location": null,
+      "remote_policy": "remote",
+      "must_have_skills": ["hands-on coding", "team leadership"],
+      "responsibilities_summary": "Leads a small team while remaining a hands-on contributor."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 20,
+    "max_score": 60
+  },
+  {
+    "id": "case-25-hybrid-clean-match",
+    "raw_jd_text": "Senior Engineering Manager, hybrid (3 days/week onsite). $340,000-$430,000. Fully modernized CI/CD, strong engineering culture.",
+    "extracted_jd": {
+      "title": "Senior Engineering Manager",
+      "company": "Modernstack Co",
+      "level": "senior",
+      "comp_band": "$340,000-$430,000",
+      "location": null,
+      "remote_policy": "hybrid",
+      "must_have_skills": ["CI/CD", "team leadership"],
+      "responsibilities_summary": "Leads a team on a fully modernized CI/CD stack, hybrid onsite schedule."
+    },
+    "profile": {
+      "display_name": "Sample Candidate",
+      "role_focus": ["engineering manager", "senior staff engineer"],
+      "level_target": "L6-L7 equivalent",
+      "experience_years": 12,
+      "comp_target": {"min_usd": 300000, "max_usd": 500000},
+      "must_haves": ["remote or hybrid", "modern tooling and CI"],
+      "deal_breakers": ["on-call rotations >1 week/month"],
+      "style_samples": []
+    },
+    "min_score": 80,
+    "max_score": 100
   }
 ]

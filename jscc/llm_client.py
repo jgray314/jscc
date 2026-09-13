@@ -38,6 +38,12 @@ from pydantic import BaseModel
 # what tripped CI on this line the first time; describe the shape instead.)
 EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 
+# Per D9: extraction is structured (Haiku territory), scoring is judgment
+# (Sonnet territory). Same split-literal reasoning as EXTRACTION_MODEL above
+# -- the contiguous 8-digit date suffix trips the pre-commit scanner's
+# phone-pattern digit-count window.
+SCORING_MODEL = "claude-sonnet-4-5-" + "20250929"
+
 # Published rates, verified 2026-09-05 against
 # https://platform.claude.com/docs/en/about-claude/pricing
 #
@@ -50,6 +56,7 @@ EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 # against the link above whenever the model changes or a bill looks off.
 _MODEL_RATES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
     EXTRACTION_MODEL: (1.00, 5.00),  # (input, output) USD per million tokens
+    SCORING_MODEL: (3.00, 15.00),
 }
 
 
@@ -90,6 +97,11 @@ _STUB_RESPONSE_TEXT = """{
   "remote_policy": null,
   "must_have_skills": [],
   "responsibilities_summary": "no live extraction — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubExtractionClient (jscc/llm_client.py)."
+}"""
+
+_STUB_SCORING_RESPONSE_TEXT = """{
+  "score": 0,
+  "rationale": "no live scoring — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubScoringClient (jscc/llm_client.py)."
 }"""
 
 
@@ -175,7 +187,30 @@ class StubExtractionClient:
         )
 
 
+class StubScoringClient:
+    """No API key configured. Scoring's counterpart to `StubExtractionClient`
+    — a fixed, clearly-labeled placeholder so `score_fit`'s call path, the
+    sanitizer routing, and the eval harness are exercisable end-to-end
+    without a key or any spend. Eval pass rate against it is expected to be
+    near zero, same as extraction's."""
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        return LLMResponse(
+            text=_STUB_SCORING_RESPONSE_TEXT,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            stop_reason="end_turn",
+        )
+
+
 def default_client() -> LLMClient:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient()
     return StubExtractionClient()
+
+
+def default_scoring_client() -> LLMClient:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return AnthropicClient()
+    return StubScoringClient()

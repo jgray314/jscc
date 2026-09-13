@@ -1684,3 +1684,111 @@ def test_replay_refuses_a_prompt_it_has_no_recording_for(tmp_path: Path) -> None
     client = ReplayClient({"some-other-hash": '{"title": "X"}'})
     with pytest.raises(RecordingMissing):
         client.complete(model="m", system="s", user="a prompt never recorded")
+
+
+# ---- eval fit_scoring (C2a) ----------------------------------------------------
+
+
+def test_eval_fit_scoring_records_calls_under_its_own_feature_label(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(cli, ["eval", "fit_scoring", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1, result.output  # stub stays far below the bar, as expected
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    calls = list_llm_calls(conn)
+    conn.close()
+
+    assert len(calls) == 25, "one ledger row per eval case"
+    assert {c.feature for c in calls} == {"scoring_eval"}
+
+
+def test_eval_fit_scoring_fails_below_the_threshold_and_says_the_number(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["eval", "fit_scoring", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "80%" in result.output
+
+
+def test_eval_fit_scoring_passes_when_the_bar_is_lowered(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["eval", "fit_scoring", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+
+
+# ---- score command (C2a) -------------------------------------------------------
+
+
+def _ingest_pasted(runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Ingest a pasted JD (against the stub extractor) and return its application id."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["ingest", "--paste", "--company", "TestCo", "--data-dir", str(tmp_path)],
+        input="Senior Engineering Manager. Remote.",
+    )
+    assert result.exit_code == 0, result.output
+    return result.output.split(": ", 1)[0].rsplit(" ", 1)[-1]
+
+
+def test_score_requires_extracted_jd(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No such application exists yet -- id was never ingested."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["score", "not-a-real-id", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 2
+    assert "no application found" in result.output
+
+
+def test_score_scores_and_persists_against_the_stub(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_id = _ingest_pasted(runner, tmp_path, monkeypatch)
+
+    result = runner.invoke(cli, ["score", app_id, "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert app_id in result.output
+
+    from jscc.mode import Mode
+    from jscc.storage import get_application, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    app = get_application(conn, app_id)
+    conn.close()
+    assert app.fit_score == 0.0
+    assert "StubScoringClient" in app.fit_rationale
+
+
+def test_score_and_ingest_traffic_stay_separable_in_the_ledger(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_id = _ingest_pasted(runner, tmp_path, monkeypatch)
+    runner.invoke(cli, ["score", app_id, "--data-dir", str(tmp_path)])
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    features = [c.feature for c in list_llm_calls(conn)]
+    conn.close()
+
+    assert features.count("extraction") == 1
+    assert features.count("scoring") == 1
