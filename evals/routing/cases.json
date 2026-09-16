@@ -1,0 +1,313 @@
+[
+  {
+    "id": "routine-thank-you-after-onsite",
+    "application": {
+      "id": "app-01",
+      "title": "Engineering Manager, Platform",
+      "company": "Acme Corp",
+      "stage": "onsite",
+      "applied_at": "2026-08-01"
+    },
+    "history": [
+      {
+        "id": "int-01a",
+        "application_id": "app-01",
+        "type": "applied",
+        "occurred_at": "2026-08-01T09:00:00Z",
+        "notes": "Applied via referral."
+      },
+      {
+        "id": "int-01b",
+        "application_id": "app-01",
+        "type": "onsite",
+        "occurred_at": "2026-09-10T15:00:00Z",
+        "notes": "Full-loop onsite: system design, two behavioral rounds, panel with skip-level. Went well, panel seemed engaged.",
+        "next_action": "Send thank-you note to the panel",
+        "next_action_due": "2026-09-11"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-cadence-nudge",
+    "application": {
+      "id": "app-02",
+      "title": "Staff Software Engineer",
+      "company": "Northwind Systems",
+      "stage": "screen",
+      "applied_at": "2026-08-15"
+    },
+    "history": [
+      {
+        "id": "int-02a",
+        "application_id": "app-02",
+        "type": "applied",
+        "occurred_at": "2026-08-15T09:00:00Z",
+        "notes": "Applied through job board."
+      },
+      {
+        "id": "int-02b",
+        "application_id": "app-02",
+        "type": "screen",
+        "occurred_at": "2026-08-22T13:00:00Z",
+        "notes": "Recruiter screen, said next step would be within two weeks.",
+        "next_action": "Check in if no word by early September",
+        "next_action_due": "2026-09-05"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-logistics-confirm",
+    "application": {
+      "id": "app-03",
+      "title": "Director of Engineering",
+      "company": "Beacon Health",
+      "stage": "onsite",
+      "applied_at": "2026-08-20"
+    },
+    "history": [
+      {
+        "id": "int-03a",
+        "application_id": "app-03",
+        "type": "screen",
+        "occurred_at": "2026-08-28T14:00:00Z",
+        "notes": "HM screen went well, moving to onsite."
+      },
+      {
+        "id": "int-03b",
+        "application_id": "app-03",
+        "type": "custom",
+        "occurred_at": "2026-09-14T10:00:00Z",
+        "notes": "Recruiter proposed onsite for 2026-09-22, 9am-1pm, asked to confirm availability and whether a video-call option is needed for one panelist who is remote.",
+        "next_action": "Confirm the proposed onsite date and time",
+        "next_action_due": "2026-09-15"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-recruiter-ack",
+    "application": {
+      "id": "app-04",
+      "title": "Engineering Manager",
+      "company": "Cascade Robotics",
+      "stage": "applied",
+      "applied_at": "2026-09-13"
+    },
+    "history": [
+      {
+        "id": "int-04a",
+        "application_id": "app-04",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-13T11:30:00Z",
+        "notes": "Recruiter reached out cold on LinkedIn about the role, asked if I'm open to a quick intro call this week.",
+        "next_action": "Reply confirming interest and availability",
+        "next_action_due": "2026-09-14"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-thank-you-after-screen",
+    "application": {
+      "id": "app-05",
+      "title": "Senior Engineering Manager",
+      "company": "Fernwood Data",
+      "stage": "screen",
+      "applied_at": "2026-08-25"
+    },
+    "history": [
+      {
+        "id": "int-05a",
+        "application_id": "app-05",
+        "type": "screen",
+        "occurred_at": "2026-09-12T16:00:00Z",
+        "notes": "30-minute phone screen with the hiring manager, covered team scope and my background. Friendly, no red flags.",
+        "next_action": "Send a short thank-you note",
+        "next_action_due": "2026-09-13"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-referral-thank-you",
+    "application": {
+      "id": "app-06",
+      "title": "Engineering Manager",
+      "company": "Harborlight Media",
+      "stage": "applied",
+      "applied_at": "2026-09-10"
+    },
+    "history": [
+      {
+        "id": "int-06a",
+        "application_id": "app-06",
+        "contact_id": "contact-06a",
+        "type": "custom",
+        "occurred_at": "2026-09-10T09:00:00Z",
+        "notes": "A former colleague submitted an internal referral for this role and confirmed it went through.",
+        "next_action": "Thank the referrer for submitting it",
+        "next_action_due": "2026-09-11"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "non_routine-rejection-feedback-seeking",
+    "application": {
+      "id": "app-07",
+      "title": "Engineering Manager",
+      "company": "Ridgeline Analytics",
+      "stage": "closed",
+      "applied_at": "2026-08-05"
+    },
+    "history": [
+      {
+        "id": "int-07a",
+        "application_id": "app-07",
+        "type": "onsite",
+        "occurred_at": "2026-09-01T14:00:00Z",
+        "notes": "Full onsite loop completed."
+      },
+      {
+        "id": "int-07b",
+        "application_id": "app-07",
+        "type": "rejection",
+        "occurred_at": "2026-09-11T10:00:00Z",
+        "notes": "Recruiter emailed a rejection after the onsite, no specifics given on why. Would like to ask for feedback on where the loop fell short.",
+        "next_action": "Reply asking for feedback",
+        "next_action_due": "2026-09-15"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-compensation-negotiation",
+    "application": {
+      "id": "app-08",
+      "title": "Director of Engineering",
+      "company": "Silverline Tech",
+      "stage": "offer",
+      "applied_at": "2026-07-20"
+    },
+    "history": [
+      {
+        "id": "int-08a",
+        "application_id": "app-08",
+        "type": "offer",
+        "occurred_at": "2026-09-08T11:00:00Z",
+        "notes": "Verbal offer: base + bonus + equity, about 8% below target comp band. Written offer to follow this week.",
+        "next_action": "Decide on a counter and respond",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-warm-contact-first-outreach",
+    "application": {
+      "id": "app-09",
+      "title": "VP Engineering",
+      "company": "Tidepool Labs",
+      "stage": "not_applied",
+      "applied_at": null
+    },
+    "history": [
+      {
+        "id": "int-09a",
+        "application_id": "app-09",
+        "contact_id": "contact-09a",
+        "type": "custom",
+        "occurred_at": "2026-09-14T08:00:00Z",
+        "notes": "Considering reaching out to a former manager, now a VP at this company, to ask about the open role and gauge whether a referral makes sense. Haven't contacted them about anything in over a year.",
+        "next_action": "Draft first outreach message",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-multithread-ambiguity",
+    "application": {
+      "id": "app-10",
+      "title": "Engineering Manager, Infrastructure",
+      "company": "Gladstone Systems",
+      "stage": "screen",
+      "applied_at": "2026-08-18"
+    },
+    "history": [
+      {
+        "id": "int-10a",
+        "application_id": "app-10",
+        "contact_id": "contact-10a",
+        "type": "screen",
+        "occurred_at": "2026-09-05T13:00:00Z",
+        "notes": "Recruiter screen. Recruiter said the next step is a hiring-manager call, will schedule directly.",
+        "next_action": "Wait for HM to reach out"
+      },
+      {
+        "id": "int-10b",
+        "application_id": "app-10",
+        "contact_id": "contact-10b",
+        "type": "custom",
+        "occurred_at": "2026-09-13T10:00:00Z",
+        "notes": "The hiring manager separately emailed asking to jump straight to a technical panel next week, which conflicts with what the recruiter said about the process order. Unclear which thread to respond to first or whether the recruiter is aware of the HM's message.",
+        "next_action": "Reply to someone",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-personal-note-flagged",
+    "application": {
+      "id": "app-11",
+      "title": "Senior Engineering Manager",
+      "company": "Wrenfield Group",
+      "stage": "screen",
+      "applied_at": "2026-08-10"
+    },
+    "history": [
+      {
+        "id": "int-11a",
+        "application_id": "app-11",
+        "contact_id": "contact-11a",
+        "type": "screen",
+        "occurred_at": "2026-09-02T15:00:00Z",
+        "notes": "HM screen. HM mentioned mid-call that they're currently dealing with a family medical situation and might be slower than usual to follow up -- asked to keep that between us.",
+        "next_action": "Follow up, gently, in a week or two",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-low-confidence-mixed-signals",
+    "application": {
+      "id": "app-12",
+      "title": "Engineering Manager",
+      "company": "Quietwater Robotics",
+      "stage": "screen",
+      "applied_at": "2026-08-22"
+    },
+    "history": [
+      {
+        "id": "int-12a",
+        "application_id": "app-12",
+        "type": "screen",
+        "occurred_at": "2026-08-30T12:00:00Z",
+        "notes": "Recruiter screen, positive tone."
+      },
+      {
+        "id": "int-12b",
+        "application_id": "app-12",
+        "type": "custom",
+        "occurred_at": "2026-09-06T09:00:00Z",
+        "notes": "Recruiter sent a short note that just says 'wanted to check in -- still figuring out next steps on our end, will circle back.' No clear ask, no clear timeline, tone is harder to read than the first call.",
+        "next_action": "Unclear whether any reply is needed"
+      }
+    ],
+    "expected_classification": "non_routine"
+  }
+]

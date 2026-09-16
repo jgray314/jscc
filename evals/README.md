@@ -1,6 +1,6 @@
 # Evals
 
-One suite per LLM stage. Two stages exist today — `jd_extraction` and `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently). Routing/composition arrives in Phase D (D10). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
+One suite per LLM stage. Three stages exist today — `jd_extraction`, `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently), and `routing` (D10 step 1 of the routing-first drafter). Composition (D10 step 2A) arrives with Slice D3. Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
 
 ## jd_extraction (Slice B1)
 
@@ -40,6 +40,16 @@ Run: `python -m jscc eval fit_scoring`. C2a landed the real prompt (Sonnet, per 
 
 **Round 1 (2026-09-12): 21/25 (84%)**, above the 80% bar. Three misses (case-02, case-06, case-08) landed just outside a band on comp/level boundary judgment calls — expected instability, not a wording gap. The fourth (case-14, a director/VP posting one level above the profile's target with comp above range) is a real prompt-language finding, confirmed with a second independent capture (38, then 22, both against a 70-95 band, both citing "far outside role_focus"): the prompt's role/level factor treats an adjacent higher title as categorically outside `role_focus` rather than as one step up that above-range comp should help offset. Deferred rather than fixed against round-1 data alone — tracked in the parent plan's cleanup backlog as a between-phases refinement, since 84% already clears the bar.
 
-## routing, composition (not yet built)
+## routing (Slice D1)
 
-Land with their respective Phase D slices (D1, D3 in the sub-plan).
+`evals/routing/cases.json` — 12 hand-authored (application, history) fixtures split evenly across the routine/non-routine surface D10 names: routine (post-interview thank-you, cadence nudge on a stale screen, onsite-logistics confirmation, a cold recruiter outreach needing acknowledgment, thank-you after a phone screen, thank-you to a referrer) and non-routine (a feedback-seeking rejection reply, a compensation negotiation, first outreach to a warm personal contact, two threads giving conflicting instructions, an interaction note carrying a contact's personal/medical disclosure per D8, and a genuinely ambiguous recruiter check-in with no clear ask).
+
+Grading (`grade_routing_decision` in `jscc/evals.py`):
+- **Classification, exact:** `routine` vs. `non_routine` is the case-defining check — a case fails outright on a wrong classification regardless of what else the decision contains.
+- **Shape-appropriate presence, not graded here:** a correctly-classified `routine` decision needs a non-empty `intent`; a correctly-classified `non_routine` decision needs a non-empty `reason` and at least one `considerations` entry. Whether `intent` names the *right* routine bucket, or `considerations` are actually useful, is real quality grading deferred to Slice D2 once there's a prompt worth judging — the same deferral `responsibilities_summary` and `rationale` got at B1/C1.
+
+Run: `python -m jscc eval routing`. No `--record`/`--replay`/`--min-pass-rate` yet — `route_followup` is a stub (`RoutingNotImplementedError`) until Slice D2 lands a real prompt, so there's nothing live to gate on. Expect 0/12 until then; that's the harness working, not a bug, same DoD shape B1 and C1 shipped.
+
+## composition (not yet built)
+
+Lands with Slice D3.

@@ -2,9 +2,9 @@
 
 [![ci](https://github.com/jgray314/jscc/actions/workflows/ci.yml/badge.svg)](https://github.com/jgray314/jscc/actions/workflows/ci.yml)
 
-A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, scores fit against a profile through a second eval-backed LLM stage, stores them, and surfaces stale opportunities. The follow-up drafter is specified and not built — see [Status](#status) for the line between the two.
+A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, scores fit against a profile through a second eval-backed LLM stage, stores them, and surfaces stale opportunities. The follow-up drafter's routing eval suite is shipped; its prompt is not — see [Status](#status) for the line between the two.
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) is next. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) is underway — its eval suite (D1) is shipped; the routing prompt itself is not. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
 ## Why this project
 
@@ -79,13 +79,15 @@ jscc/           library code
   instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
   extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt v1
   llm_client.py Anthropic client + StubExtractionClient fallback (no key configured yet)
-  evals.py      hand-rolled eval harness (jd_extraction suite so far)
+  evals.py      hand-rolled eval harness (jd_extraction, fit_scoring, routing)
   fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
+  scoring.py    the score_fit interface (D9 step 2) + fit-scoring prompt v1
+  routing.py    the route_followup interface (D10 step 1); stub until Slice D2's prompt lands
   report.py     staleness detector + funnel counts
   cli.py        click entry point (ingest, dlq list, resolve-dlq, ...)
-tests/          pytest suite (404 tests)
+tests/          pytest suite (413 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
-evals/          eval suites (jd_extraction so far); evals/README.md
+evals/          eval suites (jd_extraction, fit_scoring, routing); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated)
 decisions/      ADRs (see below)
 docs/           design-principles.md; smoke-test-results.md (smoke_fetch.py output snapshot)
@@ -130,11 +132,11 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 | **Phase A — foundations** | Config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs. Closed after three gate rounds. | — |
 | **Phase B — ingestion + extraction** | Eval suite, extraction prompt validated against real model output (76%–82% band, see below), fetcher + Playwright fallback + DLQ, paste-only path, three-value exit contract, ruff lint/format gate. Phase B → C gate fully closed. | — |
 | **Phase C — fit scoring** | Eval suite (C1), prompt + client plumbing (C2a), and manual-capture validation (C2b — 84% on round 1, above the bar; one deferred finding, see CHANGELOG). Cost/latency reporting (C3): `jscc costs` prints per-feature cost, latency percentiles, and flags any call whose recorded cost no longer matches its model's published rate. | — |
-| **Phase D — follow-up drafter** | — | Not built. Routing-first, routine-only per [D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition) — anything non-routine gets a briefing card, not a prose draft. |
+| **Phase D — follow-up drafter** | Routing eval suite (D1): `RoutingDecision` model, `route_followup` stub (final signature), 12 (application, history) fixtures split evenly across the routine/non-routine surface D10 names. | Routing prompt v1 (D2). |
 
-**Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B: B1 (eval suite), B2 (extraction prompt + client plumbing, validated against real model output — see below), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay. Phase C: C1 (fit-scoring eval suite), C2a (real prompt + call path), C2b (manual-capture validation, 84% on round 1), and C3 (cost/latency reporting) — all shipped, then a Phase C → D gate that fixed a DNS-rebinding SSRF gap an earlier pass had rated low-risk, a missing score-range check, and a billed-but-unlogged call path.
+**Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B: B1 (eval suite), B2 (extraction prompt + client plumbing, validated against real model output — see below), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay. Phase C: C1 (fit-scoring eval suite), C2a (real prompt + call path), C2b (manual-capture validation, 84% on round 1), and C3 (cost/latency reporting) — all shipped, then a Phase C → D gate that fixed a DNS-rebinding SSRF gap an earlier pass had rated low-risk, a missing score-range check, and a billed-but-unlogged call path. Phase D: D1 (routing eval suite), mirroring B1/C1's shape.
 
-**Not built.** The drafter and its routing (Phase D). Phase C is closed: C1's eval suite, C2a's real prompt + call path, C2b's manual-capture validation (84% on round 1), and C3's cost/latency reporting are all shipped.
+**Not built.** The routing prompt itself (Slice D2) and everything after it in Phase D (composition, the non-routine briefing renderer). D1's eval suite and `route_followup`'s final signature are shipped; the stub raises until D2 lands a real prompt, mirroring how B1 preceded B2 and C1 preceded C2.
 
 **B2b closed.** No `ANTHROPIC_API_KEY` is configured — this project isn't using the Anthropic Console, so extraction runs end-to-end against a stub client by default. B2b validates the prompt against real (not stub) model output captured by hand through Claude.ai chat and replayed via the eval harness's `--record`/`--replay` fixtures, rather than against live API traffic. The eval clears the ≥80% bar, but the honest number is a band, not a point figure: two independent capture rounds measured 76%–82% on the same 33-case suite holding the prompt fixed, so pass rate itself carries several points of model variance under manual capture. See CHANGELOG for the categorized breakdown — one grader gap (abbreviation pairs like "infra-as-code" vs "infrastructure as code") and a couple of documented model-consistency limits (ambiguous-title leveling; case-by-case wording variance) are left as disclosed gaps rather than chased further. Not CI-gated, since a manual-capture eval has no live traffic to gate on.
 
@@ -144,7 +146,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet — every call through Phase C ran against stub clients or hand-captured through Claude.ai chat, never a live billed `AnthropicClient` request, since this project isn't using the Anthropic Console (see B2b/C2b above). What does exist: every call path is instrumented from Phase A onward (D5), the ledger schema and `jscc costs` reporting are built and tested against synthetic call records (percentile latency, per-feature grouping, stale-rate regression detection), and — as of the Phase C → D gate — a call that fails mid-request now leaves a marked row instead of vanishing from the ledger entirely. The honest claim today is "the cost-transparency machinery is built and correct," not "here is what this costs to run" — that second claim waits on a live key, which may not happen under the current no-Console-account decision.
 
-404 pytest cases. Lint and format enforced via ruff (see Development, above).
+413 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

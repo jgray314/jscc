@@ -27,6 +27,7 @@ from .evals import (
     load_recording,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
+    run_routing_evals,
     save_recording,
 )
 from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
@@ -36,6 +37,7 @@ from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import Application, DLQEntry, ExtractedJD, FailureMode, FetchStatus, Resolution
 from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
+from .routing import route_followup
 from .scoring import SCORING_EVAL_FEATURE, SCORING_FEATURE, ScoringParseError, score_fit
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
@@ -585,6 +587,18 @@ def eval_fit_scoring(
             err=True,
         )
         sys.exit(1)
+
+
+@eval_group.command("routing")
+def eval_routing() -> None:
+    """Run the routing eval suite (12 cases) against the current `route_followup`.
+
+    No CLI options yet (data-dir, --record/--replay) — Slice D1 mirrors B1/C1's
+    minimal wiring; that machinery lands with D2 once there's a real prompt
+    worth iterating against.
+    """
+    summary = run_routing_evals(route_followup)
+    click.echo(format_eval_summary(summary))
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The

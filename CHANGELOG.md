@@ -14,6 +14,42 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D1 -- routing eval suite
+
+Per D10, the drafter's first step is a Haiku classification call (routine /
+non_routine), not a draft -- this suite makes that judgment gradeable ahead
+of any real prompt, the same shape B1 took ahead of B2 and C1 took ahead of
+C2.
+
+- `RoutingDecision` model (plus `RoutingClassification`): the contract
+  Slice D2's prompt is written against. Two shapes on one model rather than
+  a tagged union, matching how `ExtractedJD`/`FitResult` already parse
+  straight out of a model's JSON response -- a `routine` decision carries
+  `intent` and leaves `reason`/`considerations` unset; a `non_routine`
+  decision carries `reason` + `considerations` and leaves `intent` unset.
+- `routing.py`: `route_followup(app, history) -> RoutingDecision` stub,
+  raises `RoutingNotImplementedError` until D2. Signature is final now.
+- `evals/routing/cases.json`: 12 hand-authored (application, history)
+  fixtures split evenly across the routine/non-routine surface D10 names --
+  routine (post-interview thank-you, cadence nudge on a stale screen,
+  onsite-logistics confirmation, a cold recruiter outreach, thank-you after
+  a phone screen, thank-you to a referrer) and non-routine (a
+  feedback-seeking rejection reply, a compensation negotiation, first
+  outreach to a warm personal contact, two threads giving conflicting
+  instructions, an interaction note carrying a contact's personal/medical
+  disclosure per D8, and a genuinely ambiguous recruiter check-in with no
+  clear ask).
+- `evals.py`: classification-exact grading as the case-defining check, plus
+  a shape-appropriate presence check (`intent` for routine, `reason` +
+  `considerations` for non_routine) -- the same presence-only treatment
+  `rationale` got at C1, deferring real wording-quality grading (is
+  `intent` the *right* bucket, are `considerations` actually useful) to D2
+  once there's a prompt worth judging.
+- `python -m jscc eval routing` CLI command, no `--record`/`--replay` yet --
+  that machinery lands with D2, same as extraction's did at B2a and
+  scoring's did at C2a.
+- +9 tests (413 total). DoD met: runs, reports 0/12 passed (no prompt yet).
+
 ### Phase C -> D gate: G1 (SSRF pin), G2 (score bounds), G3 (failure-marker ledger row)
 
 A cold two-lens review (adversarial + outside-reviewer walkthrough) ran

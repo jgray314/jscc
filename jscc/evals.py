@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from .config import Profile
 from .llm_client import LLMResponse
-from .models import ExtractedJD, FitResult
+from .models import Application, ExtractedJD, FitResult, Interaction, RoutingDecision
 from .paths import PACKAGE_ROOT
 from .sanitizer import LLMSendError, SanitizerRefusal
 
@@ -28,6 +28,7 @@ JD_EXTRACTION_CASES_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "cases.jso
 JD_EXTRACTION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "recorded.json"
 FIT_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "cases.json"
 FIT_SCORING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "recorded.json"
+ROUTING_CASES_PATH = PACKAGE_ROOT / "evals" / "routing" / "cases.json"
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
 # property of the object: a threshold in a README is a promise about a
@@ -500,5 +501,76 @@ def run_fit_scoring_evals(
             results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
             continue
         results.append(grade_fit_score(case, result))
+    passed = sum(1 for r in results if r.passed)
+    return EvalSummary(total=len(results), passed=passed, results=results)
+
+
+# --- routing (Slice D1) --------------------------------------------------
+#
+# Per D10, the router's job is a binary classification (routine /
+# non_routine), not a draft -- so grading checks the classification first,
+# since a wrong classification is the case-defining failure, then checks
+# presence of the shape-appropriate fields (`intent` for routine, `reason`
+# + `considerations` for non_routine) the same way `fit_scoring`'s
+# `rationale` got a presence-only check at C1: real wording-quality grading
+# (is `intent` the RIGHT routine bucket, are `considerations` actually
+# useful) is deferred to Slice D2, once there's a real prompt worth judging.
+
+
+class RoutingEvalCase(BaseModel):
+    id: str
+    application: dict[str, Any]
+    history: list[dict[str, Any]]
+    expected_classification: str  # "routine" | "non_routine"
+
+
+def load_routing_cases(path: Path = ROUTING_CASES_PATH) -> list[RoutingEvalCase]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [RoutingEvalCase(**item) for item in raw]
+
+
+def grade_routing_decision(case: RoutingEvalCase, decision: RoutingDecision) -> EvalCaseResult:
+    diffs: list[FieldDiff] = []
+    actual_classification = decision.classification.value
+    if actual_classification != case.expected_classification:
+        diffs.append(
+            FieldDiff(
+                field="classification",
+                expected=case.expected_classification,
+                actual=actual_classification,
+            )
+        )
+    elif case.expected_classification == "routine":
+        if not (decision.intent or "").strip():
+            diffs.append(FieldDiff(field="intent", expected="<non-empty>", actual=decision.intent))
+    else:
+        if not (decision.reason or "").strip():
+            diffs.append(FieldDiff(field="reason", expected="<non-empty>", actual=decision.reason))
+        if not decision.considerations:
+            diffs.append(
+                FieldDiff(
+                    field="considerations", expected="<non-empty>", actual=decision.considerations
+                )
+            )
+    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+
+
+def run_routing_evals(
+    route_fn: Callable[[Application, list[Interaction]], RoutingDecision],
+    cases_path: Path = ROUTING_CASES_PATH,
+) -> EvalSummary:
+    cases = load_routing_cases(cases_path)
+    results: list[EvalCaseResult] = []
+    for case in cases:
+        try:
+            app = Application(**case.application)
+            history = [Interaction(**item) for item in case.history]
+            decision = route_fn(app, history)
+        except (SanitizerRefusal, LLMSendError):
+            raise
+        except Exception as e:  # router stub, prompt bugs, malformed fixtures, etc.
+            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            continue
+        results.append(grade_routing_decision(case, decision))
     passed = sum(1 for r in results if r.passed)
     return EvalSummary(total=len(results), passed=passed, results=results)

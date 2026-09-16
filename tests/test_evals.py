@@ -7,23 +7,36 @@ from jscc.evals import (
     FIT_SCORING_CASES_PATH,
     JD_EXTRACTION_CASES_PATH,
     PASS_THRESHOLD,
+    ROUTING_CASES_PATH,
     EvalCase,
     FitEvalCase,
     ManualCaptureClient,
     RecordingClient,
     RecordingMissing,
     ReplayClient,
+    RoutingEvalCase,
     format_eval_summary,
     grade_extraction,
     grade_fit_score,
+    grade_routing_decision,
     load_cases,
     load_fit_cases,
+    load_routing_cases,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
+    run_routing_evals,
 )
 from jscc.extraction import extract_jd
 from jscc.llm_client import LLMResponse, StubExtractionClient, StubScoringClient
-from jscc.models import ExtractedJD, FitResult
+from jscc.models import (
+    Application,
+    ExtractedJD,
+    FitResult,
+    Interaction,
+    RoutingClassification,
+    RoutingDecision,
+)
+from jscc.routing import RoutingNotImplementedError, route_followup
 from jscc.scoring import score_fit
 
 
@@ -532,3 +545,125 @@ def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> N
     )
     result = client.complete(model="m", system="s", user="u")
     assert result.text == "first paragraph\n\nsecond paragraph"
+
+
+# ---- routing (Slice D1) --------------------------------------------------
+
+
+def test_routing_cases_file_has_twelve_cases() -> None:
+    """12 (application, history) fixtures split across the routine/non-routine
+    surface D10 names, per the sub-plan's D1."""
+    cases = load_routing_cases(ROUTING_CASES_PATH)
+    assert len(cases) == 12
+    assert len({c.id for c in cases}) == 12  # unique ids
+    routine = [c for c in cases if c.expected_classification == "routine"]
+    non_routine = [c for c in cases if c.expected_classification == "non_routine"]
+    assert len(routine) == 6
+    assert len(non_routine) == 6
+
+
+def _routing_case(**overrides) -> RoutingEvalCase:
+    fields = dict(
+        id="t1",
+        application={
+            "id": "app-t1",
+            "title": "Engineering Manager",
+            "company": "Test Co",
+            "stage": "screen",
+        },
+        history=[
+            {
+                "id": "int-t1",
+                "application_id": "app-t1",
+                "type": "screen",
+                "occurred_at": "2026-09-01T10:00:00Z",
+                "notes": "Recruiter screen.",
+            }
+        ],
+        expected_classification="routine",
+    )
+    fields.update(overrides)
+    return RoutingEvalCase(**fields)
+
+
+def test_grade_routing_decision_matching_routine_with_intent_passes() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="routine"),
+        RoutingDecision(classification=RoutingClassification.routine, intent="thank_you"),
+    )
+    assert result.passed, result.diffs
+
+
+def test_grade_routing_decision_matching_non_routine_with_reason_passes() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="non_routine"),
+        RoutingDecision(
+            classification=RoutingClassification.non_routine,
+            reason="compensation negotiation",
+            considerations=["comp band", "leverage"],
+        ),
+    )
+    assert result.passed, result.diffs
+
+
+def test_grade_routing_decision_wrong_classification_fails() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="routine"),
+        RoutingDecision(
+            classification=RoutingClassification.non_routine,
+            reason="misclassified",
+            considerations=["x"],
+        ),
+    )
+    assert not result.passed
+    assert any(d.field == "classification" for d in result.diffs)
+
+
+def test_grade_routing_decision_routine_with_empty_intent_fails() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="routine"),
+        RoutingDecision(classification=RoutingClassification.routine, intent=""),
+    )
+    assert not result.passed
+    assert any(d.field == "intent" for d in result.diffs)
+
+
+def test_grade_routing_decision_non_routine_missing_considerations_fails() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="non_routine"),
+        RoutingDecision(
+            classification=RoutingClassification.non_routine,
+            reason="ambiguous",
+            considerations=[],
+        ),
+    )
+    assert not result.passed
+    assert any(d.field == "considerations" for d in result.diffs)
+
+
+def test_route_followup_stub_raises_not_implemented() -> None:
+    cases = load_routing_cases(ROUTING_CASES_PATH)
+    case = cases[0]
+    with pytest.raises(RoutingNotImplementedError):
+        route_followup(
+            Application(**case.application),
+            [Interaction(**item) for item in case.history],
+        )
+
+
+def test_run_routing_evals_against_stub_reports_all_failed() -> None:
+    """No prompt exists yet -- every case is expected to fail. That failure
+    is the harness working correctly, same DoD shape as B1/C1's stubs."""
+    summary = run_routing_evals(route_followup)
+    assert summary.total == 12
+    assert summary.passed == 0
+
+
+def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None:
+    def broken(app, history) -> RoutingDecision:
+        raise ValueError("model returned nonsense")
+
+    summary = run_routing_evals(broken)
+    assert summary.total == 12
+    assert summary.passed == 0
+    assert all(r.error for r in summary.results)

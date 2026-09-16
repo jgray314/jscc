@@ -150,6 +150,32 @@ class FitResult(BaseModel):
     rationale: str
 
 
+class RoutingClassification(StrEnum):
+    routine = "routine"
+    non_routine = "non_routine"
+
+
+class RoutingDecision(BaseModel):
+    """Structured output of `route_followup` (D10 step 1). The contract
+    Slice D2's prompt is written against and the eval suite (Slice D1)
+    grades against.
+
+    Two shapes per D10, not one field set used inconsistently: a `routine`
+    decision carries `intent` (what routine situation this is -- e.g.
+    "post_interview_thank_you") and leaves `reason`/`considerations` unset.
+    A `non_routine` decision carries `reason` and `considerations` instead
+    and leaves `intent` unset -- there is no drafted intent for a situation
+    the router is refusing to auto-draft. Both fields being optional on one
+    model (rather than a tagged union) matches how `ExtractedJD`/`FitResult`
+    are already parsed straight out of the model's JSON response.
+    """
+
+    classification: RoutingClassification
+    intent: str | None = None
+    reason: str | None = None
+    considerations: list[str] = Field(default_factory=list)
+
+
 class LLMCallRecord(BaseModel):
     """One row per LLM call, captured by the `@instrumented` decorator (D5).
 
