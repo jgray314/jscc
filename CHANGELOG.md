@@ -14,6 +14,54 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D2a -- routing prompt + call path
+
+Mirrors B2a's and C2a's shape: the real prompt, the full D7/D8 choke-point
+call path, and CLI wiring, ahead of D2b's manual-capture validation against
+real model output.
+
+- `llm_client.py`: `ROUTING_MODEL` (aliased to `EXTRACTION_MODEL` -- per
+  D10 routing is "Haiku, cheap," the same shape extraction already is, so
+  it reuses that model id and rate entry rather than hand-copying a second
+  one that could drift out of sync). `StubRoutingClient` +
+  `default_routing_client()`, same shape as the other two stubs with one
+  deliberate difference: its fixed answer is `non_routine`, not an
+  arbitrary placeholder -- per D10's bias, an unconfigured router that
+  never auto-drafts is the honestly correct "safe when uncertain" default,
+  not just a stand-in for one.
+- `routing.py`: real `ROUTING_SYSTEM_PROMPT` biased hard toward
+  `non_routine` on any genuine uncertainty, per D10's explicit instruction
+  that a false-routine auto-draft is a much larger failure than a
+  false-non-routine briefing card. `route_followup` wired through the same
+  sanitize → verify → instrumented-call path as `extract_jd`/`score_fit`,
+  given the application and its interaction history as one JSON payload.
+  `route <application-id>` CLI command reads the application + its
+  interactions and prints the decision -- no `Application` field persists
+  it yet, since nothing downstream (composition, the briefing renderer)
+  exists to consume it.
+- `eval routing` gained `--record`/`--replay`/`--manual`/`--min-pass-rate`
+  parity with `fit_scoring`, plus a second gate specific to routing: per
+  D10, `false_routine_cases` scans results for any genuinely `non_routine`
+  fixture classified `routine` and fails the run on that alone, regardless
+  of the combined pass rate (`ROUTING_PASS_THRESHOLD = 0.85`, stricter
+  than the other two suites' 80%). A prompt could clear 85% overall while
+  still auto-drafting something it shouldn't; this refuses to call that
+  passing.
+- **Grading nuance found while wiring the stub test, same shape C2a hit:**
+  `StubRoutingClient`'s fixed `non_routine` answer isn't a no-op against
+  this suite the way a fixed placeholder was for extraction -- it
+  trivially clears the false-routine gate (it never says "routine," so
+  there's nothing to be a false-routine case) while landing at 50% on the
+  combined bar (6/12 -- every non_routine-expected case passes, every
+  routine-expected case doesn't, since the stub can't tell them apart).
+  "Every case fails" isn't the invariant here any more than it was for
+  `fit_scoring`'s stub at C2a.
+- +14 tests (427 total, `tests/test_routing.py` new). Verified end-to-end
+  against the stub: `route <application-id>` reads an application + its
+  interactions and prints a decision; `eval routing` reports 6/12 (50%,
+  below the 85% bar) with zero false-routine cases; `jscc costs` shows the
+  call under its own `routing` ledger feature.
+
 ### D1 -- routing eval suite
 
 Per D10, the drafter's first step is a Haiku classification call (routine /

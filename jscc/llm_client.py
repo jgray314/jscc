@@ -44,6 +44,15 @@ EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 # phone-pattern digit-count window.
 SCORING_MODEL = "claude-sonnet-4-5-" + "20250929"
 
+# Per D10: routing is a classification, not a draft -- same "structured,
+# cheap" shape as extraction, so it reuses EXTRACTION_MODEL rather than
+# introducing a second Haiku model id with its own rate entry to keep in
+# sync. An alias, not a coincidence: if extraction's model ever changes,
+# routing changes with it deliberately (same call site update), not by
+# silently drifting out of sync the way two independently-hand-copied
+# constants would.
+ROUTING_MODEL = EXTRACTION_MODEL
+
 # Published rates, verified 2026-09-05 against
 # https://platform.claude.com/docs/en/about-claude/pricing
 #
@@ -102,6 +111,18 @@ _STUB_RESPONSE_TEXT = """{
 _STUB_SCORING_RESPONSE_TEXT = """{
   "score": 0,
   "rationale": "no live scoring — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubScoringClient (jscc/llm_client.py)."
+}"""
+
+# Fixed at "non_routine", not an arbitrary placeholder like the other two
+# stubs -- per D10's own bias (a false-routine auto-draft is a much larger
+# failure than a false-non-routine briefing card), a router that always
+# refuses to auto-draft when it has no real model behind it is the honestly
+# correct "safe when uncertain" behavior, not just a stand-in.
+_STUB_ROUTING_RESPONSE_TEXT = """{
+  "classification": "non_routine",
+  "intent": null,
+  "reason": "no live routing — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubRoutingClient (jscc/llm_client.py).",
+  "considerations": ["no live model call was made; defaulting to non_routine per D10's false-routine bias"]
 }"""
 
 
@@ -204,6 +225,24 @@ class StubScoringClient:
         )
 
 
+class StubRoutingClient:
+    """No API key configured. Routing's counterpart to `StubExtractionClient`
+    / `StubScoringClient` -- a fixed, clearly-labeled placeholder so
+    `route_followup`'s call path, the sanitizer routing, and the eval
+    harness are exercisable end-to-end without a key or any spend. Unlike
+    the other two stubs, its fixed answer is a deliberate one (see
+    `_STUB_ROUTING_RESPONSE_TEXT`), not an arbitrary zero/empty value."""
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        return LLMResponse(
+            text=_STUB_ROUTING_RESPONSE_TEXT,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            stop_reason="end_turn",
+        )
+
+
 def default_client() -> LLMClient:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient()
@@ -214,3 +253,9 @@ def default_scoring_client() -> LLMClient:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient()
     return StubScoringClient()
+
+
+def default_routing_client() -> LLMClient:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return AnthropicClient()
+    return StubRoutingClient()

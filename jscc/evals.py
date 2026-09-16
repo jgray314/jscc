@@ -29,6 +29,15 @@ JD_EXTRACTION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "jd_extraction" / "recor
 FIT_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "cases.json"
 FIT_SCORING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "recorded.json"
 ROUTING_CASES_PATH = PACKAGE_ROOT / "evals" / "routing" / "cases.json"
+ROUTING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "routing" / "recorded.json"
+
+# Per the sub-plan's D2: routing is held to a higher combined bar (85%, not
+# the 80% PASS_THRESHOLD jd_extraction/fit_scoring use) *and* a separate,
+# stricter 100% bar on false-routine cases specifically -- see
+# `false_routine_cases` below. Two different numbers for two different
+# risks: overall accuracy vs. the one failure mode (auto-drafting something
+# that needed a human) D10 calls out as categorically worse than the rest.
+ROUTING_PASS_THRESHOLD = 0.85
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
 # property of the object: a threshold in a README is a promise about a
@@ -574,3 +583,23 @@ def run_routing_evals(
         results.append(grade_routing_decision(case, decision))
     passed = sum(1 for r in results if r.passed)
     return EvalSummary(total=len(results), passed=passed, results=results)
+
+
+def false_routine_cases(summary: EvalSummary) -> list[str]:
+    """Case ids where a genuinely `non_routine` situation was classified
+    `routine` -- the failure mode D10 calls out as categorically worse than
+    the rest, since it means auto-drafting something that needed a human.
+
+    Distinguished from an ordinary non_routine miss (e.g. a missing
+    `reason`) by inspecting the classification diff specifically: a case can
+    fail `grade_routing_decision` for a reason that has nothing to do with
+    false-routine (right bucket, missing `considerations`), and that miss
+    should count against the combined pass rate without tripping the
+    separate, stricter false-routine gate.
+    """
+    return [
+        r.case_id
+        for r in summary.results
+        for d in r.diffs
+        if d.field == "classification" and d.expected == "non_routine" and d.actual == "routine"
+    ]

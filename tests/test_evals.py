@@ -15,6 +15,7 @@ from jscc.evals import (
     RecordingMissing,
     ReplayClient,
     RoutingEvalCase,
+    false_routine_cases,
     format_eval_summary,
     grade_extraction,
     grade_fit_score,
@@ -27,7 +28,7 @@ from jscc.evals import (
     run_routing_evals,
 )
 from jscc.extraction import extract_jd
-from jscc.llm_client import LLMResponse, StubExtractionClient, StubScoringClient
+from jscc.llm_client import LLMResponse, StubExtractionClient, StubRoutingClient, StubScoringClient
 from jscc.models import (
     Application,
     ExtractedJD,
@@ -36,7 +37,7 @@ from jscc.models import (
     RoutingClassification,
     RoutingDecision,
 )
-from jscc.routing import RoutingNotImplementedError, route_followup
+from jscc.routing import route_followup
 from jscc.scoring import score_fit
 
 
@@ -641,22 +642,22 @@ def test_grade_routing_decision_non_routine_missing_considerations_fails() -> No
     assert any(d.field == "considerations" for d in result.diffs)
 
 
-def test_route_followup_stub_raises_not_implemented() -> None:
-    cases = load_routing_cases(ROUTING_CASES_PATH)
-    case = cases[0]
-    with pytest.raises(RoutingNotImplementedError):
-        route_followup(
-            Application(**case.application),
-            [Interaction(**item) for item in case.history],
-        )
+def _route_via_stub(app: Application, history: list[Interaction]) -> RoutingDecision:
+    return route_followup(app, history, client=StubRoutingClient())
 
 
-def test_run_routing_evals_against_stub_reports_all_failed() -> None:
-    """No prompt exists yet -- every case is expected to fail. That failure
-    is the harness working correctly, same DoD shape as B1/C1's stubs."""
-    summary = run_routing_evals(route_followup)
+def test_run_routing_evals_against_stub_passes_only_non_routine_cases() -> None:
+    """StubRoutingClient always answers non_routine (D10's safe-when-uncertain
+    default per llm_client.py), not an arbitrary placeholder -- so unlike
+    B1/C1's stubs, "every case fails" isn't the right invariant here. What's
+    testable: every non_routine-expected case passes (classification matches
+    and the stub's fixed reason/considerations are non-empty), every
+    routine-expected case fails (wrong classification), and critically --
+    zero false-routine cases, since the stub never says "routine"."""
+    summary = run_routing_evals(_route_via_stub)
     assert summary.total == 12
-    assert summary.passed == 0
+    assert summary.passed == 6
+    assert false_routine_cases(summary) == []
 
 
 def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None:

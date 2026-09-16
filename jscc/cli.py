@@ -20,9 +20,12 @@ from .cost_report import find_cost_regressions, format_cost_report, summarize_co
 from .evals import (
     FIT_SCORING_RECORDING_PATH,
     PASS_THRESHOLD,
+    ROUTING_PASS_THRESHOLD,
+    ROUTING_RECORDING_PATH,
     ManualCaptureClient,
     RecordingClient,
     ReplayClient,
+    false_routine_cases,
     format_eval_summary,
     load_recording,
     run_fit_scoring_evals,
@@ -32,12 +35,25 @@ from .evals import (
 )
 from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
 from .fetcher import fetch_jd
-from .llm_client import UnknownModelPricingError, default_client, default_scoring_client
+from .llm_client import (
+    UnknownModelPricingError,
+    default_client,
+    default_routing_client,
+    default_scoring_client,
+)
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
-from .models import Application, DLQEntry, ExtractedJD, FailureMode, FetchStatus, Resolution
+from .models import (
+    Application,
+    DLQEntry,
+    ExtractedJD,
+    FailureMode,
+    FetchStatus,
+    Resolution,
+    RoutingClassification,
+)
 from .paths import PACKAGE_ROOT
 from .report import detect_stale, format_report, funnel_counts
-from .routing import route_followup
+from .routing import ROUTING_EVAL_FEATURE, ROUTING_FEATURE, RoutingParseError, route_followup
 from .scoring import SCORING_EVAL_FEATURE, SCORING_FEATURE, ScoringParseError, score_fit
 from .seed import DEFAULT_SEED, seed_synthetic
 from .storage import (
@@ -47,6 +63,7 @@ from .storage import (
     get_application,
     list_applications,
     list_dlq_entries,
+    list_interactions,
     list_llm_calls,
     open_for_mode,
     read_mode_marker,
@@ -590,15 +607,119 @@ def eval_fit_scoring(
 
 
 @eval_group.command("routing")
-def eval_routing() -> None:
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
+)
+@click.option(
+    "--record",
+    "record",
+    is_flag=True,
+    default=False,
+    help="Capture each live response to evals/routing/recorded.json.",
+)
+@click.option(
+    "--replay",
+    "replay",
+    is_flag=True,
+    default=False,
+    help="Serve recorded responses instead of calling the model. No key, no spend.",
+)
+@click.option(
+    "--manual",
+    "manual",
+    is_flag=True,
+    default=False,
+    help=(
+        "Capture via a human pasting each prompt into Claude.ai chat instead "
+        "of a live API call (no ANTHROPIC_API_KEY needed). Implies --record."
+    ),
+)
+@click.option(
+    "--min-pass-rate",
+    type=float,
+    default=ROUTING_PASS_THRESHOLD,
+    show_default=True,
+    help="Fail below this combined pass rate.",
+)
+def eval_routing(
+    data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
+) -> None:
     """Run the routing eval suite (12 cases) against the current `route_followup`.
 
-    No CLI options yet (data-dir, --record/--replay) — Slice D1 mirrors B1/C1's
-    minimal wiring; that machinery lands with D2 once there's a real prompt
-    worth iterating against.
+    Same shape as `eval fit_scoring` (D2a mirrors C2a/B2a): --record/--replay
+    exist so D2b can validate the prompt against real model output; --manual
+    is how that actually happens, since no ANTHROPIC_API_KEY is configured
+    for this project.
+
+    Two separate gates, per D10: the combined pass rate must clear
+    `--min-pass-rate` (85% by default, stricter than the 80%
+    `jd_extraction`/`fit_scoring` use), AND every case where a genuinely
+    non_routine situation got classified routine -- the false-routine
+    failure D10 calls out as categorically worse than the rest -- must be
+    zero, regardless of the combined rate. A prompt could clear 85% overall
+    while still auto-drafting something it shouldn't; this command refuses
+    to call that passing.
+
+    Calls are recorded to the `llm_calls` ledger under the `routing_eval`
+    feature (D5), separate from production `routing` traffic.
     """
-    summary = run_routing_evals(route_followup)
+    if replay and (record or manual):
+        raise click.UsageError("--replay is mutually exclusive with --record/--manual")
+    record = record or manual
+
+    client = None
+    if replay:
+        recorded = load_recording(ROUTING_RECORDING_PATH)
+        if not recorded:
+            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            sys.exit(EXIT_USAGE)
+        client = ReplayClient(recorded)
+    elif record:
+        inner = ManualCaptureClient() if manual else default_routing_client()
+        client = RecordingClient(
+            inner,
+            on_captured=lambda key, text: save_recording({key: text}, ROUTING_RECORDING_PATH),
+        )
+
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        summary = run_routing_evals(
+            lambda app, history: route_followup(
+                app, history, conn=conn, client=client, feature=ROUTING_EVAL_FEATURE
+            )
+        )
+    finally:
+        conn.close()
+
+    if record and client is not None:
+        save_recording(client.captured, ROUTING_RECORDING_PATH)
+        click.echo(f"recorded {len(client.captured)} responses")
+
     click.echo(format_eval_summary(summary))
+
+    exit_code = EXIT_OK
+    if summary.pass_rate < min_pass_rate:
+        click.echo(
+            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
+            err=True,
+        )
+        exit_code = EXIT_UNEXPECTED
+    false_routine = false_routine_cases(summary)
+    if false_routine:
+        click.echo(
+            f"{len(false_routine)} false-routine case(s) — a non_routine situation was "
+            f"classified routine, which D10 treats as an automatic fail regardless of the "
+            f"overall pass rate: {', '.join(false_routine)}",
+            err=True,
+        )
+        exit_code = EXIT_UNEXPECTED
+    if exit_code != EXIT_OK:
+        sys.exit(exit_code)
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
@@ -944,6 +1065,57 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
             conn, application_id, fit_score=result.score, fit_rationale=result.rationale
         )
         click.echo(f"scored application {application_id}: {result.score} — {result.rationale}")
+    finally:
+        conn.close()
+
+
+@cli.command("route")
+@click.argument("application_id")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+def route(application_id: str, data_dir: Path) -> None:
+    """Classify whether the next follow-up for an application is routine.
+
+    Per D10, this is step 1 of the routing-first drafter -- a classification
+    only, not a draft. No `Application` field stores the decision (nothing
+    in the data model needs it, and the sub-plan's D2 DoD doesn't call for
+    persistence); this command exists so the routing decision is inspectable
+    on its own before composition (step 2A) and the non-routine briefing
+    renderer (step 2B) land in later Phase D slices.
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        app = get_application(conn, application_id)
+        if app is None:
+            click.echo(f"no application found with id {application_id!r}", err=True)
+            sys.exit(EXIT_USAGE)
+        history = list_interactions(conn, application_id)
+
+        try:
+            decision = route_followup(app, history, conn=conn, feature=ROUTING_FEATURE)
+        except RoutingParseError as e:
+            click.echo(f"routing failed: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except anthropic.APIError as e:
+            # Same reasoning as `score`'s handling of the same exception.
+            click.echo(f"LLM API error: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except UnknownModelPricingError as e:
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+
+        if decision.classification == RoutingClassification.routine:
+            click.echo(f"routine (intent={decision.intent})")
+        else:
+            click.echo(f"non_routine: {decision.reason}")
+            for item in decision.considerations:
+                click.echo(f"  - {item}")
     finally:
         conn.close()
 
