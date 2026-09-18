@@ -6,7 +6,9 @@
       "title": "Engineering Manager, Platform",
       "company": "Acme Corp",
       "stage": "onsite",
-      "applied_at": "2026-08-01"
+      "applied_at": "2026-08-01",
+      "created_at": "2026-08-01T09:00:00Z",
+      "updated_at": "2026-09-10T15:00:00Z"
     },
     "history": [
       {
@@ -35,7 +37,9 @@
       "title": "Staff Software Engineer",
       "company": "Northwind Systems",
       "stage": "screen",
-      "applied_at": "2026-08-15"
+      "applied_at": "2026-08-15",
+      "created_at": "2026-08-15T09:00:00Z",
+      "updated_at": "2026-08-22T13:00:00Z"
     },
     "history": [
       {
@@ -64,7 +68,9 @@
       "title": "Director of Engineering",
       "company": "Beacon Health",
       "stage": "onsite",
-      "applied_at": "2026-08-20"
+      "applied_at": "2026-08-20",
+      "created_at": "2026-08-28T14:00:00Z",
+      "updated_at": "2026-09-14T10:00:00Z"
     },
     "history": [
       {
@@ -93,7 +99,9 @@
       "title": "Engineering Manager",
       "company": "Cascade Robotics",
       "stage": "applied",
-      "applied_at": "2026-09-13"
+      "applied_at": "2026-09-13",
+      "created_at": "2026-09-13T11:30:00Z",
+      "updated_at": "2026-09-13T11:30:00Z"
     },
     "history": [
       {
@@ -115,7 +123,9 @@
       "title": "Senior Engineering Manager",
       "company": "Fernwood Data",
       "stage": "screen",
-      "applied_at": "2026-08-25"
+      "applied_at": "2026-08-25",
+      "created_at": "2026-09-12T16:00:00Z",
+      "updated_at": "2026-09-12T16:00:00Z"
     },
     "history": [
       {
@@ -137,7 +147,9 @@
       "title": "Engineering Manager",
       "company": "Harborlight Media",
       "stage": "applied",
-      "applied_at": "2026-09-10"
+      "applied_at": "2026-09-10",
+      "created_at": "2026-09-10T09:00:00Z",
+      "updated_at": "2026-09-10T09:00:00Z"
     },
     "history": [
       {
@@ -160,7 +172,9 @@
       "title": "Engineering Manager",
       "company": "Ridgeline Analytics",
       "stage": "closed",
-      "applied_at": "2026-08-05"
+      "applied_at": "2026-08-05",
+      "created_at": "2026-09-01T14:00:00Z",
+      "updated_at": "2026-09-11T10:00:00Z"
     },
     "history": [
       {
@@ -189,7 +203,9 @@
       "title": "Director of Engineering",
       "company": "Silverline Tech",
       "stage": "offer",
-      "applied_at": "2026-07-20"
+      "applied_at": "2026-07-20",
+      "created_at": "2026-09-08T11:00:00Z",
+      "updated_at": "2026-09-08T11:00:00Z"
     },
     "history": [
       {
@@ -211,7 +227,9 @@
       "title": "VP Engineering",
       "company": "Tidepool Labs",
       "stage": "not_applied",
-      "applied_at": null
+      "applied_at": null,
+      "created_at": "2026-09-14T08:00:00Z",
+      "updated_at": "2026-09-14T08:00:00Z"
     },
     "history": [
       {
@@ -234,7 +252,9 @@
       "title": "Engineering Manager, Infrastructure",
       "company": "Gladstone Systems",
       "stage": "screen",
-      "applied_at": "2026-08-18"
+      "applied_at": "2026-08-18",
+      "created_at": "2026-09-05T13:00:00Z",
+      "updated_at": "2026-09-13T10:00:00Z"
     },
     "history": [
       {
@@ -266,7 +286,9 @@
       "title": "Senior Engineering Manager",
       "company": "Wrenfield Group",
       "stage": "screen",
-      "applied_at": "2026-08-10"
+      "applied_at": "2026-08-10",
+      "created_at": "2026-09-02T15:00:00Z",
+      "updated_at": "2026-09-02T15:00:00Z"
     },
     "history": [
       {
@@ -289,7 +311,9 @@
       "title": "Engineering Manager",
       "company": "Quietwater Robotics",
       "stage": "screen",
-      "applied_at": "2026-08-22"
+      "applied_at": "2026-08-22",
+      "created_at": "2026-08-30T12:00:00Z",
+      "updated_at": "2026-09-06T09:00:00Z"
     },
     "history": [
       {
@@ -306,6 +330,242 @@
         "occurred_at": "2026-09-06T09:00:00Z",
         "notes": "Recruiter sent a short note that just says 'wanted to check in -- still figuring out next steps on our end, will circle back.' No clear ask, no clear timeline, tone is harder to read than the first call.",
         "next_action": "Unclear whether any reply is needed"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "routine-panel-thank-you-multi",
+    "application": {
+      "id": "app-13",
+      "title": "Senior Software Engineer",
+      "company": "Meridian Cloud",
+      "stage": "onsite",
+      "applied_at": "2026-08-05",
+      "created_at": "2026-08-05T09:00:00Z",
+      "updated_at": "2026-09-11T15:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-13a",
+        "application_id": "app-13",
+        "type": "applied",
+        "occurred_at": "2026-08-05T09:00:00Z",
+        "notes": "Applied via company careers page."
+      },
+      {
+        "id": "int-13b",
+        "application_id": "app-13",
+        "type": "onsite",
+        "occurred_at": "2026-09-11T15:00:00Z",
+        "notes": "Full onsite: three separate panels (backend, systems design, cross-functional). All three panelists were engaged, no red flags.",
+        "next_action": "Send thank-you notes to each panelist",
+        "next_action_due": "2026-09-12"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-reschedule-accept",
+    "application": {
+      "id": "app-14",
+      "title": "Engineering Manager",
+      "company": "Stonebridge Analytics",
+      "stage": "screen",
+      "applied_at": "2026-09-01",
+      "created_at": "2026-09-01T09:00:00Z",
+      "updated_at": "2026-09-15T11:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-14a",
+        "application_id": "app-14",
+        "type": "applied",
+        "occurred_at": "2026-09-01T09:00:00Z",
+        "notes": "Applied through referral."
+      },
+      {
+        "id": "int-14b",
+        "application_id": "app-14",
+        "type": "custom",
+        "occurred_at": "2026-09-15T11:00:00Z",
+        "notes": "Recruiter asked to move Thursday's screen from 2pm to 4pm same day, said either time works on their end.",
+        "next_action": "Confirm the 4pm time works",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-materials-confirm",
+    "application": {
+      "id": "app-15",
+      "title": "Staff Engineer",
+      "company": "Lumen Robotics",
+      "stage": "screen",
+      "applied_at": "2026-08-28",
+      "created_at": "2026-09-04T13:00:00Z",
+      "updated_at": "2026-09-06T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-15a",
+        "application_id": "app-15",
+        "type": "screen",
+        "occurred_at": "2026-09-04T13:00:00Z",
+        "notes": "Recruiter screen, asked to send two writing samples and a reference list.",
+        "next_action": "Send writing samples and references",
+        "next_action_due": "2026-09-06"
+      },
+      {
+        "id": "int-15b",
+        "application_id": "app-15",
+        "type": "custom",
+        "occurred_at": "2026-09-06T10:00:00Z",
+        "notes": "Sent both writing samples and the reference list by email.",
+        "next_action": "Confirm receipt if recruiter doesn't acknowledge within a few days",
+        "next_action_due": "2026-09-11"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-cadence-nudge-alt",
+    "application": {
+      "id": "app-16",
+      "title": "Product Engineering Manager",
+      "company": "Foothill Systems",
+      "stage": "screen",
+      "applied_at": "2026-07-28",
+      "created_at": "2026-07-28T09:00:00Z",
+      "updated_at": "2026-08-12T14:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-16a",
+        "application_id": "app-16",
+        "type": "applied",
+        "occurred_at": "2026-07-28T09:00:00Z",
+        "notes": "Applied via job board."
+      },
+      {
+        "id": "int-16b",
+        "application_id": "app-16",
+        "type": "screen",
+        "occurred_at": "2026-08-12T14:00:00Z",
+        "notes": "Recruiter screen, said hiring manager would follow up within 10 business days.",
+        "next_action": "Check in if no word by end of August",
+        "next_action_due": "2026-08-29"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "non_routine-decline-offer",
+    "application": {
+      "id": "app-17",
+      "title": "Director of Platform Engineering",
+      "company": "Anchorpoint Systems",
+      "stage": "offer",
+      "applied_at": "2026-07-10",
+      "created_at": "2026-09-05T10:00:00Z",
+      "updated_at": "2026-09-05T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-17a",
+        "application_id": "app-17",
+        "type": "offer",
+        "occurred_at": "2026-09-05T10:00:00Z",
+        "notes": "Written offer received: base + bonus + equity, on target. Decided to accept a different offer instead.",
+        "next_action": "Reply declining the offer",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-expedite-competing-offer",
+    "application": {
+      "id": "app-18",
+      "title": "Engineering Manager, Growth",
+      "company": "Larkspur Digital",
+      "stage": "screen",
+      "applied_at": "2026-09-02",
+      "created_at": "2026-09-09T13:00:00Z",
+      "updated_at": "2026-09-16T09:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-18a",
+        "application_id": "app-18",
+        "type": "screen",
+        "occurred_at": "2026-09-09T13:00:00Z",
+        "notes": "Recruiter screen went well, said next step is a hiring-manager call, no date set yet."
+      },
+      {
+        "id": "int-18b",
+        "application_id": "app-18",
+        "type": "custom",
+        "occurred_at": "2026-09-16T09:00:00Z",
+        "notes": "Received a written offer from a different company with a decision deadline of 2026-09-24. Want to ask if this process can move faster.",
+        "next_action": "Reply asking to expedite given the competing deadline",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-remote-work-ask",
+    "application": {
+      "id": "app-19",
+      "title": "Senior Engineering Manager",
+      "company": "Cobalt Freight",
+      "stage": "offer",
+      "applied_at": "2026-07-15",
+      "created_at": "2026-09-10T11:00:00Z",
+      "updated_at": "2026-09-10T11:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-19a",
+        "application_id": "app-19",
+        "type": "offer",
+        "occurred_at": "2026-09-10T11:00:00Z",
+        "notes": "Verbal offer, role is listed as hybrid 3 days/week onsite. Would strongly prefer fully remote given a family relocation already in motion.",
+        "next_action": "Reply requesting fully-remote arrangement",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-keep-in-touch-rejection",
+    "application": {
+      "id": "app-20",
+      "title": "Engineering Manager",
+      "company": "Driftwood Health",
+      "stage": "closed",
+      "applied_at": "2026-08-01",
+      "created_at": "2026-08-29T14:00:00Z",
+      "updated_at": "2026-09-10T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-20a",
+        "application_id": "app-20",
+        "type": "onsite",
+        "occurred_at": "2026-08-29T14:00:00Z",
+        "notes": "Full onsite loop completed."
+      },
+      {
+        "id": "int-20b",
+        "application_id": "app-20",
+        "type": "rejection",
+        "occurred_at": "2026-09-10T10:00:00Z",
+        "notes": "Recruiter said they went with another candidate for this specific role, but explicitly said they'd like to keep in touch for a Staff-level opening expected to open in Q1.",
+        "next_action": "Reply acknowledging and expressing continued interest",
+        "next_action_due": "2026-09-17"
       }
     ],
     "expected_classification": "non_routine"

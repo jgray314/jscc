@@ -558,16 +558,22 @@ def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> N
 # ---- routing (Slice D1) --------------------------------------------------
 
 
-def test_routing_cases_file_has_twelve_cases() -> None:
-    """12 (application, history) fixtures split across the routine/non-routine
-    surface D10 names, per the sub-plan's D1."""
+def test_routing_cases_file_has_twenty_cases() -> None:
+    """20 (application, history) fixtures split across the routine/non-routine
+    surface D10 names -- resized from D1's original 12 during D2b (2026-09-17):
+    at ROUTING_PASS_THRESHOLD (0.85), SE(n=12) is ~10.3pt, the same
+    undersized range jd_extraction (n=15->33) and fit_scoring (n=10->25) were
+    each resized out of before their own manual-capture rounds. 8 cases added
+    (4 routine, 4 non_routine) to bring SE to ~8pt, matching the other two
+    suites' final precision, while also widening the separate false-routine
+    (non_routine) sample the D10 gate checks."""
     cases = load_routing_cases(ROUTING_CASES_PATH)
-    assert len(cases) == 12
-    assert len({c.id for c in cases}) == 12  # unique ids
+    assert len(cases) == 20
+    assert len({c.id for c in cases}) == 20  # unique ids
     routine = [c for c in cases if c.expected_classification == "routine"]
     non_routine = [c for c in cases if c.expected_classification == "non_routine"]
-    assert len(routine) == 6
-    assert len(non_routine) == 6
+    assert len(routine) == 10
+    assert len(non_routine) == 10
 
 
 def _routing_case(**overrides) -> RoutingEvalCase:
@@ -662,8 +668,8 @@ def test_run_routing_evals_against_stub_passes_only_non_routine_cases() -> None:
     routine-expected case fails (wrong classification), and critically --
     zero false-routine cases, since the stub never says "routine"."""
     summary = run_routing_evals(_route_via_stub)
-    assert summary.total == 12
-    assert summary.passed == 6
+    assert summary.total == 20
+    assert summary.passed == 10
     assert false_routine_cases(summary) == []
 
 
@@ -672,7 +678,7 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
         raise ValueError("model returned nonsense")
 
     summary = run_routing_evals(broken)
-    assert summary.total == 12
+    assert summary.total == 20
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
 

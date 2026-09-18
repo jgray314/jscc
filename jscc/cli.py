@@ -650,7 +650,7 @@ def eval_fit_scoring(
 def eval_routing(
     data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
 ) -> None:
-    """Run the routing eval suite (12 cases) against the current `route_followup`.
+    """Run the routing eval suite (20 cases) against the current `route_followup`.
 
     Same shape as `eval fit_scoring` (D2a mirrors C2a/B2a): --record/--replay
     exist so D2b can validate the prompt against real model output; --manual
