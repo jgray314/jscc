@@ -9,6 +9,7 @@ import anthropic
 import click
 from pydantic import ValidationError
 
+from .composition import compose_followup
 from .config import (
     LoadError,
     load_pipeline,
@@ -28,6 +29,7 @@ from .evals import (
     false_routine_cases,
     format_eval_summary,
     load_recording,
+    run_composition_evals,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
     run_routing_evals,
@@ -720,6 +722,18 @@ def eval_routing(
         exit_code = EXIT_UNEXPECTED
     if exit_code != EXIT_OK:
         sys.exit(exit_code)
+
+
+@eval_group.command("composition")
+def eval_composition() -> None:
+    """Run the composition eval suite (8 cases) against the current `compose_followup`.
+
+    No CLI options yet (data-dir, --record/--replay) — Slice D3 mirrors
+    B1/C1/D1's minimal wiring; that machinery lands with D4 once there's a
+    real prompt worth iterating against.
+    """
+    summary = run_composition_evals(compose_followup)
+    click.echo(format_eval_summary(summary))
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The

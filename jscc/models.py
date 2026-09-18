@@ -176,6 +176,23 @@ class RoutingDecision(BaseModel):
     considerations: list[str] = Field(default_factory=list)
 
 
+class DraftEmail(BaseModel):
+    """Structured output of `compose_followup` (D10 step 2A). The contract
+    Slice D4's prompt is written against and the eval suite (Slice D3)
+    grades against.
+
+    Only reached when `route_followup` classifies a situation `routine` --
+    `non_routine` situations get a briefing card (D5) instead, never a draft.
+    `subject`/`body` mirror how an application/history-driven prompt (per
+    D9/D10's existing shape) is expected to produce something pasteable
+    straight into an email client, not a structured object requiring further
+    assembly.
+    """
+
+    subject: str
+    body: str
+
+
 class LLMCallRecord(BaseModel):
     """One row per LLM call, captured by the `@instrumented` decorator (D5).
 

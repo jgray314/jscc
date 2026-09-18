@@ -16,11 +16,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import Profile
 from .llm_client import LLMResponse
-from .models import Application, ExtractedJD, FitResult, Interaction, RoutingDecision
+from .models import Application, DraftEmail, ExtractedJD, FitResult, Interaction, RoutingDecision
 from .paths import PACKAGE_ROOT
 from .sanitizer import LLMSendError, SanitizerRefusal
 
@@ -30,6 +30,7 @@ FIT_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "cases.json"
 FIT_SCORING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "recorded.json"
 ROUTING_CASES_PATH = PACKAGE_ROOT / "evals" / "routing" / "cases.json"
 ROUTING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "routing" / "recorded.json"
+COMPOSITION_CASES_PATH = PACKAGE_ROOT / "evals" / "composition" / "cases.json"
 
 # Per the sub-plan's D2: routing is held to a higher combined bar (85%, not
 # the 80% PASS_THRESHOLD jd_extraction/fit_scoring use) *and* a separate,
@@ -603,3 +604,59 @@ def false_routine_cases(summary: EvalSummary) -> list[str]:
         for d in r.diffs
         if d.field == "classification" and d.expected == "non_routine" and d.actual == "routine"
     ]
+
+
+# --- composition (Slice D3) -----------------------------------------------
+#
+# Per D10 step 2A, composition is only ever reached for a `routine`
+# situation -- there is no `expected_classification` here the way
+# `RoutingEvalCase` needed one, since every fixture is routine by
+# construction. Grading is presence-only for now (non-empty `subject`/
+# `body`), the same deferral `responsibilities_summary` (B1), `rationale`
+# (C1), and `intent`/`reason`/`considerations` (D1) all got: real quality
+# grading (tone match, reference to the prior touchpoint, no hallucinated
+# facts, appropriate to the declared intent) is an LLM-judge rubric, deferred
+# to Slice D4 once there's a real prompt whose output is worth judging.
+
+
+class CompositionEvalCase(BaseModel):
+    id: str
+    application: dict[str, Any]
+    history: list[dict[str, Any]]
+    intent: str
+    style_samples: list[str] = Field(default_factory=list)
+
+
+def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[CompositionEvalCase]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [CompositionEvalCase(**item) for item in raw]
+
+
+def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseResult:
+    diffs: list[FieldDiff] = []
+    if not draft.subject.strip():
+        diffs.append(FieldDiff(field="subject", expected="<non-empty>", actual=draft.subject))
+    if not draft.body.strip():
+        diffs.append(FieldDiff(field="body", expected="<non-empty>", actual=draft.body))
+    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+
+
+def run_composition_evals(
+    compose_fn: Callable[[Application, list[Interaction], str, list[str]], DraftEmail],
+    cases_path: Path = COMPOSITION_CASES_PATH,
+) -> EvalSummary:
+    cases = load_composition_cases(cases_path)
+    results: list[EvalCaseResult] = []
+    for case in cases:
+        try:
+            app = Application(**case.application)
+            history = [Interaction(**item) for item in case.history]
+            draft = compose_fn(app, history, case.intent, case.style_samples)
+        except (SanitizerRefusal, LLMSendError):
+            raise
+        except Exception as e:  # composer stub, prompt bugs, malformed fixtures, etc.
+            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            continue
+        results.append(grade_composition(case, draft))
+    passed = sum(1 for r in results if r.passed)
+    return EvalSummary(total=len(results), passed=passed, results=results)

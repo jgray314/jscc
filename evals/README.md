@@ -1,6 +1,6 @@
 # Evals
 
-One suite per LLM stage. Three stages exist today — `jd_extraction`, `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently), and `routing` (D10 step 1 of the routing-first drafter). Composition (D10 step 2A) arrives with Slice D3. Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
+One suite per LLM stage. Four stages exist today — `jd_extraction`, `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently), `routing` (D10 step 1 of the routing-first drafter), and `composition` (D10 step 2A, reached only for a `routine` classification). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
 
 ## jd_extraction (Slice B1)
 
@@ -56,6 +56,11 @@ Run: `python -m jscc eval routing`. D2a landed the real prompt (Haiku, per D10 �
 
 **D2b: `--manual` capture.** Same mechanism `fit_scoring` built at C2b — `python -m jscc eval routing --manual` prints each of the 12 cases' model id, system prompt, and user message to paste into Claude.ai chat, then reads the pasted-back completion (terminated by a line containing only `END`) and persists it immediately to `evals/routing/recorded.json`. Not yet run.
 
-## composition (not yet built)
+## composition (Slice D3)
 
-Lands with Slice D3.
+`evals/composition/cases.json` — 8 hand-authored (application, history, intent, style_samples) fixtures, all routine per D10: post-interview thank-you, cadence nudge, onsite-logistics confirmation, a cold recruiter-outreach acknowledgment, thank-you after a phone screen, thank-you to a referrer, a graceful decline after deciding not to continue, and confirming availability for a proposed interview time. There is no non-routine case here — D10's routing step (D1/D2) already refuses to route a non-routine situation to composition at all, so every fixture this suite exercises is one `route_followup` would classify `routine`.
+
+Grading (`grade_composition` in `jscc/evals.py`):
+- **Presence-only, for now:** a passing case needs a non-empty `subject` and a non-empty `body` on the returned `DraftEmail`. Real quality grading — the LLM-judge rubric the parent plan names (tone match, reference to the prior touchpoint, no hallucinated facts, appropriate to the declared `intent`) — is deferred until Slice D4 lands a real prompt whose output is worth judging, the same deferral `responsibilities_summary` (B1), `rationale` (C1), and `intent`/`reason`/`considerations` (D1) each got before their own prompts existed.
+
+Run: `python -m jscc eval composition`. D3 mirrors B1/C1/D1's minimal wiring — no `--record`/`--replay`/`--manual` yet; that lands with D4 once there's a real prompt worth iterating against. `compose_followup` is a stub (`CompositionNotImplementedError`) until then, so every case is expected to fail: `0/8 passed (0%)`. That failure is the harness working correctly, not a bug — the same DoD shape B1/C1/D1 shipped with.

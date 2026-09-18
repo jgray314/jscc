@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import pytest
 
+from jscc.composition import CompositionNotImplementedError, compose_followup
 from jscc.config import Profile
 from jscc.evals import (
+    COMPOSITION_CASES_PATH,
     FIT_SCORING_CASES_PATH,
     JD_EXTRACTION_CASES_PATH,
     PASS_THRESHOLD,
     ROUTING_CASES_PATH,
+    CompositionEvalCase,
     EvalCase,
     FitEvalCase,
     ManualCaptureClient,
@@ -17,12 +20,15 @@ from jscc.evals import (
     RoutingEvalCase,
     false_routine_cases,
     format_eval_summary,
+    grade_composition,
     grade_extraction,
     grade_fit_score,
     grade_routing_decision,
     load_cases,
+    load_composition_cases,
     load_fit_cases,
     load_routing_cases,
+    run_composition_evals,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
     run_routing_evals,
@@ -31,6 +37,7 @@ from jscc.extraction import extract_jd
 from jscc.llm_client import LLMResponse, StubExtractionClient, StubRoutingClient, StubScoringClient
 from jscc.models import (
     Application,
+    DraftEmail,
     ExtractedJD,
     FitResult,
     Interaction,
@@ -666,5 +673,99 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
 
     summary = run_routing_evals(broken)
     assert summary.total == 12
+    assert summary.passed == 0
+    assert all(r.error for r in summary.results)
+
+
+# ---- composition (Slice D3) -----------------------------------------------
+
+
+def test_composition_cases_file_has_eight_cases() -> None:
+    """8 (application, history, intent, style_samples) fixtures, all routine
+    per the sub-plan's D3 -- there is no non-routine composition case, since
+    D10 never routes a non_routine situation to this stage."""
+    cases = load_composition_cases(COMPOSITION_CASES_PATH)
+    assert len(cases) == 8
+    assert len({c.id for c in cases}) == 8  # unique ids
+    assert all(c.intent for c in cases)
+
+
+def _composition_case(**overrides) -> CompositionEvalCase:
+    fields = dict(
+        id="t1",
+        application={
+            "id": "app-t1",
+            "title": "Engineering Manager",
+            "company": "Test Co",
+            "stage": "screen",
+        },
+        history=[
+            {
+                "id": "int-t1",
+                "application_id": "app-t1",
+                "type": "screen",
+                "occurred_at": "2026-09-01T10:00:00Z",
+                "notes": "Recruiter screen.",
+            }
+        ],
+        intent="post_screen_thank_you",
+        style_samples=["Thanks again for the conversation today."],
+    )
+    fields.update(overrides)
+    return CompositionEvalCase(**fields)
+
+
+def test_grade_composition_non_empty_subject_and_body_passes() -> None:
+    result = grade_composition(
+        _composition_case(),
+        DraftEmail(subject="Thanks for today", body="Great to speak with you."),
+    )
+    assert result.passed, result.diffs
+
+
+def test_grade_composition_empty_subject_fails() -> None:
+    result = grade_composition(
+        _composition_case(),
+        DraftEmail(subject="", body="Great to speak with you."),
+    )
+    assert not result.passed
+    assert any(d.field == "subject" for d in result.diffs)
+
+
+def test_grade_composition_empty_body_fails() -> None:
+    result = grade_composition(
+        _composition_case(),
+        DraftEmail(subject="Thanks for today", body="   "),
+    )
+    assert not result.passed
+    assert any(d.field == "body" for d in result.diffs)
+
+
+def test_compose_followup_stub_raises_not_implemented() -> None:
+    cases = load_composition_cases(COMPOSITION_CASES_PATH)
+    case = cases[0]
+    with pytest.raises(CompositionNotImplementedError):
+        compose_followup(
+            Application(**case.application),
+            [Interaction(**item) for item in case.history],
+            case.intent,
+            case.style_samples,
+        )
+
+
+def test_run_composition_evals_against_stub_reports_all_failed() -> None:
+    """No prompt exists yet -- every case is expected to fail. That failure
+    is the harness working correctly, same DoD shape as B1/C1/D1's stubs."""
+    summary = run_composition_evals(compose_followup)
+    assert summary.total == 8
+    assert summary.passed == 0
+
+
+def test_run_composition_evals_ordinary_errors_still_count_as_failed_cases() -> None:
+    def broken(app, history, intent, style_samples) -> DraftEmail:
+        raise ValueError("model returned nonsense")
+
+    summary = run_composition_evals(broken)
+    assert summary.total == 8
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

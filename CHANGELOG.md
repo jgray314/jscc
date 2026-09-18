@@ -14,6 +14,37 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D3 -- composition eval suite
+
+Per D10 step 2A, composition is reached only for a `routine` classification
+-- this suite makes the composer's output gradeable ahead of any real
+prompt, the same shape B1/C1/D1 took ahead of their own B2/C2/D2 prompts.
+
+- `DraftEmail` model: the contract Slice D4's prompt is written against.
+  `subject`/`body` only -- meant to be pasteable straight into an email
+  client, not a structured object needing further assembly.
+- `composition.py`: `compose_followup(app, history, intent, style_samples)
+  -> DraftEmail` stub, raises `CompositionNotImplementedError` until D4.
+  Signature is final now, matching D4's "Sonnet prompt takes application +
+  history + intent + 1-3 in-prompt style samples" plan.
+- `evals/composition/cases.json`: 8 hand-authored (application, history,
+  intent, style_samples) fixtures, all routine -- post-interview thank-you,
+  cadence nudge, onsite-logistics confirmation, a cold recruiter-outreach
+  acknowledgment, thank-you after a phone screen, thank-you to a referrer, a
+  graceful decline, and confirming availability for a proposed interview
+  time. No non-routine case exists here by design: D10's routing step
+  (D1/D2) already refuses to route a non-routine situation to composition at
+  all.
+- `evals.py`: presence-only grading (non-empty `subject`/`body`) -- the same
+  deferral `responsibilities_summary` (B1), `rationale` (C1), and
+  `intent`/`reason`/`considerations` (D1) each got: real quality grading
+  (the LLM-judge rubric the parent plan names -- tone match, reference to
+  the prior touchpoint, no hallucinated facts, appropriate to the declared
+  intent) waits on Slice D4's real prompt.
+- `python -m jscc eval composition` CLI command, no `--record`/`--replay`
+  yet -- that machinery lands with D4, same as the other three suites.
+- +7 tests (434 total). DoD met: runs, reports 0/8 passed (no prompt yet).
+
 ### D2a -- routing prompt + call path
 
 Mirrors B2a's and C2a's shape: the real prompt, the full D7/D8 choke-point
