@@ -14,6 +14,23 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D4b calibration -- stock phrases and the form-letter advisory
+
+Proxy runs on Sonnet (25 cases, three rounds, advisory only) showed the 6-word
+verbatim-reuse check flagging good drafts: the fixtures' style samples are
+one-line answers to their own situation, so echoing a polite convention read as
+a defect. Decided with Jess 2026-09-19:
+
+- 21 stock phrases (her seven plus additions drawn from the proxy drafts) count
+  as one unit in the reuse check; the 6-unit limit is unchanged, so a whole
+  copied sentence still fails.
+- `EvalCaseResult.advisories` and a `form_letter` advisory for drafts with more
+  than 4 distinct stock phrases. Advisory only.
+- Replayed over the 75 proxy drafts: 23/25, 22/25, 22/25 (was 23, 20, 20). The
+  remaining failures are one borderline exact-6-unit reuse, a whole copied
+  sentence, a fact claim, and the dietary trap.
+- +8 tests (525 total).
+
 ### D4b (grader) -- deterministic composition grading
 
 `grade_composition` is no longer presence-only. Decided with Jess

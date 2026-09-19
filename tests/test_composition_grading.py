@@ -184,3 +184,73 @@ def test_must_not_include_fails_on_any_hit() -> None:
 def test_a_case_without_expectations_gets_only_the_generic_checks() -> None:
     case = _case()
     assert case.must_include == [] and case.must_not_include == []
+
+
+# ---- stock phrases: social conventions count as one unit in the reuse check ----------
+
+
+def test_a_sample_sentence_made_mostly_of_stock_phrases_may_be_echoed() -> None:
+    """'wanted to check in' and 'timing for next steps' each count as one unit, so
+    the copied run is 4 units, under the 6-unit limit."""
+    case_kwargs = dict(style_samples=["Wanted to check in briefly on timing for next steps."])
+    body = GOOD_BODY + " Wanted to check in briefly on timing for next steps."
+    assert "style_reuse" not in _failed(_grade(body=body, **case_kwargs))
+
+
+def test_a_whole_sentence_with_a_stock_phrase_inside_is_still_flagged() -> None:
+    sample = "No pressure, just keen to know how the team is thinking about timing."
+    body = GOOD_BODY + " " + sample
+    assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))
+
+
+def test_the_limit_is_still_six_units_after_collapsing() -> None:
+    """'happy to work around' is one unit, plus five ordinary words: exactly 6."""
+    sample = "Happy to work around whatever the team has open."
+    body = GOOD_BODY + " " + sample
+    assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))
+
+
+def test_stock_phrase_matching_ignores_case_and_apostrophes() -> None:
+    sample = "Let me know if there's anything else I can do to help."
+    body = GOOD_BODY + " LET ME KNOW if there's anything else I can do to help"
+    assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))  # 8 units left
+
+
+# ---- form-letter guard: advisory only ------------------------------------------------
+
+# GOOD_BODY already uses a few stock phrases, so these tests use a body with none.
+NEUTRAL_BODY = (
+    "Thanks for speaking with me today about the Engineering Manager role at Test Co. "
+    "The conversation gave me a clearer picture of the team and the work ahead, and I "
+    "would enjoy continuing it whenever it suits your schedule.\n\nBest,"
+)
+_STOCK_HEAVY = (
+    "Wanted to check in on where things stand. No rush at all, and no pressure. "
+    "Looking forward to hearing back. Let me know if you need anything."
+)
+
+
+def test_more_than_four_distinct_stock_phrases_is_advised_not_failed() -> None:
+    result = _grade(body=NEUTRAL_BODY + "\n" + _STOCK_HEAVY)
+    assert result.passed, result.diffs
+    assert [a.field for a in result.advisories] == ["form_letter"]
+
+
+def test_four_or_fewer_stock_phrases_carry_no_advisory() -> None:
+    body = NEUTRAL_BODY + "\nWanted to check in. No rush. No pressure. Looking forward to it."
+    assert _grade(body=body).advisories == []
+
+
+def test_overlapping_phrases_count_once() -> None:
+    """'timing for next steps' contains 'next steps'; it is one phrase, not two."""
+    body = NEUTRAL_BODY + "\nWanted to check in on timing for next steps. No rush. No pressure."
+    assert _grade(body=body).advisories == []
+
+
+def test_advisories_show_in_the_summary_without_failing_the_case() -> None:
+    from jscc.evals import EvalSummary, format_eval_summary
+
+    result = _grade(body=NEUTRAL_BODY + "\n" + _STOCK_HEAVY)
+    summary = EvalSummary(total=1, passed=1, results=[result])
+    text = format_eval_summary(summary)
+    assert "[PASS] t1" in text and "advisory form_letter" in text

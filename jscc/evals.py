@@ -125,6 +125,8 @@ class EvalCaseResult(BaseModel):
     passed: bool
     error: str | None = None
     diffs: list[FieldDiff] = []
+    # Reported, never gating: a case can pass with advisories.
+    advisories: list[FieldDiff] = Field(default_factory=list)
 
 
 class EvalSummary(BaseModel):
@@ -454,6 +456,8 @@ def format_eval_summary(summary: EvalSummary) -> str:
     for result in summary.results:
         if result.passed:
             lines.append(f"  [PASS] {result.case_id}")
+            for a in result.advisories:
+                lines.append(f"    advisory {a.field}: {a.actual}")
             continue
         lines.append(f"  [FAIL] {result.case_id}")
         if result.error:
@@ -663,6 +667,57 @@ _CALENDAR_AND_CLOSING_WORDS = frozenset(
 )
 
 
+# Short, polite phrases that are ordinary social convention. In the reuse check
+# each occurrence counts as ONE unit, so echoing "wanted to check in" does not
+# eat into the 6-unit budget while a whole copied sentence still does. Matching
+# is on normalized text (lowercase, punctuation stripped), and longer phrases
+# win over the shorter phrases they contain. Chosen from proxy runs c1-c3.
+_STOCK_PHRASES_RAW = (
+    "let me know if there is anything",
+    "let me know if there's anything",
+    "let me know if you need anything",
+    "timing for next steps",
+    "next steps",
+    "no rush",
+    "no pressure",
+    "putting my name forward",
+    "wanted to check in",
+    "checking in",
+    "just checking in",
+    "thanks again for",
+    "thank you for taking the time",
+    "looking forward to",
+    "still very excited",
+    "still very interested",
+    "happy to work around",
+    "thanks for the flexibility",
+    "really appreciate",
+    "i appreciate",
+    "where things stand",
+)
+# A draft leaning on more distinct stock phrases than this reads like a form
+# letter. Advisory only, promoted to a failing check if real drafts start to.
+COMPOSITION_STOCK_PHRASE_ADVISORY_ABOVE = 4
+
+
+def _stock_phrases() -> list[str]:
+    return sorted({_normalize_prose(p) for p in _STOCK_PHRASES_RAW}, key=len, reverse=True)
+
+
+def _collapse_stock(normalized: str) -> tuple[list[str], set[str]]:
+    """Tokens of `normalized` with each stock phrase replaced by one unit, plus
+    the distinct phrases found. Longest phrases first, so a phrase contained in a
+    longer one is not counted twice."""
+    text = f" {normalized} "
+    found: set[str] = set()
+    for phrase in _stock_phrases():
+        needle = f" {phrase} "
+        if needle in text:
+            found.add(phrase)
+            text = text.replace(needle, " \u00a7 ")
+    return text.split(), found
+
+
 def _facts_corpus(case: CompositionEvalCase) -> str:
     """Text a draft may legitimately draw facts from: the application's own
     fields and the history. Style samples are excluded on purpose (they are
@@ -732,7 +787,7 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
     for sample in case.style_samples:
         for sentence in _sentences(sample):
             if (
-                len(sentence.split()) >= _STYLE_REUSE_MIN_WORDS
+                len(_collapse_stock(_normalize_prose(sentence))[0]) >= _STYLE_REUSE_MIN_WORDS
                 and _normalize_prose(sentence) in normalized_body
             ):
                 diffs.append(
@@ -768,7 +823,18 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
     if forbidden:
         diffs.append(FieldDiff(field="must_not_include", expected="absent", actual=forbidden))
 
-    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+    advisories: list[FieldDiff] = []
+    _, stock_found = _collapse_stock(normalized_body)
+    if len(stock_found) > COMPOSITION_STOCK_PHRASE_ADVISORY_ABOVE:
+        advisories.append(
+            FieldDiff(
+                field="form_letter",
+                expected=f"<= {COMPOSITION_STOCK_PHRASE_ADVISORY_ABOVE} stock phrases",
+                actual=sorted(stock_found),
+            )
+        )
+
+    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs, advisories=advisories)
 
 
 def run_composition_evals(
