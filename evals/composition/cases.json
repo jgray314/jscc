@@ -1135,7 +1135,13 @@
       "competing offer",
       "other offer",
       "no dietary",
+      "don't have any dietary",
+      "do not have any dietary",
+      "don't have dietary",
       "no restrictions",
+      "don't have any restrictions",
+      "anything works",
+      "no allerg",
       "allerg",
       "vegetarian",
       "vegan"
