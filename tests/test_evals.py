@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from jscc.composition import CompositionNotImplementedError, compose_followup
+from jscc.composition import compose_followup
 from jscc.config import Profile
 from jscc.evals import (
     COMPOSITION_CASES_PATH,
@@ -34,7 +34,13 @@ from jscc.evals import (
     run_routing_evals,
 )
 from jscc.extraction import extract_jd
-from jscc.llm_client import LLMResponse, StubExtractionClient, StubRoutingClient, StubScoringClient
+from jscc.llm_client import (
+    LLMResponse,
+    StubCompositionClient,
+    StubExtractionClient,
+    StubRoutingClient,
+    StubScoringClient,
+)
 from jscc.models import (
     Application,
     DraftEmail,
@@ -759,22 +765,17 @@ def test_grade_composition_empty_body_fails() -> None:
     assert any(d.field == "body" for d in result.diffs)
 
 
-def test_compose_followup_stub_raises_not_implemented() -> None:
-    cases = load_composition_cases(COMPOSITION_CASES_PATH)
-    case = cases[0]
-    with pytest.raises(CompositionNotImplementedError):
-        compose_followup(
-            Application(**case.application),
-            [Interaction(**item) for item in case.history],
-            case.intent,
-            case.style_samples,
-        )
-
-
 def test_run_composition_evals_against_stub_reports_all_failed() -> None:
-    """No prompt exists yet -- every case is expected to fail. That failure
-    is the harness working correctly, same DoD shape as B1/C1/D1's stubs."""
-    summary = run_composition_evals(compose_followup)
+    """The unconfigured stub returns an empty subject, so every case fails the
+    presence grader -- the harness working correctly, same shape as the other
+    stubs. The client is passed explicitly so a stray ANTHROPIC_API_KEY in the
+    environment can't turn this into a live call."""
+    stub = StubCompositionClient()
+    summary = run_composition_evals(
+        lambda app, history, intent, samples: compose_followup(
+            app, history, intent, samples, client=stub
+        )
+    )
     assert summary.total == 25
     assert summary.passed == 0
 

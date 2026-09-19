@@ -1892,3 +1892,95 @@ def test_score_and_ingest_traffic_stay_separable_in_the_ledger(
 
     assert features.count("extraction") == 1
     assert features.count("scoring") == 1
+
+
+# ---- eval composition (D4a) -----------------------------------------------------
+
+
+def test_eval_composition_records_calls_under_its_own_feature_label(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(cli, ["eval", "composition", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1, result.output  # stub fails every case, far below the bar
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    calls = list_llm_calls(conn)
+    conn.close()
+
+    assert len(calls) == 25, "one ledger row per eval case"
+    assert {c.feature for c in calls} == {"composition_eval"}
+
+
+def test_eval_composition_fails_below_the_threshold_and_says_the_number(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["eval", "composition", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "75%" in result.output
+
+
+def test_eval_composition_passes_when_the_bar_is_lowered(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli, ["eval", "composition", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_eval_composition_manual_prompts_for_each_case_and_records_the_pasted_responses(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--manual is the D4b mechanism: no ANTHROPIC_API_KEY, so capture means a
+    human pasting each prompt into Claude.ai chat, driven here through stdin."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    recording_path = tmp_path / "composition_recorded.json"
+    monkeypatch.setattr("jscc.cli.COMPOSITION_RECORDING_PATH", recording_path)
+
+    import json
+
+    canned = json.dumps({"subject": "Thanks", "body": "Thanks so much.\n\nBest,"}) + "\nEND\n"
+    result = runner.invoke(
+        cli,
+        ["eval", "composition", "--manual", "--data-dir", str(tmp_path)],
+        input=canned * 25,
+    )
+    assert result.exit_code == 0, result.output
+    assert "MODEL:" in result.output
+    assert "SYSTEM PROMPT" in result.output
+
+    import json
+
+    saved = json.loads(recording_path.read_text(encoding="utf-8"))
+    assert len(saved) == 25  # one prompt hash per case's distinct payload
+
+
+def test_eval_composition_replay_without_recordings_is_a_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    monkeypatch.setattr("jscc.cli.COMPOSITION_RECORDING_PATH", tmp_path / "missing.json")
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["eval", "composition", "--replay", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 2
+    assert "no recordings" in result.output
+
+
+def test_eval_composition_replay_is_exclusive_with_record(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    result = runner.invoke(cli, ["eval", "composition", "--replay", "--record"])
+    assert result.exit_code == 2

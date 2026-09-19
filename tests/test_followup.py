@@ -6,7 +6,6 @@ import pytest
 from click.testing import CliRunner
 
 from jscc.cli import cli
-from jscc.composition import CompositionNotImplementedError
 from jscc.followup import followup, format_briefing, render_briefing
 from jscc.mode import ENV_VAR
 from jscc.models import (
@@ -136,12 +135,6 @@ def test_conn_is_forwarded_to_the_router() -> None:
     assert router.calls[0][1]["conn"] == "sentinel"
 
 
-def test_composition_stub_error_propagates_unswallowed() -> None:
-    """Until D4 lands the default composer raises; the orchestrator must not mask it."""
-    with pytest.raises(CompositionNotImplementedError):
-        followup(_app(), _history(), [], router=_Spy(_ROUTINE))
-
-
 # ---- CLI ----------------------------------------------------------------------
 
 
@@ -195,21 +188,6 @@ def test_cli_routine_prints_the_draft(
     assert result.exit_code == 0, result.output
     assert "Subject: Hello" in result.output
     assert "Body text" in result.output
-
-
-def test_cli_routine_before_d4_exits_nonzero_with_a_clear_message(
-    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    app_id = _ingest(runner, tmp_path, monkeypatch)
-
-    def _raise(*a, **k):
-        raise CompositionNotImplementedError("no prompt yet")
-
-    monkeypatch.setattr("jscc.cli.followup", _raise)
-    result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
-    assert result.exit_code == 1
-    assert "composition unavailable" in result.output
-    assert "Traceback" not in result.output
 
 
 def test_cli_routing_call_lands_in_the_routing_ledger(

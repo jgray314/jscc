@@ -9,7 +9,7 @@ import anthropic
 import click
 from pydantic import ValidationError
 
-from .composition import CompositionNotImplementedError, compose_followup
+from .composition import COMPOSITION_EVAL_FEATURE, compose_followup
 from .config import (
     LoadError,
     load_pipeline,
@@ -19,6 +19,8 @@ from .config import (
 )
 from .cost_report import find_cost_regressions, format_cost_report, summarize_costs
 from .evals import (
+    COMPOSITION_PASS_THRESHOLD,
+    COMPOSITION_RECORDING_PATH,
     FIT_SCORING_RECORDING_PATH,
     PASS_THRESHOLD,
     ROUTING_PASS_THRESHOLD,
@@ -41,6 +43,7 @@ from .followup import followup, format_briefing
 from .llm_client import (
     UnknownModelPricingError,
     default_client,
+    default_composition_client,
     default_routing_client,
     default_scoring_client,
 )
@@ -727,15 +730,103 @@ def eval_routing(
 
 
 @eval_group.command("composition")
-def eval_composition() -> None:
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
+)
+@click.option(
+    "--record",
+    "record",
+    is_flag=True,
+    default=False,
+    help="Capture each live response to evals/composition/recorded.json.",
+)
+@click.option(
+    "--replay",
+    "replay",
+    is_flag=True,
+    default=False,
+    help="Serve recorded responses instead of calling the model. No key, no spend.",
+)
+@click.option(
+    "--manual",
+    "manual",
+    is_flag=True,
+    default=False,
+    help=(
+        "Capture via a human pasting each prompt into Claude.ai chat instead "
+        "of a live API call (no ANTHROPIC_API_KEY needed). Implies --record."
+    ),
+)
+@click.option(
+    "--min-pass-rate",
+    type=float,
+    default=COMPOSITION_PASS_THRESHOLD,
+    show_default=True,
+    help="Fail below this pass rate.",
+)
+def eval_composition(
+    data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
+) -> None:
     """Run the composition eval suite (25 cases) against the current `compose_followup`.
 
-    No CLI options yet (data-dir, --record/--replay) — Slice D3 mirrors
-    B1/C1/D1's minimal wiring; that machinery lands with D4 once there's a
-    real prompt worth iterating against.
+    Same shape as `eval routing` (D4a mirrors D2a): --record/--replay exist so
+    D4b can validate the prompt against real model output; --manual is how
+    that actually happens, since no ANTHROPIC_API_KEY is configured for this
+    project. The bar is 75%, per the sub-plan's D4.
+
+    Calls are recorded to the `llm_calls` ledger under the `composition_eval`
+    feature (D5), separate from production `composition` traffic.
     """
-    summary = run_composition_evals(compose_followup)
+    if replay and (record or manual):
+        raise click.UsageError("--replay is mutually exclusive with --record/--manual")
+    record = record or manual
+
+    client = None
+    if replay:
+        recorded = load_recording(COMPOSITION_RECORDING_PATH)
+        if not recorded:
+            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            sys.exit(EXIT_USAGE)
+        client = ReplayClient(recorded)
+    elif record:
+        inner = ManualCaptureClient() if manual else default_composition_client()
+        client = RecordingClient(
+            inner,
+            on_captured=lambda key, text: save_recording({key: text}, COMPOSITION_RECORDING_PATH),
+        )
+
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        summary = run_composition_evals(
+            lambda app, history, intent, style_samples: compose_followup(
+                app,
+                history,
+                intent,
+                style_samples,
+                conn=conn,
+                client=client,
+                feature=COMPOSITION_EVAL_FEATURE,
+            )
+        )
+    finally:
+        conn.close()
+
+    if record and client is not None:
+        save_recording(client.captured, COMPOSITION_RECORDING_PATH)
+        click.echo(f"recorded {len(client.captured)} responses")
+
     click.echo(format_eval_summary(summary))
+    if summary.pass_rate < min_pass_rate:
+        click.echo(
+            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
+            err=True,
+        )
+        sys.exit(EXIT_UNEXPECTED)
 
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
@@ -1176,9 +1267,6 @@ def followup_cmd(application_id: str, data_dir: Path, config_dir: Path) -> None:
 
         try:
             result = followup(app, history, profile.style_samples, conn=conn)
-        except CompositionNotImplementedError as e:
-            click.echo(f"composition unavailable: {e}", err=True)
-            sys.exit(EXIT_UNEXPECTED)
         except RoutingParseError as e:
             click.echo(f"routing failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)

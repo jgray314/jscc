@@ -31,6 +31,7 @@ FIT_SCORING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "fit_scoring" / "recorded.
 ROUTING_CASES_PATH = PACKAGE_ROOT / "evals" / "routing" / "cases.json"
 ROUTING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "routing" / "recorded.json"
 COMPOSITION_CASES_PATH = PACKAGE_ROOT / "evals" / "composition" / "cases.json"
+COMPOSITION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "composition" / "recorded.json"
 
 # Per the sub-plan's D2: routing is held to a higher combined bar (85%, not
 # the 80% PASS_THRESHOLD jd_extraction/fit_scoring use) *and* a separate,
@@ -39,6 +40,12 @@ COMPOSITION_CASES_PATH = PACKAGE_ROOT / "evals" / "composition" / "cases.json"
 # risks: overall accuracy vs. the one failure mode (auto-drafting something
 # that needed a human) D10 calls out as categorically worse than the rest.
 ROUTING_PASS_THRESHOLD = 0.85
+
+# Per the sub-plan's D4: composition is held to 75%, lower than the other suites
+# because a draft is judged on tone and phrasing, which is fuzzier than a
+# classification or a field match. It has no second gate: D10 already made the
+# expensive mistake (auto-drafting a non-routine situation) the router's job.
+COMPOSITION_PASS_THRESHOLD = 0.75
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
 # property of the object: a threshold in a README is a promise about a

@@ -14,11 +14,35 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D4a -- composition prompt + call path
+
+Mirrors D2a: the real prompt and the full D7/D8 call path, ahead of D4b's
+manual-capture validation against real model output.
+
+- `compose_followup(app, history, intent, style_samples)` is now a real
+  `@instrumented` Sonnet call (`COMPOSITION_MODEL` aliases `SCORING_MODEL`,
+  one rate entry to keep in sync) through sanitize -> verify -> client, with
+  a `composition` / `composition_eval` ledger split, a truncation check, and
+  fence-tolerant parsing into `DraftEmail`.
+- `COMPOSITION_SYSTEM_PROMPT`: facts only from the input (no invented names,
+  topics, times), one purpose per intent, voice matched to the style samples
+  without copying them, 50-130 words, no name signature or bracketed
+  placeholders, redaction tokens never echoed.
+- `StubCompositionClient` returns an empty subject on purpose so an
+  unconfigured run fails the presence grader instead of reading as 25 passes.
+- `eval composition` gained `--data-dir`/`--record`/`--replay`/`--manual`/
+  `--min-pass-rate`; bar is `COMPOSITION_PASS_THRESHOLD = 0.75`.
+- Removed `CompositionNotImplementedError` (the D3 stub's marker; nothing
+  raises it any more).
+- +22 tests, and two D5 tests removed with the error path they exercised
+  (493 total). Grading is still presence-only: the quality rubric is the open
+  D4b decision.
 ### D5: briefing renderer + `followup` orchestrator
 
 `jscc followup <application-id>` routes, then either drafts (routine) or
-prints a briefing card (non-routine). Built ahead of D4, so the routine path
-raises `composition unavailable` until the composition prompt lands.
+prints a briefing card (non-routine). Built ahead of D4, so its routine path
+initially raised `composition unavailable`; D4a has since landed the prompt and
+removed that error path.
 
 - `render_briefing` is deterministic: the card is the router's own
   `reason`/`considerations` plus application fields. No second LLM call.

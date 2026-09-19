@@ -53,6 +53,12 @@ SCORING_MODEL = "claude-sonnet-4-5-" + "20250929"
 # constants would.
 ROUTING_MODEL = EXTRACTION_MODEL
 
+# Per D10 step 2A: composition writes in the candidate's voice, which is a
+# judgment call, so it sits on the scoring tier (Sonnet). Aliased to
+# SCORING_MODEL for the same reason ROUTING_MODEL aliases EXTRACTION_MODEL:
+# one model id and one rate entry to keep in sync, not two hand-copied ones.
+COMPOSITION_MODEL = SCORING_MODEL
+
 # Published rates, verified 2026-09-05 against
 # https://platform.claude.com/docs/en/about-claude/pricing
 #
@@ -225,6 +231,14 @@ class StubScoringClient:
         )
 
 
+# Empty subject on purpose: `grade_composition` checks a non-empty subject, so
+# an unconfigured run reads as failing rather than as a suite of passing drafts.
+_STUB_COMPOSITION_RESPONSE_TEXT = """{
+  "subject": "",
+  "body": "no live composition — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubCompositionClient (jscc/llm_client.py)."
+}"""
+
+
 class StubRoutingClient:
     """No API key configured. Routing's counterpart to `StubExtractionClient`
     / `StubScoringClient` -- a fixed, clearly-labeled placeholder so
@@ -236,6 +250,22 @@ class StubRoutingClient:
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
         return LLMResponse(
             text=_STUB_ROUTING_RESPONSE_TEXT,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            stop_reason="end_turn",
+        )
+
+
+class StubCompositionClient:
+    """No API key configured. Composition's counterpart to the other stubs: a
+    fixed, clearly-labeled placeholder so `compose_followup`'s call path, the
+    sanitizer routing, and the eval harness are exercisable end-to-end without
+    a key or any spend. Eval pass rate against it is expected to be zero."""
+
+    def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
+        return LLMResponse(
+            text=_STUB_COMPOSITION_RESPONSE_TEXT,
             input_tokens=0,
             output_tokens=0,
             cost_usd=0.0,
@@ -259,3 +289,9 @@ def default_routing_client() -> LLMClient:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient()
     return StubRoutingClient()
+
+
+def default_composition_client() -> LLMClient:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return AnthropicClient()
+    return StubCompositionClient()
