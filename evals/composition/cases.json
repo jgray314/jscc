@@ -190,38 +190,38 @@
     ]
   },
   {
-    "id": "graceful-decline",
+    "id": "prep-guide-acknowledgment",
     "application": {
       "id": "app-c07",
-      "title": "Engineering Manager",
-      "company": "Lakemont Software",
-      "stage": "closed",
-      "applied_at": "2026-08-05",
-      "created_at": "2026-08-19T13:00:00Z",
-      "updated_at": "2026-09-09T10:00:00Z"
+      "title": "Senior Engineering Manager",
+      "company": "Alder Ventures",
+      "stage": "onsite",
+      "applied_at": "2026-08-17",
+      "created_at": "2026-08-17T09:00:00Z",
+      "updated_at": "2026-09-13T14:00:00Z"
     },
     "history": [
       {
         "id": "int-c07a",
         "application_id": "app-c07",
-        "type": "screen",
-        "occurred_at": "2026-08-19T13:00:00Z",
-        "notes": "Recruiter screen went fine, but the role's scope turned out narrower than expected after a couple of other conversations progressed further."
+        "type": "applied",
+        "occurred_at": "2026-08-17T09:00:00Z",
+        "notes": "Applied via referral."
       },
       {
         "id": "int-c07b",
         "application_id": "app-c07",
-        "type": "custom",
-        "occurred_at": "2026-09-09T10:00:00Z",
-        "notes": "Decided not to continue with this process.",
-        "next_action": "Let the recruiter know, graciously",
-        "next_action_due": "2026-09-10"
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-13T14:00:00Z",
+        "notes": "Recruiter sent a prep guide for the onsite with the schedule, interviewer names and roles, and a note on what each session covers. No reply needed on content, just a quick acknowledgment.",
+        "next_action": "Acknowledge the prep guide",
+        "next_action_due": "2026-09-14"
       }
     ],
-    "intent": "graceful_decline",
+    "intent": "prep_guide_acknowledgment",
     "style_samples": [
-      "Thanks so much for the time and the conversation.",
-      "I've decided to focus on a couple of other conversations further along, but I'd love to stay in touch."
+      "Thanks for sending this over, it's really helpful to have the schedule laid out.",
+      "Looking forward to meeting everyone."
     ]
   },
   {

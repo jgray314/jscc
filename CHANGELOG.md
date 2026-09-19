@@ -34,7 +34,10 @@ axes, repeat nudges, multi-panel and skip-level thank-yous, concrete
 logistics). Every fixture now pins `created_at`/`updated_at` so a prompt
 built from it hashes deterministically, the same latent bug routing hit in
 D2b. Tests: case-count test resized, new test that every case pins both
-timestamps (458 total).
+timestamps (458 total). The `graceful-decline` fixture (candidate withdraws
+from a process) was replaced with a routine `prep-guide-acknowledgment` case:
+the router prompt treats reply-that-commits-to-an-outcome as non_routine, so
+that situation never reaches composition. Count stays 25.
 
 ### Parser fence tolerance (routing, extraction, scoring)
 
@@ -69,7 +72,7 @@ prompt, the same shape B1/C1/D1 took ahead of their own B2/C2/D2 prompts.
   intent, style_samples) fixtures, all routine -- post-interview thank-you,
   cadence nudge, onsite-logistics confirmation, a cold recruiter-outreach
   acknowledgment, thank-you after a phone screen, thank-you to a referrer, a
-  graceful decline, and confirming availability for a proposed interview
+  graceful decline (later replaced, see the resize entry), and confirming availability for a proposed interview
   time. No non-routine case exists here by design: D10's routing step
   (D1/D2) already refuses to route a non-routine situation to composition at
   all.
