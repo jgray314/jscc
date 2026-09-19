@@ -14,6 +14,17 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D5: briefing renderer + `followup` orchestrator
+
+`jscc followup <application-id>` routes, then either drafts (routine) or
+prints a briefing card (non-routine). Built ahead of D4, so the routine path
+raises `composition unavailable` until the composition prompt lands.
+
+- `render_briefing` is deterministic: the card is the router's own
+  `reason`/`considerations` plus application fields. No second LLM call.
+- A routine decision with no `intent` degrades to a briefing instead of
+  composing against a guess, in line with D10's bias toward a human.
+
 ### D3 resize -- composition suite 8 -> 25 cases, timestamps pinned
 
 Resized before D4b spends any capture effort. SE at D4's 75% bar was ~15pt

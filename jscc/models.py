@@ -193,6 +193,27 @@ class DraftEmail(BaseModel):
     body: str
 
 
+class Briefing(BaseModel):
+    """The non-routine half of `followup`'s answer (D10 step 2B): a card for a
+    human, never a draft.
+
+    Assembled deterministically from a `non_routine` `RoutingDecision` plus the
+    application it was routed for -- no LLM call, so nothing here goes through
+    the sanitizer. `handle_manually` is always true; it exists so a consumer
+    (the CLI today, the Phase E dashboard later) can key on the field instead
+    of inferring "no draft" from the type.
+    """
+
+    application_id: str
+    company: str
+    title: str
+    stage: str
+    source_url: str | None = None
+    reason: str
+    considerations: list[str] = Field(default_factory=list)
+    handle_manually: bool = True
+
+
 class LLMCallRecord(BaseModel):
     """One row per LLM call, captured by the `@instrumented` decorator (D5).
 

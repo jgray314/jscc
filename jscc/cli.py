@@ -9,7 +9,7 @@ import anthropic
 import click
 from pydantic import ValidationError
 
-from .composition import compose_followup
+from .composition import CompositionNotImplementedError, compose_followup
 from .config import (
     LoadError,
     load_pipeline,
@@ -37,6 +37,7 @@ from .evals import (
 )
 from .extraction import EXTRACTION_EVAL_FEATURE, ExtractionParseError, extract_jd
 from .fetcher import fetch_jd
+from .followup import followup, format_briefing
 from .llm_client import (
     UnknownModelPricingError,
     default_client,
@@ -46,6 +47,7 @@ from .llm_client import (
 from .mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
 from .models import (
     Application,
+    Briefing,
     DLQEntry,
     ExtractedJD,
     FailureMode,
@@ -1130,6 +1132,67 @@ def route(application_id: str, data_dir: Path) -> None:
             click.echo(f"non_routine: {decision.reason}")
             for item in decision.considerations:
                 click.echo(f"  - {item}")
+    finally:
+        conn.close()
+
+
+@cli.command("followup")
+@click.argument("application_id")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs.",
+)
+@click.option(
+    "--config-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_CONFIG_DIR,
+    show_default=True,
+    help="Directory containing profile.*.yaml.",
+)
+def followup_cmd(application_id: str, data_dir: Path, config_dir: Path) -> None:
+    """Draft the next follow-up, or brief you on why it needs a human.
+
+    Per D10: route first; a routine situation gets a drafted email (subject
+    and body), a non-routine one gets a briefing card and no draft. Style
+    samples come from the active profile, loaded the same way `score` does.
+    """
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        app = get_application(conn, application_id)
+        if app is None:
+            click.echo(f"no application found with id {application_id!r}", err=True)
+            sys.exit(EXIT_USAGE)
+        history = list_interactions(conn, application_id)
+
+        try:
+            profile = load_profile(resolve_profile_path(config_dir))
+        except (LoadError, ValidationError) as e:
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+
+        try:
+            result = followup(app, history, profile.style_samples, conn=conn)
+        except CompositionNotImplementedError as e:
+            click.echo(f"composition unavailable: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except RoutingParseError as e:
+            click.echo(f"routing failed: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except anthropic.APIError as e:
+            click.echo(f"LLM API error: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except UnknownModelPricingError as e:
+            click.echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+
+        if isinstance(result, Briefing):
+            click.echo(format_briefing(result))
+        else:
+            click.echo(f"Subject: {result.subject}\n\n{result.body}")
     finally:
         conn.close()
 
