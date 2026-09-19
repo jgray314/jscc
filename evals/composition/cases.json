@@ -137,7 +137,7 @@
         "application_id": "app-c03",
         "type": "custom",
         "occurred_at": "2026-09-14T10:00:00Z",
-        "notes": "Recruiter proposed onsite for 2026-09-22, 9am-1pm, asked to confirm availability and whether a video-call option is needed for one panelist who is remote.",
+        "notes": "Recruiter proposed onsite for 2026-09-22, 9am-1pm, asked to confirm availability and whether a video-call option is needed for one panelist who is remote. No video option needed on my side.",
         "next_action": "Confirm the proposed onsite date and time",
         "next_action_due": "2026-09-15"
       }
@@ -145,7 +145,7 @@
     "intent": "logistics_confirmation",
     "style_samples": [
       "That date and time work well on my end.",
-      "Happy to hop on video if that's easier for the remote panelist."
+      "Looking forward to meeting everyone."
     ],
     "must_include": [
       [
@@ -391,14 +391,14 @@
         "application_id": "app-c08",
         "type": "recruiter_reply",
         "occurred_at": "2026-09-15T09:00:00Z",
-        "notes": "Recruiter proposed three time slots next week for the HM screen and asked which works best.",
-        "next_action": "Reply with preferred time",
+        "notes": "Recruiter proposed three time slots next week for the HM screen: Tuesday 10am PT, Wednesday 2pm PT, or Thursday 11am PT. Asked which works best. I am taking Tuesday at 10am PT.",
+        "next_action": "Reply confirming Tuesday at 10am PT",
         "next_action_due": "2026-09-16"
       }
     ],
     "intent": "interview_availability_confirm",
     "style_samples": [
-      "Tuesday at 10am PT works well for me.",
+      "Thanks for sending over a few options.",
       "Happy to do a shorter call if that's easier to fit into the calendar."
     ],
     "must_include": [
@@ -408,11 +408,9 @@
         "grateful"
       ],
       [
-        "slot",
-        "time",
-        "option",
-        "availab",
-        "works"
+        "tuesday",
+        "10am",
+        "10 am"
       ]
     ],
     "must_not_include": [
@@ -1106,7 +1104,7 @@
         "application_id": "app-c21",
         "type": "custom",
         "occurred_at": "2026-09-15T09:30:00Z",
-        "notes": "Recruiter sent onsite details: 2026-09-29, arrive at 9am at the downtown office, building lobby check-in, and asked me to confirm I'll be there and flag any dietary needs for lunch.",
+        "notes": "Recruiter sent onsite details: 2026-09-29, arrive at 9am at the downtown office, building lobby check-in, and asked me to confirm I'll be there and flag any dietary needs for lunch. I have no dietary restrictions.",
         "next_action": "Confirm attendance and lunch needs",
         "next_action_due": "2026-09-18"
       }
@@ -1114,7 +1112,7 @@
     "intent": "logistics_confirmation",
     "style_samples": [
       "Confirming that I'll be there at 9am.",
-      "No dietary restrictions on my end."
+      "Looking forward to meeting the team."
     ],
     "must_include": [
       [
@@ -1127,24 +1125,18 @@
       [
         "29",
         "september"
+      ],
+      [
+        "lunch",
+        "dietary",
+        "restriction"
       ]
     ],
     "must_not_include": [
       "salary",
       "compensation",
       "competing offer",
-      "other offer",
-      "no dietary",
-      "don't have any dietary",
-      "do not have any dietary",
-      "don't have dietary",
-      "no restrictions",
-      "don't have any restrictions",
-      "anything works",
-      "no allerg",
-      "allerg",
-      "vegetarian",
-      "vegan"
+      "other offer"
     ]
   },
   {

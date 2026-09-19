@@ -85,7 +85,7 @@
         "application_id": "app-03",
         "type": "custom",
         "occurred_at": "2026-09-14T10:00:00Z",
-        "notes": "Recruiter proposed onsite for 2026-09-22, 9am-1pm, asked to confirm availability and whether a video-call option is needed for one panelist who is remote.",
+        "notes": "Recruiter proposed onsite for 2026-09-22, 9am-1pm, and asked to confirm availability.",
         "next_action": "Confirm the proposed onsite date and time",
         "next_action_due": "2026-09-15"
       }
@@ -566,6 +566,178 @@
         "notes": "Recruiter said they went with another candidate for this specific role, but explicitly said they'd like to keep in touch for a Staff-level opening expected to open in Q1.",
         "next_action": "Reply acknowledging and expressing continued interest",
         "next_action_due": "2026-09-17"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "routine-slot-pick-recorded",
+    "application": {
+      "id": "app-21",
+      "title": "Engineering Manager",
+      "company": "Pinehollow Data",
+      "stage": "screen",
+      "applied_at": "2026-08-30",
+      "created_at": "2026-09-15T09:00:00Z",
+      "updated_at": "2026-09-15T09:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-21a",
+        "application_id": "app-21",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T09:00:00Z",
+        "notes": "Recruiter proposed three slots next week for the HM screen: Tuesday 10am PT, Wednesday 2pm PT, or Thursday 11am PT. Asked which works best. I am taking Tuesday at 10am PT.",
+        "next_action": "Reply confirming Tuesday at 10am PT",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "routine-video-option-recorded",
+    "application": {
+      "id": "app-22",
+      "title": "Director of Engineering",
+      "company": "Fairmont Systems",
+      "stage": "onsite",
+      "applied_at": "2026-08-19",
+      "created_at": "2026-08-27T14:00:00Z",
+      "updated_at": "2026-09-14T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-22a",
+        "application_id": "app-22",
+        "type": "screen",
+        "occurred_at": "2026-08-27T14:00:00Z",
+        "notes": "HM screen went well, moving to onsite."
+      },
+      {
+        "id": "int-22b",
+        "application_id": "app-22",
+        "type": "custom",
+        "occurred_at": "2026-09-14T10:00:00Z",
+        "notes": "Recruiter proposed onsite for 2026-09-29, 9am-1pm, asked to confirm and whether a video option is needed for one remote panelist. No video option needed on my side.",
+        "next_action": "Confirm the proposed onsite date and time",
+        "next_action_due": "2026-09-15"
+      }
+    ],
+    "expected_classification": "routine"
+  },
+  {
+    "id": "non_routine-dietary-needs-unknown",
+    "application": {
+      "id": "app-23",
+      "title": "Senior Engineering Manager",
+      "company": "Oakridge Software",
+      "stage": "onsite",
+      "applied_at": "2026-08-07",
+      "created_at": "2026-08-27T14:00:00Z",
+      "updated_at": "2026-09-15T09:30:00Z"
+    },
+    "history": [
+      {
+        "id": "int-23a",
+        "application_id": "app-23",
+        "type": "screen",
+        "occurred_at": "2026-08-27T14:00:00Z",
+        "notes": "HM screen went well, moving to onsite."
+      },
+      {
+        "id": "int-23b",
+        "application_id": "app-23",
+        "type": "custom",
+        "occurred_at": "2026-09-15T09:30:00Z",
+        "notes": "Recruiter sent onsite details: 2026-09-29, arrive at 9am at the downtown office, building lobby check-in, and asked me to confirm I'll be there and flag any dietary needs for lunch.",
+        "next_action": "Confirm attendance and lunch needs",
+        "next_action_due": "2026-09-18"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-pick-slot-unrecorded",
+    "application": {
+      "id": "app-24",
+      "title": "Engineering Manager",
+      "company": "Larkin Health",
+      "stage": "screen",
+      "applied_at": "2026-08-28",
+      "created_at": "2026-09-15T09:00:00Z",
+      "updated_at": "2026-09-15T09:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-24a",
+        "application_id": "app-24",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T09:00:00Z",
+        "notes": "Recruiter proposed three slots next week for the HM screen: Tuesday 10am PT, Wednesday 2pm PT, or Thursday 11am PT. Asked which works best.",
+        "next_action": "Reply with preferred time",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-availability-unrecorded",
+    "application": {
+      "id": "app-25",
+      "title": "Director of Engineering",
+      "company": "Tamarack Labs",
+      "stage": "screen",
+      "applied_at": "2026-08-30",
+      "created_at": "2026-08-30T09:00:00Z",
+      "updated_at": "2026-09-15T13:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-25a",
+        "application_id": "app-25",
+        "type": "applied",
+        "occurred_at": "2026-08-30T09:00:00Z",
+        "notes": "Applied through careers page."
+      },
+      {
+        "id": "int-25b",
+        "application_id": "app-25",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T13:00:00Z",
+        "notes": "Recruiter asked for availability for a hiring-manager call over the next two weeks.",
+        "next_action": "Reply with availability",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "expected_classification": "non_routine"
+  },
+  {
+    "id": "non_routine-withdraw-from-process",
+    "application": {
+      "id": "app-26",
+      "title": "Engineering Manager",
+      "company": "Cedar Ridge Analytics",
+      "stage": "closed",
+      "applied_at": "2026-08-10",
+      "created_at": "2026-08-19T13:00:00Z",
+      "updated_at": "2026-09-09T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-26a",
+        "application_id": "app-26",
+        "type": "screen",
+        "occurred_at": "2026-08-19T13:00:00Z",
+        "notes": "Recruiter screen went fine, but the role's scope turned out narrower than expected after a couple of other conversations progressed further."
+      },
+      {
+        "id": "int-26b",
+        "application_id": "app-26",
+        "type": "custom",
+        "occurred_at": "2026-09-09T10:00:00Z",
+        "notes": "Decided not to continue with this process.",
+        "next_action": "Let the recruiter know, graciously",
+        "next_action_due": "2026-09-10"
       }
     ],
     "expected_classification": "non_routine"

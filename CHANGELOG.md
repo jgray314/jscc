@@ -14,6 +14,31 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Router missing-information rule; routing suite 20 -> 26; composition fixture fixes
+
+Composition proxy runs had the drafter invent a personal fact (a dietary answer)
+in every round: it never says "I don't know", so the router has to keep a reply
+that needs an unrecorded detail away from it. Decided with Jess 2026-09-19: a
+**lenient** rule. Accepting or confirming a single proposal the candidate's own
+next action names stays routine; a reply that must state a detail the history
+and next action do not supply (dietary needs, availability, which of several
+proposed slots) is non_routine, with the missing detail named in `reason`.
+
+- `ROUTING_SYSTEM_PROMPT` gained the rule. It changes the hashed prompt, so the
+  20 recordings in `evals/routing/recorded.json` no longer replay; a new manual
+  round (D2b round 4) is required before the routing gate holds again.
+- Routing suite 20 -> 26: 4 non_routine cases (dietary needs unknown, slot pick
+  unrecorded, availability unrecorded, candidate withdrawing) and 2 routine
+  boundary anchors where the next action records the answer. SE at 85% is about
+  7pt. `routine-logistics-confirm` was first kept unchanged as a boundary probe; it flipped to non_routine on a proxy sample (its history asks about a video option and never answers it), so the unanswered question was removed and `routine-video-option-recorded` covers that shape.
+- Composition fixtures: `onsite-travel-logistics`, `interview-availability-confirm`
+  and `logistics-confirmation` now carry the answer in their notes, so they are
+  cases the router would route routine; style samples that contradicted the new
+  facts were replaced. Count stays 25.
+- Haiku proxy iteration (advisory): the first wording let the slot-pick case
+  through as routine, and one lucky pass hid that; two more wordings later it
+  held 3/3 with both routine anchors 3/3.
+
 ### D4b calibration -- stock phrases and the form-letter advisory
 
 Proxy runs on Sonnet (25 cases, three rounds, advisory only) showed the 6-word
