@@ -1,4 +1,7 @@
-"""Shared JSON serialization fallback for storage and the sanitizer.
+"""Shared JSON helpers: the serialization fallback for storage and the
+sanitizer, and fence stripping for the LLM response parsers.
+
+`json_default` (serialization):
 
 Gate finding L-json-default-sanitizer-1: `jscc/sanitizer.py`'s `_stable_json`
 used to fall back to `default=str`, silently stringifying any type it didn't
