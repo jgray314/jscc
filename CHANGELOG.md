@@ -14,6 +14,22 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Parser fence tolerance (routing, extraction, scoring)
+
+D2b's chat captures showed a completion can arrive wrapped in a ```json
+fence even though the prompts forbid it. The three `_parse_response`
+functions were plain `json.loads`, so a fenced but otherwise correct reply
+would have raised a parse error.
+
+- `json_utils.strip_code_fence` unwraps one fence that encloses the whole
+  response; all three parsers call it before `json.loads`.
+- Deliberately narrow: JSON is never fished out of surrounding prose, and an
+  unterminated fence is left alone, so a model that stops following the
+  format still fails loudly.
+- Recording keys hash the prompt, not the completion, so `recorded.json`
+  files are unaffected.
+- +23 tests (457 total) in `tests/test_fence_tolerance.py`.
+
 ### D3 -- composition eval suite
 
 Per D10 step 2A, composition is reached only for a `routine` classification

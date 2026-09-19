@@ -29,6 +29,7 @@ from pydantic import ValidationError
 
 from .config import Profile
 from .instrumentation import LLMResult, instrumented
+from .json_utils import strip_code_fence
 from .llm_client import SCORING_MODEL, LLMClient, default_scoring_client
 from .models import ExtractedJD, FitResult
 from .sanitizer import sanitize_for_llm, send_to_llm
@@ -60,7 +61,7 @@ class ScoringParseError(ValueError):
 
 def _parse_response(text: str) -> FitResult:
     try:
-        data: Any = json.loads(text)
+        data: Any = json.loads(strip_code_fence(text))
     except json.JSONDecodeError as e:
         raise ScoringParseError(f"scoring response was not valid JSON: {e}") from e
     if not isinstance(data, dict):

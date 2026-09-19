@@ -15,6 +15,7 @@ about what counts as personal data.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
@@ -44,3 +45,23 @@ def json_default(obj: Any) -> Any:
         # up as a real schema-design signal rather than being silently masked.
         return sorted(obj, key=repr)
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON-serializable")
+
+
+_FENCE = re.compile(
+    r"\A\s*```[A-Za-z]*[ \t]*\r?\n(.*?)\r?\n[ \t]*```\s*\Z",
+    re.DOTALL,
+)
+
+
+def strip_code_fence(text: str) -> str:
+    """Unwrap one markdown code fence that encloses the whole response.
+
+    The routing/extraction/scoring prompts forbid fences, but a fenced reply
+    is still a correct answer (D2b's chat captures produced them), so the
+    parsers accept it instead of failing the call. Deliberately narrow: only a
+    fence that is the entire response is stripped, never JSON hunted out of
+    surrounding prose, which would mask a model that stopped following the
+    format.
+    """
+    match = _FENCE.match(text)
+    return match.group(1) if match else text

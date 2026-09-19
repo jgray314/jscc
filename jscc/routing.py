@@ -26,6 +26,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .instrumentation import LLMResult, instrumented
+from .json_utils import strip_code_fence
 from .llm_client import ROUTING_MODEL, LLMClient, default_routing_client
 from .models import Application, Interaction, RoutingDecision
 from .sanitizer import sanitize_for_llm, send_to_llm
@@ -53,7 +54,7 @@ class RoutingParseError(ValueError):
 
 def _parse_response(text: str) -> RoutingDecision:
     try:
-        data: Any = json.loads(text)
+        data: Any = json.loads(strip_code_fence(text))
     except json.JSONDecodeError as e:
         raise RoutingParseError(f"routing response was not valid JSON: {e}") from e
     if not isinstance(data, dict):

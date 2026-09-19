@@ -26,6 +26,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .instrumentation import LLMResult, instrumented
+from .json_utils import strip_code_fence
 from .llm_client import EXTRACTION_MODEL, LLMClient, default_client
 from .models import ExtractedJD
 from .sanitizer import sanitize_for_llm, send_to_llm
@@ -56,7 +57,7 @@ class ExtractionParseError(ValueError):
 
 def _parse_response(text: str) -> ExtractedJD:
     try:
-        data: Any = json.loads(text)
+        data: Any = json.loads(strip_code_fence(text))
     except json.JSONDecodeError as e:
         raise ExtractionParseError(f"extraction response was not valid JSON: {e}") from e
     if not isinstance(data, dict):
