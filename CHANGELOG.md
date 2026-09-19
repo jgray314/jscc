@@ -14,6 +14,22 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D4b (grader) -- deterministic composition grading
+
+`grade_composition` is no longer presence-only. Decided with Jess
+2026-09-19: deterministic checks in code, tone not graded (a Jess-graded tone
+pass stays a possible follow-up).
+
+- Generic checks: placeholders/redaction tokens, body 30-160 words, subject
+  at most 10 words (prompt now asks for 8 or fewer), invented numbers, copied
+  style-sample sentences, invented capitalized names.
+- `CompositionEvalCase` gained `must_include` (any-of groups) and
+  `must_not_include`; all 25 fixtures carry them. Style samples are excluded
+  from the facts corpus on purpose: two fixtures' samples contain facts the
+  candidate never stated (a time, a dietary answer) and are traps.
+- +24 tests (517 total) in `tests/test_composition_grading.py` and
+  `test_evals.py`.
+
 ### D4a -- composition prompt + call path
 
 Mirrors D2a: the real prompt and the full D7/D8 call path, ahead of D4b's

@@ -704,6 +704,15 @@ def test_composition_cases_file_has_twenty_five_cases() -> None:
     assert all(1 <= len(c.style_samples) <= 3 for c in cases)  # D4: 1-3 samples
 
 
+def test_every_composition_case_has_expectations_and_the_common_traps() -> None:
+    """The deterministic grader needs substance checks on every case, and no
+    routine follow-up should ever raise money or other offers."""
+    for case in load_composition_cases(COMPOSITION_CASES_PATH):
+        assert case.must_include, case.id
+        assert all(group for group in case.must_include), case.id
+        assert {"salary", "compensation"} <= set(case.must_not_include), case.id
+
+
 def test_composition_cases_pin_application_timestamps() -> None:
     """Application.created_at/updated_at default to now(); left unset they get
     stamped into any prompt built from the fixture and break record/replay
@@ -737,14 +746,6 @@ def _composition_case(**overrides) -> CompositionEvalCase:
     )
     fields.update(overrides)
     return CompositionEvalCase(**fields)
-
-
-def test_grade_composition_non_empty_subject_and_body_passes() -> None:
-    result = grade_composition(
-        _composition_case(),
-        DraftEmail(subject="Thanks for today", body="Great to speak with you."),
-    )
-    assert result.passed, result.diffs
 
 
 def test_grade_composition_empty_subject_fails() -> None:

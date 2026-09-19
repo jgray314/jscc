@@ -35,7 +35,7 @@ from .sanitizer import sanitize_for_llm, send_to_llm
 COMPOSITION_SYSTEM_PROMPT = """You draft a short follow-up email on behalf of a job candidate, in the candidate's own voice. You are given a JSON object with four fields: "application" (the role and company), "history" (the candidate's interaction history for that application, oldest first), "intent" (a snake_case label naming the purpose of this email, e.g. "post_interview_thank_you", "cadence_nudge", "logistics_confirmation"), and "style_samples" (1 to 3 short passages the candidate actually wrote). Return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 
 {
-  "subject": a short, specific subject line,
+  "subject": a short, specific subject line of 8 words or fewer,
   "body": the email body as plain text, with paragraphs separated by blank lines
 }
 

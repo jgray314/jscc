@@ -1954,7 +1954,7 @@ def test_eval_composition_manual_prompts_for_each_case_and_records_the_pasted_re
     canned = json.dumps({"subject": "Thanks", "body": "Thanks so much.\n\nBest,"}) + "\nEND\n"
     result = runner.invoke(
         cli,
-        ["eval", "composition", "--manual", "--data-dir", str(tmp_path)],
+        ["eval", "composition", "--manual", "--min-pass-rate", "0", "--data-dir", str(tmp_path)],
         input=canned * 25,
     )
     assert result.exit_code == 0, result.output

@@ -114,6 +114,13 @@ def test_request_carries_application_history_intent_and_style_samples() -> None:
     assert "JSON" in fake.calls[0]["system"]
 
 
+def test_prompt_asks_for_a_subject_of_eight_words_or_fewer() -> None:
+    """The grader allows 10; the prompt aims lower so a normal draft has slack."""
+    from jscc.composition import COMPOSITION_SYSTEM_PROMPT
+
+    assert "8 words or fewer" in COMPOSITION_SYSTEM_PROMPT
+
+
 def test_user_prompt_is_deterministic_for_record_replay_keying() -> None:
     a, b = _FakeClient(_VALID_RESPONSE), _FakeClient(_VALID_RESPONSE)
     app = _app(created_at="2026-09-01T00:00:00Z", updated_at="2026-09-10T00:00:00Z")

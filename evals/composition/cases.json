@@ -32,6 +32,27 @@
     "style_samples": [
       "Really enjoyed digging into the platform migration work with your team today.",
       "Appreciate you all making time -- the conversation about on-call ownership was especially useful."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "onsite",
+        "interview",
+        "panel",
+        "day",
+        "conversation",
+        "visit"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -67,6 +88,29 @@
     "style_samples": [
       "Wanted to check in briefly on timing for next steps.",
       "No rush at all -- just flagging that I'm still very interested."
+    ],
+    "must_include": [
+      [
+        "check",
+        "follow",
+        "touch base",
+        "circling back",
+        "update",
+        "status"
+      ],
+      [
+        "screen",
+        "next step",
+        "timing",
+        "role",
+        "application"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -102,6 +146,27 @@
     "style_samples": [
       "That date and time work well on my end.",
       "Happy to hop on video if that's easier for the remote panelist."
+    ],
+    "must_include": [
+      [
+        "confirm",
+        "works",
+        "work well",
+        "good on my end",
+        "happy"
+      ],
+      [
+        "22",
+        "9am",
+        "9 am",
+        "9:00"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -130,6 +195,27 @@
     "style_samples": [
       "Thanks for reaching out -- happy to grab time this week.",
       "Mornings tend to work best for me if that's an option."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "call",
+        "chat",
+        "intro",
+        "conversation",
+        "talk",
+        "role"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -158,6 +244,27 @@
     "style_samples": [
       "Thanks again for the conversation today.",
       "Enjoyed hearing more about the team's roadmap."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "screen",
+        "call",
+        "conversation",
+        "chat",
+        "phone",
+        "talk"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -187,6 +294,28 @@
     "style_samples": [
       "Really appreciate you putting my name forward.",
       "Let me know if there's anything useful I can send you for the recruiter."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "referral",
+        "referred",
+        "put my name",
+        "putting my name",
+        "introduc",
+        "intro",
+        "recommend"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -222,6 +351,27 @@
     "style_samples": [
       "Thanks for sending this over, it's really helpful to have the schedule laid out.",
       "Looking forward to meeting everyone."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "prep",
+        "guide",
+        "schedule",
+        "materials",
+        "overview",
+        "details"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -250,6 +400,26 @@
     "style_samples": [
       "Tuesday at 10am PT works well for me.",
       "Happy to do a shorter call if that's easier to fit into the calendar."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "slot",
+        "time",
+        "option",
+        "availab",
+        "works"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -285,6 +455,27 @@
     "style_samples": [
       "Thanks for the time today, the systems design discussion gave me a lot to think about.",
       "Really glad I got to meet the whole group."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "panel",
+        "team",
+        "everyone",
+        "backend",
+        "systems",
+        "cross-functional"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -319,6 +510,25 @@
     "intent": "reschedule_accept",
     "style_samples": [
       "4pm works great on my end, thanks for flagging the change."
+    ],
+    "must_include": [
+      [
+        "4pm",
+        "4 pm",
+        "4:00"
+      ],
+      [
+        "confirm",
+        "works",
+        "fine",
+        "good"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -356,6 +566,28 @@
     "style_samples": [
       "Just making sure the attachments came through okay.",
       "Happy to resend anything that didn't."
+    ],
+    "must_include": [
+      [
+        "receiv",
+        "confirm",
+        "arrived",
+        "came through",
+        "got"
+      ],
+      [
+        "writing sample",
+        "samples",
+        "reference",
+        "attachment",
+        "materials"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -392,6 +624,29 @@
       "Wanted to check in on where things stand.",
       "No pressure, just keen to know how the team is thinking about timing.",
       "Still very excited about the role."
+    ],
+    "must_include": [
+      [
+        "check",
+        "follow",
+        "touch base",
+        "circling back",
+        "update",
+        "status"
+      ],
+      [
+        "onsite",
+        "interview",
+        "decision",
+        "team",
+        "role"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -420,6 +675,28 @@
     "style_samples": [
       "Checking in on the status of my application.",
       "Happy to share anything that would help the team move forward."
+    ],
+    "must_include": [
+      [
+        "check",
+        "follow",
+        "touch base",
+        "circling back",
+        "update",
+        "status"
+      ],
+      [
+        "application",
+        "applied",
+        "role",
+        "position"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -454,6 +731,27 @@
     "intent": "post_screen_thank_you",
     "style_samples": [
       "Thanks for taking the time today, I enjoyed working through the problem together."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "screen",
+        "call",
+        "conversation",
+        "exercise",
+        "problem",
+        "coding"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -491,6 +789,26 @@
     "style_samples": [
       "Wanted to keep you posted, the recruiter call went well.",
       "Thanks again for the intro, it made a real difference."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "recruiter",
+        "screen",
+        "call",
+        "referral",
+        "intro"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -519,6 +837,25 @@
     "style_samples": [
       "Thanks for reaching out, the role sounds interesting.",
       "I'm open to a call, afternoons are usually easiest."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "call",
+        "chat",
+        "intro",
+        "conversation"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -554,6 +891,29 @@
     "style_samples": [
       "That time works for me, thank you.",
       "Zoom is perfect on my side."
+    ],
+    "must_include": [
+      [
+        "zoom"
+      ],
+      [
+        "23",
+        "11am",
+        "11 am",
+        "11:00"
+      ],
+      [
+        "confirm",
+        "works",
+        "good",
+        "happy"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -590,6 +950,24 @@
       "Thanks for the flexibility, here's what my calendar looks like.",
       "Mornings are best for me.",
       "Happy to work around whatever the team has open."
+    ],
+    "must_include": [
+      [
+        "morning"
+      ],
+      [
+        "21",
+        "24",
+        "travel",
+        "away",
+        "out of town"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -625,6 +1003,27 @@
     "style_samples": [
       "Thanks for the conversation, it was great to hear how you're thinking about the team's structure.",
       "I'd enjoy the chance to dig further into it."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "reorg",
+        "squad",
+        "restructur",
+        "structure",
+        "splitting",
+        "split"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -659,6 +1058,28 @@
     "intent": "post_screen_thank_you",
     "style_samples": [
       "Thanks for making the time today."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer",
+      "system design",
+      "roadmap",
+      "architecture",
+      "coding",
+      "culture",
+      "reorg",
+      "team structure",
+      "leadership",
+      "strategy"
     ]
   },
   {
@@ -694,6 +1115,30 @@
     "style_samples": [
       "Confirming that I'll be there at 9am.",
       "No dietary restrictions on my end."
+    ],
+    "must_include": [
+      [
+        "confirm",
+        "see you",
+        "be there",
+        "attend",
+        "arrive"
+      ],
+      [
+        "29",
+        "september"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer",
+      "no dietary",
+      "no restrictions",
+      "allerg",
+      "vegetarian",
+      "vegan"
     ]
   },
   {
@@ -729,6 +1174,29 @@
     "style_samples": [
       "Following up again in case this slipped through.",
       "Still very interested and happy to work around the team's schedule."
+    ],
+    "must_include": [
+      [
+        "check",
+        "follow",
+        "touch base",
+        "circling back",
+        "update",
+        "status"
+      ],
+      [
+        "again",
+        "still",
+        "interest",
+        "hear back",
+        "scheduling"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -764,6 +1232,29 @@
     "style_samples": [
       "Thanks for sending the link, I'll grab a slot today.",
       "I've booked Tuesday at 1pm."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "link",
+        "slot",
+        "book",
+        "schedul"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer",
+      "i've booked",
+      "i have booked",
+      "already booked",
+      "booked tuesday"
     ]
   },
   {
@@ -800,6 +1291,26 @@
       "Thank you for the time today, I appreciated how candid you were about the challenges ahead.",
       "The conversation on measuring delivery was really valuable.",
       "I'm excited about the possibility of working together."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "vp",
+        "conversation",
+        "time",
+        "delivery",
+        "org"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   },
   {
@@ -828,6 +1339,26 @@
     "intent": "referral_thank_you",
     "style_samples": [
       "Thank you so much for putting me forward, it means a lot."
+    ],
+    "must_include": [
+      [
+        "thank",
+        "appreciate",
+        "grateful"
+      ],
+      [
+        "referral",
+        "referred",
+        "put me forward",
+        "put my name",
+        "recommend"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
     ]
   }
 ]

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -632,6 +633,11 @@ class CompositionEvalCase(BaseModel):
     history: list[dict[str, Any]]
     intent: str
     style_samples: list[str] = Field(default_factory=list)
+    # Per-case expectations for the deterministic grader. Each `must_include`
+    # group is a list of alternatives (synonyms) and the draft needs one hit
+    # from every group; `must_not_include` is the no-hallucination trap list.
+    must_include: list[list[str]] = Field(default_factory=list)
+    must_not_include: list[str] = Field(default_factory=list)
 
 
 def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[CompositionEvalCase]:
@@ -639,12 +645,129 @@ def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[Composit
     return [CompositionEvalCase(**item) for item in raw]
 
 
+# Tone and overall quality are deliberately not graded: these are the checks a
+# machine can make reproducibly, so a pass means "no mechanical defect", not "a
+# good email". The prompt asks for 50-130 words and a subject of 8 or fewer; the
+# bounds here are looser so the grader flags real drift, not rounding.
+COMPOSITION_BODY_WORDS = (30, 160)
+COMPOSITION_SUBJECT_MAX_WORDS = 10
+_STYLE_REUSE_MIN_WORDS = 6
+
+_PLACEHOLDER = re.compile(r"\[[^\]]*\]|\{\{.*?\}\}|<[^>\n]+>|redacted", re.IGNORECASE)
+_DIGIT_RUN = re.compile(r"\d+")
+_WORD = re.compile(r"[A-Za-z][A-Za-z'\u2019-]*")
+_CALENDAR_AND_CLOSING_WORDS = frozenset(
+    "monday tuesday wednesday thursday friday saturday sunday "
+    "january february march april may june july august september october november december "
+    "best thanks regards sincerely cheers".split()
+)
+
+
+def _facts_corpus(case: CompositionEvalCase) -> str:
+    """Text a draft may legitimately draw facts from: the application's own
+    fields and the history. Style samples are excluded on purpose (they are
+    voice, not facts), and so are internal ids (their digits are not facts)."""
+    parts = [str(v) for k, v in case.application.items() if k != "id" and v is not None]
+    for item in case.history:
+        for key in ("notes", "next_action", "next_action_due", "occurred_at"):
+            if item.get(key):
+                parts.append(str(item[key]))
+    return "\n".join(parts)
+
+
+def _digit_runs(text: str) -> set[str]:
+    return {str(int(m)) for m in _DIGIT_RUN.findall(text)}
+
+
+def _normalize_prose(text: str) -> str:
+    return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
+
+
+def _sentences(text: str) -> list[str]:
+    return [p for p in re.split(r"[.!?\n]+", text) if p.strip()]
+
+
 def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseResult:
+    """Deterministic checks; a case passes only if every one does, and each
+    failure names its check in `FieldDiff.field`."""
     diffs: list[FieldDiff] = []
-    if not draft.subject.strip():
-        diffs.append(FieldDiff(field="subject", expected="<non-empty>", actual=draft.subject))
-    if not draft.body.strip():
-        diffs.append(FieldDiff(field="body", expected="<non-empty>", actual=draft.body))
+    subject, body = draft.subject, draft.body
+
+    if not subject.strip():
+        diffs.append(FieldDiff(field="subject", expected="<non-empty>", actual=subject))
+    if not body.strip():
+        diffs.append(FieldDiff(field="body", expected="<non-empty>", actual=body))
+
+    for label, text in (("subject", subject), ("body", body)):
+        found = _PLACEHOLDER.findall(text)
+        if found:
+            diffs.append(
+                FieldDiff(field="placeholder", expected=f"none in {label}", actual=found[0])
+            )
+
+    lo, hi = COMPOSITION_BODY_WORDS
+    body_words = len(body.split())
+    if body.strip() and not lo <= body_words <= hi:
+        diffs.append(FieldDiff(field="body_length", expected=f"{lo}-{hi} words", actual=body_words))
+    subject_words = len(subject.split())
+    if subject_words > COMPOSITION_SUBJECT_MAX_WORDS:
+        diffs.append(
+            FieldDiff(
+                field="subject_length",
+                expected=f"<= {COMPOSITION_SUBJECT_MAX_WORDS} words",
+                actual=subject_words,
+            )
+        )
+
+    facts = _facts_corpus(case)
+    invented = sorted(_digit_runs(subject + " " + body) - _digit_runs(facts), key=int)
+    if invented:
+        diffs.append(
+            FieldDiff(
+                field="invented_number", expected="only numbers in the facts", actual=invented
+            )
+        )
+
+    normalized_body = _normalize_prose(body)
+    for sample in case.style_samples:
+        for sentence in _sentences(sample):
+            if (
+                len(sentence.split()) >= _STYLE_REUSE_MIN_WORDS
+                and _normalize_prose(sentence) in normalized_body
+            ):
+                diffs.append(
+                    FieldDiff(
+                        field="style_reuse",
+                        expected="no copied sample sentence",
+                        actual=sentence.strip(),
+                    )
+                )
+
+    known_words = {w.lower() for w in _WORD.findall(facts)} | _CALENDAR_AND_CLOSING_WORDS
+    invented_names: list[str] = []
+    for sentence in _sentences(body):
+        for word in _WORD.findall(sentence)[1:]:
+            if re.fullmatch(r"[A-Z][a-z]+", word) and word.lower() not in known_words:
+                invented_names.append(word)
+    if invented_names:
+        diffs.append(
+            FieldDiff(
+                field="invented_name",
+                expected="only names in the facts",
+                actual=sorted(set(invented_names)),
+            )
+        )
+
+    haystack = (subject + "\n" + body).lower()
+    missing = [
+        group for group in case.must_include if not any(alt.lower() in haystack for alt in group)
+    ]
+    if missing:
+        diffs.append(FieldDiff(field="must_include", expected=missing, actual="no match"))
+    forbidden = [term for term in case.must_not_include if term.lower() in haystack]
+    if forbidden:
+        diffs.append(FieldDiff(field="must_not_include", expected="absent", actual=forbidden))
+
     return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
 
 
