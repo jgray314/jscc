@@ -14,6 +14,17 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D3 resize -- composition suite 8 -> 25 cases, timestamps pinned
+
+Resized before D4b spends any capture effort. SE at D4's 75% bar was ~15pt
+at n=8; n=25 gives ~8.7pt. 17 routine cases added (sparse-history and
+specific-topic cases for the no-hallucination and prior-touchpoint rubric
+axes, repeat nudges, multi-panel and skip-level thank-yous, concrete
+logistics). Every fixture now pins `created_at`/`updated_at` so a prompt
+built from it hashes deterministically, the same latent bug routing hit in
+D2b. Tests: case-count test resized, new test that every case pins both
+timestamps (458 total).
+
 ### Parser fence tolerance (routing, extraction, scoring)
 
 D2b's chat captures showed a completion can arrive wrapped in a ```json

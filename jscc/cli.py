@@ -726,7 +726,7 @@ def eval_routing(
 
 @eval_group.command("composition")
 def eval_composition() -> None:
-    """Run the composition eval suite (8 cases) against the current `compose_followup`.
+    """Run the composition eval suite (25 cases) against the current `compose_followup`.
 
     No CLI options yet (data-dir, --record/--replay) — Slice D3 mirrors
     B1/C1/D1's minimal wiring; that machinery lands with D4 once there's a

@@ -686,14 +686,26 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
 # ---- composition (Slice D3) -----------------------------------------------
 
 
-def test_composition_cases_file_has_eight_cases() -> None:
-    """8 (application, history, intent, style_samples) fixtures, all routine
+def test_composition_cases_file_has_twenty_five_cases() -> None:
+    """25 (application, history, intent, style_samples) fixtures, all routine
     per the sub-plan's D3 -- there is no non-routine composition case, since
-    D10 never routes a non_routine situation to this stage."""
+    D10 never routes a non_routine situation to this stage. Resized 8 -> 25
+    before D4b: SE at the 75% bar is ~15pt at n=8, ~8.7pt at n=25."""
     cases = load_composition_cases(COMPOSITION_CASES_PATH)
-    assert len(cases) == 8
-    assert len({c.id for c in cases}) == 8  # unique ids
+    assert len(cases) == 25
+    assert len({c.id for c in cases}) == 25  # unique ids
     assert all(c.intent for c in cases)
+    assert all(1 <= len(c.style_samples) <= 3 for c in cases)  # D4: 1-3 samples
+
+
+def test_composition_cases_pin_application_timestamps() -> None:
+    """Application.created_at/updated_at default to now(); left unset they get
+    stamped into any prompt built from the fixture and break record/replay
+    keying (the D2b routing bug). Every fixture must pin both."""
+    for case in load_composition_cases(COMPOSITION_CASES_PATH):
+        assert "created_at" in case.application, case.id
+        assert "updated_at" in case.application, case.id
+        assert Application(**case.application) == Application(**case.application)
 
 
 def _composition_case(**overrides) -> CompositionEvalCase:
@@ -763,7 +775,7 @@ def test_run_composition_evals_against_stub_reports_all_failed() -> None:
     """No prompt exists yet -- every case is expected to fail. That failure
     is the harness working correctly, same DoD shape as B1/C1/D1's stubs."""
     summary = run_composition_evals(compose_followup)
-    assert summary.total == 8
+    assert summary.total == 25
     assert summary.passed == 0
 
 
@@ -772,6 +784,6 @@ def test_run_composition_evals_ordinary_errors_still_count_as_failed_cases() -> 
         raise ValueError("model returned nonsense")
 
     summary = run_composition_evals(broken)
-    assert summary.total == 8
+    assert summary.total == 25
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

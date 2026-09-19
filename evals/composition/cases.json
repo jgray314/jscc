@@ -6,7 +6,9 @@
       "title": "Engineering Manager, Platform",
       "company": "Acme Corp",
       "stage": "onsite",
-      "applied_at": "2026-08-01"
+      "applied_at": "2026-08-01",
+      "created_at": "2026-08-01T09:00:00Z",
+      "updated_at": "2026-09-10T15:00:00Z"
     },
     "history": [
       {
@@ -39,7 +41,9 @@
       "title": "Staff Software Engineer",
       "company": "Northwind Systems",
       "stage": "screen",
-      "applied_at": "2026-08-15"
+      "applied_at": "2026-08-15",
+      "created_at": "2026-08-15T09:00:00Z",
+      "updated_at": "2026-08-22T13:00:00Z"
     },
     "history": [
       {
@@ -72,7 +76,9 @@
       "title": "Director of Engineering",
       "company": "Beacon Health",
       "stage": "onsite",
-      "applied_at": "2026-08-20"
+      "applied_at": "2026-08-20",
+      "created_at": "2026-08-28T14:00:00Z",
+      "updated_at": "2026-09-14T10:00:00Z"
     },
     "history": [
       {
@@ -105,7 +111,9 @@
       "title": "Engineering Manager",
       "company": "Cascade Robotics",
       "stage": "applied",
-      "applied_at": "2026-09-13"
+      "applied_at": "2026-09-13",
+      "created_at": "2026-09-13T11:30:00Z",
+      "updated_at": "2026-09-13T11:30:00Z"
     },
     "history": [
       {
@@ -131,7 +139,9 @@
       "title": "Senior Engineering Manager",
       "company": "Fernwood Data",
       "stage": "screen",
-      "applied_at": "2026-08-25"
+      "applied_at": "2026-08-25",
+      "created_at": "2026-09-12T16:00:00Z",
+      "updated_at": "2026-09-12T16:00:00Z"
     },
     "history": [
       {
@@ -157,7 +167,9 @@
       "title": "Engineering Manager",
       "company": "Harborlight Media",
       "stage": "applied",
-      "applied_at": "2026-09-10"
+      "applied_at": "2026-09-10",
+      "created_at": "2026-09-10T09:00:00Z",
+      "updated_at": "2026-09-10T09:00:00Z"
     },
     "history": [
       {
@@ -184,7 +196,9 @@
       "title": "Engineering Manager",
       "company": "Lakemont Software",
       "stage": "closed",
-      "applied_at": "2026-08-05"
+      "applied_at": "2026-08-05",
+      "created_at": "2026-08-19T13:00:00Z",
+      "updated_at": "2026-09-09T10:00:00Z"
     },
     "history": [
       {
@@ -217,7 +231,9 @@
       "title": "Engineering Manager",
       "company": "Pinehollow Data",
       "stage": "screen",
-      "applied_at": "2026-08-30"
+      "applied_at": "2026-08-30",
+      "created_at": "2026-09-15T09:00:00Z",
+      "updated_at": "2026-09-15T09:00:00Z"
     },
     "history": [
       {
@@ -234,6 +250,584 @@
     "style_samples": [
       "Tuesday at 10am PT works well for me.",
       "Happy to do a shorter call if that's easier to fit into the calendar."
+    ]
+  },
+  {
+    "id": "panel-thank-you-multi",
+    "application": {
+      "id": "app-c09",
+      "title": "Senior Software Engineer",
+      "company": "Meridian Cloud",
+      "stage": "onsite",
+      "applied_at": "2026-08-05",
+      "created_at": "2026-08-05T09:00:00Z",
+      "updated_at": "2026-09-11T15:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c09a",
+        "application_id": "app-c09",
+        "type": "applied",
+        "occurred_at": "2026-08-05T09:00:00Z",
+        "notes": "Applied via company careers page."
+      },
+      {
+        "id": "int-c09b",
+        "application_id": "app-c09",
+        "type": "onsite",
+        "occurred_at": "2026-09-11T15:00:00Z",
+        "notes": "Full onsite: three separate panels (backend, systems design, cross-functional). All three panelists were engaged, no red flags.",
+        "next_action": "Send thank-you notes to each panelist",
+        "next_action_due": "2026-09-12"
+      }
+    ],
+    "intent": "post_interview_thank_you",
+    "style_samples": [
+      "Thanks for the time today, the systems design discussion gave me a lot to think about.",
+      "Really glad I got to meet the whole group."
+    ]
+  },
+  {
+    "id": "reschedule-accept",
+    "application": {
+      "id": "app-c10",
+      "title": "Engineering Manager",
+      "company": "Stonebridge Analytics",
+      "stage": "screen",
+      "applied_at": "2026-09-01",
+      "created_at": "2026-09-01T09:00:00Z",
+      "updated_at": "2026-09-15T11:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c10a",
+        "application_id": "app-c10",
+        "type": "applied",
+        "occurred_at": "2026-09-01T09:00:00Z",
+        "notes": "Applied through referral."
+      },
+      {
+        "id": "int-c10b",
+        "application_id": "app-c10",
+        "type": "custom",
+        "occurred_at": "2026-09-15T11:00:00Z",
+        "notes": "Recruiter asked to move Thursday's screen from 2pm to 4pm same day, said either time works on their end.",
+        "next_action": "Confirm the 4pm time works",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "intent": "reschedule_accept",
+    "style_samples": [
+      "4pm works great on my end, thanks for flagging the change."
+    ]
+  },
+  {
+    "id": "materials-receipt-check",
+    "application": {
+      "id": "app-c11",
+      "title": "Staff Engineer",
+      "company": "Lumen Robotics",
+      "stage": "screen",
+      "applied_at": "2026-08-28",
+      "created_at": "2026-09-04T13:00:00Z",
+      "updated_at": "2026-09-06T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c11a",
+        "application_id": "app-c11",
+        "type": "screen",
+        "occurred_at": "2026-09-04T13:00:00Z",
+        "notes": "Recruiter screen, asked to send two writing samples and a reference list.",
+        "next_action": "Send writing samples and references",
+        "next_action_due": "2026-09-06"
+      },
+      {
+        "id": "int-c11b",
+        "application_id": "app-c11",
+        "type": "custom",
+        "occurred_at": "2026-09-06T10:00:00Z",
+        "notes": "Sent both writing samples and the reference list by email.",
+        "next_action": "Confirm receipt if recruiter doesn't acknowledge within a few days",
+        "next_action_due": "2026-09-11"
+      }
+    ],
+    "intent": "materials_receipt_check",
+    "style_samples": [
+      "Just making sure the attachments came through okay.",
+      "Happy to resend anything that didn't."
+    ]
+  },
+  {
+    "id": "cadence-nudge-after-onsite",
+    "application": {
+      "id": "app-c12",
+      "title": "Director of Engineering",
+      "company": "Juniper Labs",
+      "stage": "onsite",
+      "applied_at": "2026-08-10",
+      "created_at": "2026-08-10T09:00:00Z",
+      "updated_at": "2026-09-02T16:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c12a",
+        "application_id": "app-c12",
+        "type": "applied",
+        "occurred_at": "2026-08-10T09:00:00Z",
+        "notes": "Applied via recruiter outreach."
+      },
+      {
+        "id": "int-c12b",
+        "application_id": "app-c12",
+        "type": "onsite",
+        "occurred_at": "2026-09-02T16:00:00Z",
+        "notes": "Onsite finished. Recruiter said the team would decide within a week and they would reach out either way.",
+        "next_action": "Check in if no word by 2026-09-12",
+        "next_action_due": "2026-09-12"
+      }
+    ],
+    "intent": "cadence_nudge",
+    "style_samples": [
+      "Wanted to check in on where things stand.",
+      "No pressure, just keen to know how the team is thinking about timing.",
+      "Still very excited about the role."
+    ]
+  },
+  {
+    "id": "cadence-nudge-applied-quiet",
+    "application": {
+      "id": "app-c13",
+      "title": "Engineering Manager, Data Platform",
+      "company": "Kestrel Payments",
+      "stage": "applied",
+      "applied_at": "2026-08-18",
+      "created_at": "2026-08-18T10:00:00Z",
+      "updated_at": "2026-08-18T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c13a",
+        "application_id": "app-c13",
+        "type": "applied",
+        "occurred_at": "2026-08-18T10:00:00Z",
+        "notes": "Applied through the careers page. Automated confirmation email received, no other contact since.",
+        "next_action": "Follow up if no response in three weeks",
+        "next_action_due": "2026-09-08"
+      }
+    ],
+    "intent": "cadence_nudge",
+    "style_samples": [
+      "Checking in on the status of my application.",
+      "Happy to share anything that would help the team move forward."
+    ]
+  },
+  {
+    "id": "post-technical-screen-thank-you",
+    "application": {
+      "id": "app-c14",
+      "title": "Senior Software Engineer",
+      "company": "Quarry Data",
+      "stage": "screen",
+      "applied_at": "2026-08-25",
+      "created_at": "2026-08-25T09:00:00Z",
+      "updated_at": "2026-09-09T17:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c14a",
+        "application_id": "app-c14",
+        "type": "applied",
+        "occurred_at": "2026-08-25T09:00:00Z",
+        "notes": "Applied via job board."
+      },
+      {
+        "id": "int-c14b",
+        "application_id": "app-c14",
+        "type": "screen",
+        "occurred_at": "2026-09-09T17:00:00Z",
+        "notes": "Technical phone screen with one engineer. Worked through a coding exercise on a shared editor. Interviewer was friendly and the pace felt fine.",
+        "next_action": "Send a short thank-you",
+        "next_action_due": "2026-09-10"
+      }
+    ],
+    "intent": "post_screen_thank_you",
+    "style_samples": [
+      "Thanks for taking the time today, I enjoyed working through the problem together."
+    ]
+  },
+  {
+    "id": "referral-thank-you-after-screen",
+    "application": {
+      "id": "app-c15",
+      "title": "Engineering Manager",
+      "company": "Marlow Health",
+      "stage": "screen",
+      "applied_at": "2026-08-20",
+      "created_at": "2026-08-20T09:00:00Z",
+      "updated_at": "2026-09-08T14:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c15a",
+        "application_id": "app-c15",
+        "type": "custom",
+        "occurred_at": "2026-08-20T09:00:00Z",
+        "notes": "A former teammate referred me internally and told me the recruiter would reach out.",
+        "contact_id": "contact-c15a"
+      },
+      {
+        "id": "int-c15b",
+        "application_id": "app-c15",
+        "type": "screen",
+        "occurred_at": "2026-09-08T14:00:00Z",
+        "notes": "Recruiter screen went well and the next step is a hiring-manager call.",
+        "contact_id": "contact-c15a",
+        "next_action": "Let the referrer know how it went and thank them again",
+        "next_action_due": "2026-09-10"
+      }
+    ],
+    "intent": "referral_thank_you",
+    "style_samples": [
+      "Wanted to keep you posted, the recruiter call went well.",
+      "Thanks again for the intro, it made a real difference."
+    ]
+  },
+  {
+    "id": "recruiter-ack-email-inbound",
+    "application": {
+      "id": "app-c16",
+      "title": "Senior Engineering Manager",
+      "company": "Novaline",
+      "stage": "applied",
+      "applied_at": "2026-09-14",
+      "created_at": "2026-09-14T08:30:00Z",
+      "updated_at": "2026-09-14T08:30:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c16a",
+        "application_id": "app-c16",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-14T08:30:00Z",
+        "notes": "Recruiter emailed about a remote-eligible role and asked if I would be open to a 20-minute intro call sometime in the next two weeks.",
+        "next_action": "Reply confirming interest",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "intent": "recruiter_acknowledgment",
+    "style_samples": [
+      "Thanks for reaching out, the role sounds interesting.",
+      "I'm open to a call, afternoons are usually easiest."
+    ]
+  },
+  {
+    "id": "logistics-video-link",
+    "application": {
+      "id": "app-c17",
+      "title": "Engineering Manager, Growth",
+      "company": "Willow Commerce",
+      "stage": "screen",
+      "applied_at": "2026-09-03",
+      "created_at": "2026-09-03T09:00:00Z",
+      "updated_at": "2026-09-16T12:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c17a",
+        "application_id": "app-c17",
+        "type": "applied",
+        "occurred_at": "2026-09-03T09:00:00Z",
+        "notes": "Applied via referral."
+      },
+      {
+        "id": "int-c17b",
+        "application_id": "app-c17",
+        "type": "custom",
+        "occurred_at": "2026-09-16T12:00:00Z",
+        "notes": "Recruiter proposed a 45-minute video interview for 2026-09-23 at 11am PT and asked me to confirm and to say whether Zoom works or if I need a different platform.",
+        "next_action": "Confirm the time and the video platform",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "intent": "logistics_confirmation",
+    "style_samples": [
+      "That time works for me, thank you.",
+      "Zoom is perfect on my side."
+    ]
+  },
+  {
+    "id": "availability-two-week-window",
+    "application": {
+      "id": "app-c18",
+      "title": "Director of Engineering",
+      "company": "Tamarack AI",
+      "stage": "screen",
+      "applied_at": "2026-08-30",
+      "created_at": "2026-08-30T09:00:00Z",
+      "updated_at": "2026-09-15T13:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c18a",
+        "application_id": "app-c18",
+        "type": "applied",
+        "occurred_at": "2026-08-30T09:00:00Z",
+        "notes": "Applied through careers page."
+      },
+      {
+        "id": "int-c18b",
+        "application_id": "app-c18",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T13:00:00Z",
+        "notes": "Recruiter asked for availability for a hiring-manager call over the next two weeks. I am traveling 2026-09-21 to 2026-09-24 and free otherwise, mornings preferred.",
+        "next_action": "Reply with availability",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "intent": "interview_availability_confirm",
+    "style_samples": [
+      "Thanks for the flexibility, here's what my calendar looks like.",
+      "Mornings are best for me.",
+      "Happy to work around whatever the team has open."
+    ]
+  },
+  {
+    "id": "thank-you-hm-specific-topic",
+    "application": {
+      "id": "app-c19",
+      "title": "Engineering Manager, Platform",
+      "company": "Redwood Logistics",
+      "stage": "screen",
+      "applied_at": "2026-08-12",
+      "created_at": "2026-08-12T09:00:00Z",
+      "updated_at": "2026-09-11T15:30:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c19a",
+        "application_id": "app-c19",
+        "type": "applied",
+        "occurred_at": "2026-08-12T09:00:00Z",
+        "notes": "Applied via job board."
+      },
+      {
+        "id": "int-c19b",
+        "application_id": "app-c19",
+        "type": "screen",
+        "occurred_at": "2026-09-11T15:30:00Z",
+        "notes": "Hiring manager call. We spent most of the time on how they plan to split the platform team into two squads next quarter and on how I handled a similar reorg. Ended on a positive note.",
+        "next_action": "Send a thank-you referencing the reorg discussion",
+        "next_action_due": "2026-09-12"
+      }
+    ],
+    "intent": "post_screen_thank_you",
+    "style_samples": [
+      "Thanks for the conversation, it was great to hear how you're thinking about the team's structure.",
+      "I'd enjoy the chance to dig further into it."
+    ]
+  },
+  {
+    "id": "thank-you-sparse-notes",
+    "application": {
+      "id": "app-c20",
+      "title": "Staff Software Engineer",
+      "company": "Sable Security",
+      "stage": "screen",
+      "applied_at": "2026-09-01",
+      "created_at": "2026-09-01T09:00:00Z",
+      "updated_at": "2026-09-14T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c20a",
+        "application_id": "app-c20",
+        "type": "applied",
+        "occurred_at": "2026-09-01T09:00:00Z",
+        "notes": "Applied via job board."
+      },
+      {
+        "id": "int-c20b",
+        "application_id": "app-c20",
+        "type": "screen",
+        "occurred_at": "2026-09-14T10:00:00Z",
+        "notes": "Phone screen, about 30 minutes.",
+        "next_action": "Send thank-you",
+        "next_action_due": "2026-09-15"
+      }
+    ],
+    "intent": "post_screen_thank_you",
+    "style_samples": [
+      "Thanks for making the time today."
+    ]
+  },
+  {
+    "id": "onsite-travel-logistics",
+    "application": {
+      "id": "app-c21",
+      "title": "Senior Engineering Manager",
+      "company": "Oakridge Software",
+      "stage": "onsite",
+      "applied_at": "2026-08-07",
+      "created_at": "2026-08-27T14:00:00Z",
+      "updated_at": "2026-09-15T09:30:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c21a",
+        "application_id": "app-c21",
+        "type": "screen",
+        "occurred_at": "2026-08-27T14:00:00Z",
+        "notes": "HM screen went well, moving to onsite."
+      },
+      {
+        "id": "int-c21b",
+        "application_id": "app-c21",
+        "type": "custom",
+        "occurred_at": "2026-09-15T09:30:00Z",
+        "notes": "Recruiter sent onsite details: 2026-09-29, arrive at 9am at the downtown office, building lobby check-in, and asked me to confirm I'll be there and flag any dietary needs for lunch.",
+        "next_action": "Confirm attendance and lunch needs",
+        "next_action_due": "2026-09-18"
+      }
+    ],
+    "intent": "logistics_confirmation",
+    "style_samples": [
+      "Confirming that I'll be there at 9am.",
+      "No dietary restrictions on my end."
+    ]
+  },
+  {
+    "id": "second-cadence-nudge",
+    "application": {
+      "id": "app-c22",
+      "title": "Engineering Manager",
+      "company": "Pinecrest Cloud",
+      "stage": "screen",
+      "applied_at": "2026-07-30",
+      "created_at": "2026-08-13T11:00:00Z",
+      "updated_at": "2026-08-31T09:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c22a",
+        "application_id": "app-c22",
+        "type": "screen",
+        "occurred_at": "2026-08-13T11:00:00Z",
+        "notes": "Recruiter screen. Told me to expect the HM call within two weeks."
+      },
+      {
+        "id": "int-c22b",
+        "application_id": "app-c22",
+        "type": "custom",
+        "occurred_at": "2026-08-31T09:00:00Z",
+        "notes": "Sent a short check-in email. Recruiter replied the same day saying scheduling was delayed and they would come back the following week.",
+        "next_action": "Check in again if nothing by 2026-09-14",
+        "next_action_due": "2026-09-14"
+      }
+    ],
+    "intent": "cadence_nudge",
+    "style_samples": [
+      "Following up again in case this slipped through.",
+      "Still very interested and happy to work around the team's schedule."
+    ]
+  },
+  {
+    "id": "coordinator-scheduling-ack",
+    "application": {
+      "id": "app-c23",
+      "title": "Senior Software Engineer",
+      "company": "Umber Finance",
+      "stage": "screen",
+      "applied_at": "2026-09-05",
+      "created_at": "2026-09-05T09:00:00Z",
+      "updated_at": "2026-09-15T15:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c23a",
+        "application_id": "app-c23",
+        "type": "applied",
+        "occurred_at": "2026-09-05T09:00:00Z",
+        "notes": "Applied via referral."
+      },
+      {
+        "id": "int-c23b",
+        "application_id": "app-c23",
+        "type": "custom",
+        "occurred_at": "2026-09-15T15:00:00Z",
+        "notes": "An interview coordinator emailed a scheduling link for the technical screen and asked me to pick a slot by end of week.",
+        "next_action": "Book a slot and reply to the coordinator",
+        "next_action_due": "2026-09-18"
+      }
+    ],
+    "intent": "logistics_confirmation",
+    "style_samples": [
+      "Thanks for sending the link, I'll grab a slot today.",
+      "I've booked Tuesday at 1pm."
+    ]
+  },
+  {
+    "id": "thank-you-skip-level",
+    "application": {
+      "id": "app-c24",
+      "title": "Director of Engineering",
+      "company": "Vantage Robotics",
+      "stage": "onsite",
+      "applied_at": "2026-08-03",
+      "created_at": "2026-08-03T09:00:00Z",
+      "updated_at": "2026-09-10T13:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c24a",
+        "application_id": "app-c24",
+        "type": "applied",
+        "occurred_at": "2026-08-03T09:00:00Z",
+        "notes": "Applied via recruiter outreach."
+      },
+      {
+        "id": "int-c24b",
+        "application_id": "app-c24",
+        "type": "onsite",
+        "occurred_at": "2026-09-10T13:00:00Z",
+        "notes": "Final-round conversation with the VP of Engineering, roughly an hour on org design and how the team measures delivery. Felt like a good conversation.",
+        "next_action": "Send a thank-you to the VP",
+        "next_action_due": "2026-09-11"
+      }
+    ],
+    "intent": "post_interview_thank_you",
+    "style_samples": [
+      "Thank you for the time today, I appreciated how candid you were about the challenges ahead.",
+      "The conversation on measuring delivery was really valuable.",
+      "I'm excited about the possibility of working together."
+    ]
+  },
+  {
+    "id": "referral-thank-you-submitted",
+    "application": {
+      "id": "app-c25",
+      "title": "Staff Engineer",
+      "company": "Birchwood Energy",
+      "stage": "applied",
+      "applied_at": "2026-09-12",
+      "created_at": "2026-09-12T10:00:00Z",
+      "updated_at": "2026-09-12T10:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-c25a",
+        "application_id": "app-c25",
+        "type": "custom",
+        "occurred_at": "2026-09-12T10:00:00Z",
+        "notes": "A former manager submitted an internal referral for this role and said she would flag it to the recruiter.",
+        "contact_id": "contact-c25a",
+        "next_action": "Thank the referrer",
+        "next_action_due": "2026-09-13"
+      }
+    ],
+    "intent": "referral_thank_you",
+    "style_samples": [
+      "Thank you so much for putting me forward, it means a lot."
     ]
   }
 ]
