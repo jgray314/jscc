@@ -1,0 +1,72 @@
+# Threat model
+
+One page on what this tool protects, from whom, how, and what is still open. It is a working document, written after the controls, from the code and the gate findings. The design principles it draws on are [D6, D7 and D8](design-principles.md); the review history is in [gate-reviews.md](gate-reviews.md).
+
+## Scope and assumptions
+
+JSCC is a local, single-user CLI. It fetches job postings, sends text to an LLM, and stores results in a local SQLite file. The user is trusted. The machine is assumed uncompromised. There is no server, no network listener, no multi-user access and no email sending: the drafter produces text for the user to review.
+
+Not in scope: a malicious local user, a compromised host, the model provider's own retention and handling of data it receives, and free-text detection of names in prose (see T1).
+
+## Assets
+
+| Asset | Why it matters |
+|---|---|
+| Contact details for recruiters, hiring managers and referrers (names, emails, phones) | Real people who did not agree to have their details in a third-party model or a public repo |
+| The user's profile (compensation target, deal-breakers, writing samples) | Private, and it is sent to the scoring stage |
+| API credentials | Direct financial and account exposure |
+| Integrity of the pipeline record | The tool's outputs drive real decisions about where to apply and what to send |
+| The network the CLI runs on | The fetcher makes requests to URLs it did not choose |
+
+## Trust boundaries
+
+```
+untrusted web page / pasted text
+        │  (T4 fetch, T5 injection)
+        ▼
+   fetcher ──► local SQLite (real.db, git-ignored) ◄── the user's own notes
+        │                          │
+        ▼                          ▼
+  sanitizer (redact, then authenticate)  ──►  git (pre-commit scanner)   (T1, T2, T8)
+        │
+        ▼
+   LLM (no tools, single turn)  ──►  parsed into typed, bounded fields  (T5, T6)
+        │
+        ▼
+   local display / a draft for the user to read and send by hand         (T12)
+```
+
+The model has no tools, no network access and no way to act. Its output is parsed into typed fields and shown locally. That is the main reason the prompt-injection risk (T5) is contained rather than serious.
+
+## Threats
+
+Status: **controlled** means enforced in code with a test, **partial** means a control exists with a stated hole, **open** means no control yet.
+
+| # | Threat | Control | Residual and status |
+|---|---|---|---|
+| T1 | Contact identifiers reach the LLM | Sanitizer redacts emails, phone-shaped digit runs, API keys, danger-list terms and known contact names before the payload is authenticated. No caller can opt out. `jscc/personal_data.py`, `jscc/sanitizer.py`, ADR-005 | Does not detect an unfamiliar name in free text; that needs NER, not regex. Redaction exemptions for a `model` key apply at any depth, and non-string values are never redacted (both documented as TODO, unreachable with today's flat payloads). Phone-shaped requisition IDs over-redact by design. **Partial, scope stated in D8** |
+| T2 | Personal data committed to git | Pre-commit scanner and the same CI script use the same definition of "personal" as the sanitizer, and read the same danger lists from a package-anchored path | The scanner skips any file it cannot decode as text, so a database is protected by being untracked, not by being scanned. **Controlled, with that limit** |
+| T3 | Real and synthetic data mixed, or the real DB created outside the ignore rules | Two DBs stamped with a mode marker; opening in the wrong mode raises; data paths anchored to the package, not the working directory (ADR-003) | **Controlled** |
+| T4 | The fetcher is used to reach internal addresses (SSRF), including via redirects or DNS rebinding | http(s) allowlist, rejection of any host resolving to a non-public address, the check repeated on every redirect hop, each request pinned to the addresses already validated, a redirect ceiling and a 5 MB streamed cap (D6) | The optional Playwright fallback follows its own redirects outside these guards. NAT64-encoded private addresses are not filtered (needs a NAT64 gateway to exploit). **Controlled for the default path, partial for the browser fallback** |
+| T5 | A hostile job posting contains instructions aimed at the model | The model has no tools, so it cannot act. Output must parse into typed models with bounds (for example a fit score outside 0 to 100 is rejected). Sanitization is independent of the model's behavior. Drafts are reviewed by a person and never sent automatically | **Open at the prompt level.** No prompt says to treat the posting as data, and no eval fixture contains an injection attempt. The full application record, including the stored raw posting, is serialized into the routing and composition payloads (read from `model_dump`, not probed), so injected text can reach the drafter, not only the extractor. Realistic impact is a distorted score, wrong extracted fields or odd draft text, all caught by a human read. See "Next" |
+| T6 | Model output is malformed or hostile | Fence-tolerant parsing into typed models, truncation distinguished from bad JSON, score bounds, and a failed parse routes to the dead-letter queue instead of crashing. Terminal control characters are stripped before display | **Controlled** |
+| T7 | An API key leaks into a prompt or a commit | Keys are matched by both the sanitizer and the scanner; `.env` files are ignored. No key is currently configured for this project | **Controlled** |
+| T8 | A code path sends text to the model without sanitizing it | The send boundary verifies an HMAC-authenticated payload, so a forged or mutated payload is refused. The Phase C to D gate traced the call sites that existed then (extraction and scoring) and found them routed correctly; routing and composition landed after it | **Open in structure.** The type-level guarantee stops at `send_to_llm`; the model client's `complete` takes three plain strings. ADR-005's addendum said to revisit "the moment" a second module calls it. Four modules do now (extraction, scoring, routing, composition), and no test enforces that they all go through the sanitizer. Today this is held by review, which is the discipline-not-structure gap the rest of this repo argues against |
+| T9 | A compromised dependency or CI action | GitHub Actions pinned to commit SHAs; CI installs from a frozen lockfile | The Playwright browser binary is a separate download. **Partial** |
+| T10 | A transient failure loses a posting the user already fetched | Transport and parse failures write a dead-letter entry, exit with a distinct code and can be retried | The raw fetched text is not persisted before extraction is attempted. **Partial, decision open** |
+| T11 | Runaway model spend | Every call is metered at the call site, an unknown model's price raises instead of defaulting, and `jscc costs` flags rate mismatches | Nothing refuses a call over a budget; the cap is planned, not built. **Open** |
+| T12 | The drafter produces something it should not, or acts on it | No send capability. A router sends unrecorded-fact and other non-routine cases to a person, with a zero-tolerance gate on wrongly auto-drafting; the composer can decline rather than invent a fact | The composition prompt is not yet validated against real model output. **Partial** |
+
+## How this maps to common frameworks
+
+Approximate, for orientation. T1 and T7 sit under sensitive information disclosure. T5 is prompt injection, T6 is improper output handling, T9 is supply chain, T11 is unbounded consumption and T12 is excessive agency (OWASP Top 10 for LLM applications, 2025 list). For prompt injection specifically, a useful check is whether one component combines private data, untrusted content and a way to send data out. Here the scoring stage holds the first two (the profile and the posting), but there is no exfiltration channel: no tools and no network from the model, and output goes to typed local fields. Adding a tool, an auto-send or a link the model can cause to be fetched would break that and require redoing T5.
+
+## Next, in order of value
+
+1. **T8, structural fix.** Add a test that fails when any module calls the model client without going through the sanitizer and send boundary, or wrap the client's arguments in an authenticated type as ADR-005 anticipated. Update the ADR either way; its revisit trigger has already fired.
+2. **T5, evidence.** Add a small set of hostile-posting fixtures to the extraction and scoring suites (instructions to output a top score, to ignore the schema, to reveal the profile) and a line in the prompts that posting text is data. Adding cases changes the suites and needs a new manual capture round.
+3. **T10 and T11**, once a live key exists: persist fetched text before extraction, and add a spend cap.
+
+## Limits of this document
+
+It was written by the author from the code and the gate findings, then checked against the source. It has not had an independent security review or penetration test, and the gate reviewers were all one model family. It describes today's behavior. Anything marked partial or open is a real gap, not a formality.
