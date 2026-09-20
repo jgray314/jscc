@@ -64,7 +64,7 @@ Approximate, for orientation. T1 and T7 sit under sensitive information disclosu
 ## Next, in order of value
 
 1. **T8, type-level fix.** Only if the number of callers grows or someone other than the author writes one: wrap the client's arguments in an authenticated type, as ADR-005 anticipated.
-2. **T5, evidence** (the largest open item). Add a small set of hostile-posting fixtures to the extraction and scoring suites (instructions to output a top score, to ignore the schema, to reveal the profile) and a line in the prompts that posting text is data. Adding cases changes the suites and needs a new manual capture round.
+2. **T5, evidence** (the largest open item; deliberately deferred to Phase E, after the current drafter work). Add a small set of hostile-posting fixtures to the extraction and scoring suites (instructions to output a top score, to ignore the schema, to reveal the profile) and a line in the prompts that posting text is data. Adding cases changes the suites and needs a new manual capture round, so it is batched with the next round that is being run anyway. Brought forward if a live API key is configured or if either prompt changes for another reason.
 3. **T10 and T11**, once a live key exists: persist fetched text before extraction, and add a spend cap.
 
 ## Limits of this document
