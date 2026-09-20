@@ -14,6 +14,22 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Routing round 4: 23/26, automatic fail on one false-routine
+
+First real (Claude.ai chat, Haiku) round against the missing-information prompt.
+`non_routine-dietary-needs-unknown` was classified routine: the next action
+"Confirm attendance and lunch needs" was read as recording the answer. Two
+routine cases were called non_routine (safe direction; Haiku reasoned from the
+chat's real-world date). The proxy runs had passed the dietary case 3 of 3 and
+the whole suite 26/26 with zero false-routine, so a proxy-only sign-off would
+have shipped the false-routine: the real round is the only validation, and the
+proxies are a filter for whether it is worth running. Details in
+`evals/README.md`. Next: tighten the rule so a next action that merely names a
+topic is a task, not an answer (only an answer stated in the notes or next
+action counts), proxy-iterate, then a full round 5 (the prompt change
+invalidates all 26 recordings). `evals/routing/recorded.json` holds round 4 as
+evidence until round 5 replaces it.
+
 ### D4c: composer `needs_input` safety net; composition suite 25 -> 28
 
 Defense in depth behind the router's missing-information rule: the composer must
