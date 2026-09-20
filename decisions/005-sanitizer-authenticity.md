@@ -126,3 +126,30 @@ router/composer lands. At that point the choke point genuinely needs to
 extend past `send_to_llm`, because "convention holds, there's one caller" is
 no longer true. Wrap `LLMClient.complete`'s three kwargs in a single typed
 request object at that point, not before.
+
+## Addendum (2026-09-20) — the revisit trigger had fired; held by inspection, not by type
+
+The trigger above fired when the scorer landed in Phase C, and again with the
+router and composer in Phase D: four modules now call `LLMClient.complete`
+(`extraction`, `scoring`, `routing`, `composition`). It was not acted on at the
+time, and the Phase C → D gate traced the call sites that existed then, so the
+routing and composition callers had never been reviewed for this. Writing the
+threat model (`docs/threat-model.md`, T8) surfaced it.
+
+**Decided: enforce by test now, still not by type.** `tests/test_llm_egress.py`
+fails when a module outside the known four calls the client; when a stage's entry
+function verifies before it sanitizes, reaches the client before verifying, or
+hands the client anything not read out of the verified payload; and when a stage
+still reaches its client after the send boundary refuses. Each of those three was
+checked by injecting the regression and watching a test fail.
+
+**Why not the typed request object this ADR anticipated.** The test closes the
+gap that mattered (a caller that skips the boundary) at a fraction of the
+change, and it fails at CI time instead of relying on a reviewer noticing. What
+it does not do is stop a caller that passes the checks by being written to look
+like the others; an authenticated argument type would. That remains the stronger
+fix and the right one if the number of callers grows or anyone other than the
+author writes one.
+
+**Revisit when:** a fifth caller is added, a caller is not shaped like the
+existing four, or the inspection test needs a special case to pass.
