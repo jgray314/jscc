@@ -14,6 +14,10 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Routing round 5: 26/26, zero false-routine
+
+Re-captured the whole routing suite through Jess's own Claude.ai chats (Haiku, one fresh chat per case) against the tightened wording and the corrected `routine-recruiter-ack` fixture; `evals/routing/recorded.json` was reset first, so all 26 recordings are round-5 completions and none come from proxies. `eval routing --replay`: **26/26 (100%)** against the 0.85 bar, no false-routine. `non_routine-dietary-needs-unknown`, the round-4 false-routine, now goes to a human with the unrecorded dietary detail named. All 12 routine cases stayed routine. A few completions reasoned from the chat's real date; none changed a verdict, so no "as of" date was added to the fixtures.
+
 ### Routing wording tightened after round 4
 
 A next action that only names a topic ("Confirm attendance and lunch needs") is now

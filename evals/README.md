@@ -66,6 +66,8 @@ Run: `python -m jscc eval routing`. D2a landed the real prompt (Haiku, per D10 â
 
 **Record/replay bug found and fixed the same round.** `_build_user_prompt` serializes the full `Application`, which includes `created_at`/`updated_at` (`Field(default_factory=_now)`); the fixtures never pinned those two fields the way every other date field in them was already pinned, so each fresh `Application(**case.application)` construction stamped a live timestamp into the hashed prompt text. Effect: `--record`/`--manual` and any later `--replay` are separate process runs, so the embedded timestamp never matched between them â€” record/replay was broken for this suite from D2a, independent of prompt or model quality. Fixed by pinning `created_at`/`updated_at` on every fixture (= first/last history item's `occurred_at`), verified deterministic across repeated runs.
 
+**Round 5 (2026-09-20), captured through Jess's own Claude.ai chats, Haiku, one fresh chat per case, after the wording tightening and the `routine-recruiter-ack` fixture fix: 26/26 (100%), no false-routine.** `recorded.json` was reset before capture, so every recording is a round-5 completion. `non_routine-dietary-needs-unknown` was called non_routine with the missing detail named, and all 12 routine cases stayed routine. Proxy runs preceded this round but are advisory only and are not in the recordings.
+
 **Round 1 result, n=20:** captured via Jess's own Claude.ai chat, same provenance guarantee as B2b/C2b. See `git log`/`CHANGELOG.md` for the closing commit's summary once D2b lands.
 
 ## composition (Slice D3)
