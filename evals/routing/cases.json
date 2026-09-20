@@ -110,7 +110,7 @@
         "type": "recruiter_reply",
         "occurred_at": "2026-09-13T11:30:00Z",
         "notes": "Recruiter reached out cold on LinkedIn about the role, asked if I'm open to a quick intro call this week.",
-        "next_action": "Reply confirming interest and availability",
+        "next_action": "Reply confirming interest",
         "next_action_due": "2026-09-14"
       }
     ],

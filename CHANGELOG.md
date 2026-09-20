@@ -14,6 +14,16 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Routing wording tightened after round 4
+
+A next action that only names a topic ("Confirm attendance and lunch needs") is now
+a task, not a recorded answer. Haiku proxy runs: dietary case 5/5 non_routine, both routine
+anchors held. `routine-recruiter-ack` then went non_routine 4/4 because its next action
+("Reply confirming interest and availability") named availability nobody had recorded, the
+same shape as `availability-unrecorded`; the fixture's next action is now "Reply confirming
+interest" (a labeling correction, decided after seeing the result). Proxy output is advisory;
+round 5 with real chats is the test.
+
 ### Routing round 4: 23/26, automatic fail on one false-routine
 
 First real (Claude.ai chat, Haiku) round against the missing-information prompt.
