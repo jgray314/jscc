@@ -187,10 +187,18 @@ class DraftEmail(BaseModel):
     D9/D10's existing shape) is expected to produce something pasteable
     straight into an email client, not a structured object requiring further
     assembly.
+
+    `needs_input` (D4c) is the composer's escape hatch: when the reply would
+    need a detail the input does not supply (a dietary answer, which of several
+    proposed times), the composer names that detail here instead of writing a
+    draft, `subject`/`body` stay empty, and `followup` turns it into a briefing.
+    It is the defense-in-depth layer behind the router's missing-information
+    rule, not a replacement for it.
     """
 
-    subject: str
-    body: str
+    subject: str = ""
+    body: str = ""
+    needs_input: str | None = None
 
 
 class Briefing(BaseModel):

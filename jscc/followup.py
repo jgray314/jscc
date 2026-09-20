@@ -29,7 +29,7 @@ from .models import (
 from .routing import route_followup
 
 Router = Callable[..., RoutingDecision]
-Composer = Callable[[Application, list[Interaction], str, list[str]], DraftEmail]
+Composer = Callable[..., DraftEmail]
 
 
 def render_briefing(app: Application, decision: RoutingDecision) -> Briefing:
@@ -53,6 +53,19 @@ def render_briefing(app: Application, decision: RoutingDecision) -> Briefing:
         source_url=app.source_url,
         reason=reason,
         considerations=list(decision.considerations),
+    )
+
+
+def briefing_for_missing_input(app: Application, missing: str) -> Briefing:
+    """Card for a routine situation the composer declined to draft (D4c): the
+    reply needs a detail only the candidate has."""
+    return render_briefing(
+        app,
+        RoutingDecision(
+            classification=RoutingClassification.non_routine,
+            reason=f"a draft would need a detail that isn't recorded: {missing}",
+            considerations=["Supply that detail, then write or edit the reply yourself"],
+        ),
     )
 
 
@@ -85,7 +98,9 @@ def followup(
 
     `router`/`composer` are injectable so the orchestration is testable
     without either LLM step; production callers use the defaults. `conn` is
-    forwarded to the router so the call lands in the `routing` ledger feature.
+    forwarded to both LLM steps so each call lands in its own ledger feature
+    (`routing`, `composition`). A composer that returns `needs_input` (D4c)
+    yields a briefing naming the missing detail, never a draft.
     """
     decision = router(app, history, conn=conn)
     if decision.classification == RoutingClassification.routine:
@@ -100,5 +115,8 @@ def followup(
                     considerations=["Decide what the message should say; no draft was attempted"],
                 ),
             )
-        return composer(app, history, decision.intent, style_samples)
+        draft = composer(app, history, decision.intent, style_samples, conn=conn)
+        if draft.needs_input:
+            return briefing_for_missing_input(app, draft.needs_input)
+        return draft
     return render_briefing(app, decision)

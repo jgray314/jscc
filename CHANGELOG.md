@@ -14,6 +14,33 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D4c: composer `needs_input` safety net; composition suite 25 -> 28
+
+Defense in depth behind the router's missing-information rule: the composer must
+not fill a gap in the record with an invented fact either. It can now decline.
+
+- `DraftEmail` gained `needs_input: str | None` (`subject`/`body` default to
+  empty). The composition prompt offers `{"needs_input": "<missing detail>"}` in
+  place of a draft, for a reply that cannot honestly be written without a fact
+  the input lacks, and says not to escalate when the next action already records
+  the decision or a general reply would serve. If a response carries both a draft
+  and `needs_input`, `needs_input` wins (a draft beside "I don't know X" is built
+  on a guess).
+- `followup()` turns a `needs_input` draft into a `Briefing` naming the missing
+  detail (`briefing_for_missing_input`), and now forwards `conn` to the composer,
+  so production composition calls land in the `composition` ledger feature (before,
+  only routing did). The CLI reports a `CompositionParseError` as `drafting
+  failed` instead of a traceback.
+- Suite 25 -> 28: three `expect_needs_input` fixtures. The grader passes them only
+  on an escalation that names the detail, and fails a drafting case that escalates
+  (`unexpected_needs_input`).
+- Proxy calibration (advisory, Sonnet, not recorded): first wording escalated
+  correctly 3/3 but over-escalated 3 of 25 drafting cases (unrecorded slot, Zoom
+  answer, availability); after adding the "do not escalate just because" clause,
+  those drafted 9/9 and the 3 escalation cases escalated 9/9.
+- The composition prompt changed, so D4b's manual capture has not been run against
+  this prompt yet.
+
 ### Router missing-information rule; routing suite 20 -> 26; composition fixture fixes
 
 Composition proxy runs had the drafter invent a personal fact (a dietary answer)

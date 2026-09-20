@@ -254,3 +254,37 @@ def test_advisories_show_in_the_summary_without_failing_the_case() -> None:
     summary = EvalSummary(total=1, passed=1, results=[result])
     text = format_eval_summary(summary)
     assert "[PASS] t1" in text and "advisory form_letter" in text
+
+
+# ---- needs_input: the should-escalate cases (D4c) --------------------------------------
+
+
+def _escalation_case(**overrides):
+    return _case(expect_needs_input=True, must_include=[["dietary", "diet"]], **overrides)
+
+
+def test_a_case_that_expects_escalation_passes_when_the_detail_is_named() -> None:
+    draft = DraftEmail(needs_input="The candidate's dietary needs for the onsite lunch.")
+    assert grade_composition(_escalation_case(), draft).passed
+
+
+def test_a_case_that_expects_escalation_fails_when_a_draft_is_written() -> None:
+    result = grade_composition(_escalation_case(), DraftEmail(subject=GOOD_SUBJECT, body=GOOD_BODY))
+    assert "needs_input" in _failed(result)
+
+
+def test_escalation_must_name_the_missing_detail_through_must_include() -> None:
+    result = grade_composition(_escalation_case(), DraftEmail(needs_input="More information."))
+    assert "must_include" in _failed(result)
+
+
+def test_escalation_is_not_held_to_draft_checks() -> None:
+    """No subject, body, length or style checks run on a question."""
+    result = grade_composition(_escalation_case(), DraftEmail(needs_input="Dietary needs?"))
+    assert result.passed, result.diffs
+
+
+def test_an_unexpected_escalation_fails_a_draftable_case() -> None:
+    result = grade_composition(_case(), DraftEmail(needs_input="Anything else?"))
+    assert "unexpected_needs_input" in _failed(result)
+    assert "subject" not in _failed(result)  # one clear cause, not a pile of missing-draft noise

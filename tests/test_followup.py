@@ -203,3 +203,94 @@ def test_cli_routing_call_lands_in_the_routing_ledger(
     features = [c.feature for c in list_llm_calls(conn)]
     conn.close()
     assert features.count("routing") == 1
+
+
+# ---- composer needs_input -> briefing (D4c) ---------------------------------------
+
+
+def test_a_composer_needs_input_becomes_a_briefing_naming_the_missing_detail() -> None:
+    asked = DraftEmail(needs_input="Dietary needs for the onsite lunch.")
+    result = followup(_app(), _history(), [], router=_Spy(_ROUTINE), composer=_Spy(asked))
+    assert isinstance(result, Briefing)
+    assert result.handle_manually
+    assert "Dietary needs for the onsite lunch." in result.reason
+    assert result.application_id == "app-1" and result.company == "Acme"
+    assert "Dietary needs" in format_briefing(result)
+
+
+def test_followup_forwards_conn_to_the_composer() -> None:
+    composer = _Spy(DraftEmail(subject="x", body="y"))
+    sentinel = object()
+    followup(_app(), _history(), [], conn=sentinel, router=_Spy(_ROUTINE), composer=composer)
+    ((_, kwargs),) = composer.calls
+    assert kwargs.get("conn") is sentinel
+
+
+def test_a_real_composer_call_from_followup_lands_in_the_composition_ledger(tmp_path) -> None:
+    from jscc.composition import compose_followup
+    from jscc.llm_client import LLMResponse
+    from jscc.storage import _connect, _init_db, list_llm_calls
+
+    class _Client:
+        def complete(self, *, model, system, user):
+            return LLMResponse(
+                text='{"subject": "Hi", "body": "Thanks."}',
+                input_tokens=1,
+                output_tokens=1,
+                cost_usd=0.0,
+            )
+
+    conn = _connect(tmp_path / "t.db")
+    _init_db(conn)
+    followup(
+        _app(),
+        _history(),
+        [],
+        conn=conn,
+        router=_Spy(_ROUTINE),
+        composer=lambda app, history, intent, samples, conn=None: compose_followup(
+            app, history, intent, samples, conn=conn, client=_Client()
+        ),
+    )
+    assert [c.feature for c in list_llm_calls(conn)] == ["composition"]
+    conn.close()
+
+
+def test_cli_needs_input_prints_a_briefing(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_id = _ingest(runner, tmp_path, monkeypatch)
+    # followup's router/composer defaults are bound at definition time, so
+    # patching the module attributes wouldn't reach them; inject instead.
+    real = followup
+    monkeypatch.setattr(
+        "jscc.cli.followup",
+        lambda app, history, samples, conn=None: real(
+            app,
+            history,
+            samples,
+            conn=conn,
+            router=lambda *a, **k: _ROUTINE,
+            composer=lambda *a, **k: DraftEmail(needs_input="Which of the three slots works?"),
+        ),
+    )
+    result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "HANDLE MANUALLY" in result.output
+    assert "Which of the three slots works?" in result.output
+
+
+def test_cli_reports_a_composer_parse_error_without_a_traceback(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jscc.composition import CompositionParseError
+
+    app_id = _ingest(runner, tmp_path, monkeypatch)
+
+    def boom(app, history, samples, conn=None):
+        raise CompositionParseError("composition response was not valid JSON")
+
+    monkeypatch.setattr("jscc.cli.followup", boom)
+    result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "drafting failed" in result.output

@@ -1913,7 +1913,7 @@ def test_eval_composition_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 25, "one ledger row per eval case"
+    assert len(calls) == 28, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"composition_eval"}
 
 

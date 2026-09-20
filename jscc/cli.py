@@ -9,7 +9,7 @@ import anthropic
 import click
 from pydantic import ValidationError
 
-from .composition import COMPOSITION_EVAL_FEATURE, compose_followup
+from .composition import COMPOSITION_EVAL_FEATURE, CompositionParseError, compose_followup
 from .config import (
     LoadError,
     load_pipeline,
@@ -771,7 +771,7 @@ def eval_routing(
 def eval_composition(
     data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
 ) -> None:
-    """Run the composition eval suite (25 cases) against the current `compose_followup`.
+    """Run the composition eval suite (28 cases: 25 draft, 3 escalate) against the current `compose_followup`.
 
     Same shape as `eval routing` (D4a mirrors D2a): --record/--replay exist so
     D4b can validate the prompt against real model output; --manual is how
@@ -1269,6 +1269,9 @@ def followup_cmd(application_id: str, data_dir: Path, config_dir: Path) -> None:
             result = followup(app, history, profile.style_samples, conn=conn)
         except RoutingParseError as e:
             click.echo(f"routing failed: {e}", err=True)
+            sys.exit(EXIT_UNEXPECTED)
+        except CompositionParseError as e:
+            click.echo(f"drafting failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except anthropic.APIError as e:
             click.echo(f"LLM API error: {e}", err=True)

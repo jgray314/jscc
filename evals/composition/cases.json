@@ -1358,5 +1358,154 @@
       "competing offer",
       "other offer"
     ]
+  },
+  {
+    "id": "escalate-dietary-needs-unknown",
+    "application": {
+      "id": "app-e01",
+      "title": "Senior Engineering Manager",
+      "company": "Oakridge Software",
+      "stage": "onsite",
+      "applied_at": "2026-08-07",
+      "created_at": "2026-08-27T14:00:00Z",
+      "updated_at": "2026-09-15T09:30:00Z"
+    },
+    "history": [
+      {
+        "id": "int-e01a",
+        "application_id": "app-e01",
+        "type": "screen",
+        "occurred_at": "2026-08-27T14:00:00Z",
+        "notes": "HM screen went well, moving to onsite."
+      },
+      {
+        "id": "int-e01b",
+        "application_id": "app-e01",
+        "type": "custom",
+        "occurred_at": "2026-09-15T09:30:00Z",
+        "notes": "Recruiter sent onsite details: 2026-09-29, arrive at 9am at the downtown office, building lobby check-in, and asked me to confirm I'll be there and flag any dietary needs for lunch.",
+        "next_action": "Confirm attendance and lunch needs",
+        "next_action_due": "2026-09-18"
+      }
+    ],
+    "intent": "logistics_confirmation",
+    "style_samples": [
+      "Confirming that I'll be there at 9am.",
+      "Looking forward to meeting the team."
+    ],
+    "must_include": [
+      [
+        "diet",
+        "food",
+        "allerg",
+        "restriction",
+        "lunch"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
+    ],
+    "expect_needs_input": true
+  },
+  {
+    "id": "escalate-pick-slot-unrecorded",
+    "application": {
+      "id": "app-e02",
+      "title": "Engineering Manager",
+      "company": "Larkin Health",
+      "stage": "screen",
+      "applied_at": "2026-08-28",
+      "created_at": "2026-09-15T09:00:00Z",
+      "updated_at": "2026-09-15T09:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-e02a",
+        "application_id": "app-e02",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T09:00:00Z",
+        "notes": "Recruiter proposed three slots next week for the HM screen: Tuesday 10am PT, Wednesday 2pm PT, or Thursday 11am PT. Asked which works best.",
+        "next_action": "Reply with preferred time",
+        "next_action_due": "2026-09-16"
+      }
+    ],
+    "intent": "interview_availability_confirm",
+    "style_samples": [
+      "Thanks for sending over a few options.",
+      "Happy to do a shorter call if that's easier."
+    ],
+    "must_include": [
+      [
+        "slot",
+        "time",
+        "prefer",
+        "which",
+        "tuesday",
+        "wednesday",
+        "thursday"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
+    ],
+    "expect_needs_input": true
+  },
+  {
+    "id": "escalate-availability-unrecorded",
+    "application": {
+      "id": "app-e03",
+      "title": "Director of Engineering",
+      "company": "Tamarack Labs",
+      "stage": "screen",
+      "applied_at": "2026-08-30",
+      "created_at": "2026-08-30T09:00:00Z",
+      "updated_at": "2026-09-15T13:00:00Z"
+    },
+    "history": [
+      {
+        "id": "int-e03a",
+        "application_id": "app-e03",
+        "type": "applied",
+        "occurred_at": "2026-08-30T09:00:00Z",
+        "notes": "Applied through careers page."
+      },
+      {
+        "id": "int-e03b",
+        "application_id": "app-e03",
+        "type": "recruiter_reply",
+        "occurred_at": "2026-09-15T13:00:00Z",
+        "notes": "Recruiter asked for availability for a hiring-manager call over the next two weeks.",
+        "next_action": "Reply with availability",
+        "next_action_due": "2026-09-17"
+      }
+    ],
+    "intent": "interview_availability_confirm",
+    "style_samples": [
+      "Thanks for reaching out.",
+      "Happy to find a time that suits everyone."
+    ],
+    "must_include": [
+      [
+        "availab",
+        "dates",
+        "times",
+        "window",
+        "schedule",
+        "calendar"
+      ]
+    ],
+    "must_not_include": [
+      "salary",
+      "compensation",
+      "competing offer",
+      "other offer"
+    ],
+    "expect_needs_input": true
   }
 ]

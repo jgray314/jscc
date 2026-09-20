@@ -696,14 +696,17 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
 # ---- composition (Slice D3) -----------------------------------------------
 
 
-def test_composition_cases_file_has_twenty_five_cases() -> None:
-    """25 (application, history, intent, style_samples) fixtures, all routine
-    per the sub-plan's D3 -- there is no non-routine composition case, since
-    D10 never routes a non_routine situation to this stage. Resized 8 -> 25
-    before D4b: SE at the 75% bar is ~15pt at n=8, ~8.7pt at n=25."""
+def test_composition_cases_file_has_25_drafting_and_3_escalation_cases() -> None:
+    """25 (application, history, intent, style_samples) fixtures the router
+    would call routine, plus 3 D4c safety-net cases the router should never send
+    here but the composer must still refuse to guess on. Resized 8 -> 25 before
+    D4b: SE at the 75% bar is ~15pt at n=8, ~8.7pt at n=25; the drafting half
+    keeps that size and the escalation cases sit beside it."""
     cases = load_composition_cases(COMPOSITION_CASES_PATH)
-    assert len(cases) == 25
-    assert len({c.id for c in cases}) == 25  # unique ids
+    assert sum(1 for c in cases if not c.expect_needs_input) == 25
+    assert sum(1 for c in cases if c.expect_needs_input) == 3
+    assert len(cases) == 28
+    assert len({c.id for c in cases}) == 28  # unique ids
     assert all(c.intent for c in cases)
     assert all(1 <= len(c.style_samples) <= 3 for c in cases)  # D4: 1-3 samples
 
@@ -781,7 +784,7 @@ def test_run_composition_evals_against_stub_reports_all_failed() -> None:
             app, history, intent, samples, client=stub
         )
     )
-    assert summary.total == 25
+    assert summary.total == 28
     assert summary.passed == 0
 
 
@@ -790,6 +793,6 @@ def test_run_composition_evals_ordinary_errors_still_count_as_failed_cases() -> 
         raise ValueError("model returned nonsense")
 
     summary = run_composition_evals(broken)
-    assert summary.total == 25
+    assert summary.total == 28
     assert summary.passed == 0
     assert all(r.error for r in summary.results)

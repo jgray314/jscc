@@ -39,6 +39,14 @@ COMPOSITION_SYSTEM_PROMPT = """You draft a short follow-up email on behalf of a 
   "body": the email body as plain text, with paragraphs separated by blank lines
 }
 
+Missing information. Escalate only when the reply cannot honestly be written without a specific fact the input does not supply, for example the candidate's dietary needs, which of several proposed times they prefer, or availability they have not stated. Do not guess. Return ONLY this instead, naming the missing detail in one short sentence:
+
+{
+  "needs_input": "the detail the candidate must supply"
+}
+
+Do not escalate just because the email could say more. If the candidate's next action already records the decision (for example "Confirm the time" or "Reply confirming Tuesday at 10am"), treat that as the answer and write the reply. If a warm, general reply that states nothing unrecorded would serve (thanking them, saying you will pick a slot or find a time), write that instead.
+
 Write the email so the candidate could paste it straight into an email client.
 
 Facts. Use only what the application and history actually say. Never invent a detail: no interviewer names, topics discussed, dates, times, numbers, commitments, or outcomes that are not in the input. When the history names something specific about the last touchpoint (a topic, a format, a proposed time), refer to it concretely. When the history is thin, write a shorter, more general email instead of padding it with guesses.
@@ -64,8 +72,22 @@ def _parse_response(text: str) -> DraftEmail:
         raise CompositionParseError(
             f"composition response was valid JSON but not an object: {type(data).__name__}"
         )
+    needs_input = data.get("needs_input")
+    if needs_input is not None and not isinstance(needs_input, str):
+        raise CompositionParseError(
+            f"composition response had a non-string needs_input: {type(needs_input).__name__}"
+        )
+    if needs_input and needs_input.strip():
+        # Wins over any draft the model also returned: a draft written next to
+        # "I don't know X" is a draft built on a guess.
+        return DraftEmail(needs_input=needs_input.strip())
+    missing = [k for k in ("subject", "body") if k not in data]
+    if missing:
+        raise CompositionParseError(
+            f"composition response did not match DraftEmail: missing {', '.join(missing)}"
+        )
     try:
-        return DraftEmail(**data)
+        return DraftEmail(subject=data["subject"], body=data["body"])
     except (TypeError, ValidationError) as e:
         raise CompositionParseError(f"composition response did not match DraftEmail: {e}") from e
 

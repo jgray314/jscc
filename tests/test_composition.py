@@ -256,3 +256,55 @@ def test_propagates_sanitizer_refusal(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(composition_module, "sanitize_for_llm", _force_flag)
     with pytest.raises(SanitizerRefusal):
         compose_followup(_app(), _history(), "x", [], client=StubCompositionClient())
+
+
+# ---- needs_input safety net (D4c) -------------------------------------------------
+
+
+def test_prompt_offers_a_needs_input_escape_hatch() -> None:
+    from jscc.composition import COMPOSITION_SYSTEM_PROMPT
+
+    assert '"needs_input"' in COMPOSITION_SYSTEM_PROMPT
+    assert "do not guess" in COMPOSITION_SYSTEM_PROMPT.lower()
+
+
+def test_parses_a_needs_input_response_into_an_empty_draft() -> None:
+    client = _FakeClient(json.dumps({"needs_input": "Dietary needs for the onsite lunch."}))
+    draft = compose_followup(_app(), _history(), "logistics_confirmation", [], client=client)
+    assert draft.needs_input == "Dietary needs for the onsite lunch."
+    assert draft.subject == "" and draft.body == ""
+
+
+def test_a_normal_draft_has_no_needs_input() -> None:
+    draft = compose_followup(
+        _app(), _history(), "post_interview_thank_you", [], client=_FakeClient(_VALID_RESPONSE)
+    )
+    assert draft.needs_input is None
+
+
+def test_a_null_needs_input_alongside_a_draft_is_a_normal_draft() -> None:
+    text = json.dumps({"subject": "Hi", "body": "Thanks.", "needs_input": None})
+    draft = compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))
+    assert draft.needs_input is None and draft.subject == "Hi"
+
+
+def test_needs_input_wins_when_the_model_also_returns_a_draft() -> None:
+    """Safe direction: a draft built on a guess is exactly what the field exists
+    to stop, so it is dropped rather than shipped next to the question."""
+    text = json.dumps({"subject": "Hi", "body": "I have no dietary needs.", "needs_input": "Diet?"})
+    draft = compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))
+    assert draft.needs_input == "Diet?"
+    assert draft.subject == "" and draft.body == ""
+
+
+@pytest.mark.parametrize("blank", ["", "   ", None])
+def test_a_blank_needs_input_without_a_draft_is_a_parse_error(blank) -> None:
+    text = json.dumps({"needs_input": blank})
+    with pytest.raises(CompositionParseError):
+        compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))
+
+
+def test_a_non_string_needs_input_is_a_parse_error() -> None:
+    text = json.dumps({"needs_input": ["diet"]})
+    with pytest.raises(CompositionParseError):
+        compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))

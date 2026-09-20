@@ -642,6 +642,11 @@ class CompositionEvalCase(BaseModel):
     # from every group; `must_not_include` is the no-hallucination trap list.
     must_include: list[list[str]] = Field(default_factory=list)
     must_not_include: list[str] = Field(default_factory=list)
+    # D4c: the case is one the router should never send here but the composer
+    # must still refuse to guess on. Passing means it returned `needs_input`
+    # naming the missing detail (`must_include` is checked against that text),
+    # not that it drafted.
+    expect_needs_input: bool = False
 
 
 def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[CompositionEvalCase]:
@@ -747,6 +752,29 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
     failure names its check in `FieldDiff.field`."""
     diffs: list[FieldDiff] = []
     subject, body = draft.subject, draft.body
+
+    asked = (draft.needs_input or "").strip()
+    if case.expect_needs_input:
+        if not asked:
+            diffs.append(
+                FieldDiff(
+                    field="needs_input",
+                    expected="a question naming the missing detail",
+                    actual="a draft" if (subject.strip() or body.strip()) else "nothing",
+                )
+            )
+        else:
+            missing = [
+                group
+                for group in case.must_include
+                if not any(alt.lower() in asked.lower() for alt in group)
+            ]
+            if missing:
+                diffs.append(FieldDiff(field="must_include", expected=missing, actual=asked))
+        return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+    if asked:
+        diffs.append(FieldDiff(field="unexpected_needs_input", expected="a draft", actual=asked))
+        return EvalCaseResult(case_id=case.id, passed=False, diffs=diffs)
 
     if not subject.strip():
         diffs.append(FieldDiff(field="subject", expected="<non-empty>", actual=subject))
