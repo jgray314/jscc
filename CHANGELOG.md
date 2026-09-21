@@ -31,6 +31,7 @@ better system than the one that exists:
 - Public docs linked into a private workspace. The Phase C entries are compacted, per this file's own standing practice, which had not been followed.
 - A "Sample drafter output" section shows a real draft and a real briefing card.
 - ADR-006 records the eval decisions that had no ADR: the per-stage bars, manual capture instead of live traffic, and deterministic grading without a judge.
+- `test_readme_claims.py` now also fails if the README stops citing a published eval result or calls a suite "not yet validated". This is the half of the README-status drift that can be checked mechanically.
 
 ### Phase D gate: eval integrity
 

@@ -56,3 +56,23 @@ def test_the_two_readme_counts_agree() -> None:
     status = _COUNT_RE.search(text)
     assert layout and status, "one of the two README test-count lines is missing"
     assert layout.group(1) == status.group(1)
+
+
+def test_readme_eval_figures_match_the_published_results() -> None:
+    """Every published eval result appears in the README, and no suite with a
+    recording is described as unvalidated.
+
+    The README once said composition was "not yet validated" in three places and
+    24/28 in two others. The figures themselves are pinned to the recordings by
+    tests/test_published_results.py; this ties the README to that same table.
+    """
+    from tests.test_published_results import PUBLISHED
+
+    text = README.read_text(encoding="utf-8")
+    for suite, (passed, total) in PUBLISHED.items():
+        if suite == "jd_extraction":
+            # Cited as the two-round band, of which the recording is the top.
+            assert f"{round(100 * passed / total)}%" in text, suite
+        else:
+            assert f"{passed}/{total}" in text, f"README does not cite {suite}'s {passed}/{total}"
+    assert "not yet validated" not in text
