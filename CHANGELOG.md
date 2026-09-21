@@ -14,6 +14,12 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D4b: composition manual capture, 24/28 (86%)
+
+All 28 composition cases captured through Jess's own Claude.ai chats (Sonnet 4.5, `claude-sonnet-4-5-20250929`, one fresh chat per case) and recorded to `evals/composition/recorded.json`; none of it is proxy output. Replay: **24/28 (86%)** against `COMPOSITION_PASS_THRESHOLD = 0.75`, which passes. All 3 escalation cases returned `needs_input` correctly. The 4 failures are all `style_reuse` (a verbatim style-sample phrase): `interview-availability-confirm`, `logistics-video-link`, `cadence-nudge-after-onsite`, `cadence-nudge-applied-quiet`. A full 28-case Sonnet proxy run beforehand (25/28, advisory only) had predicted 3 of the 4.
+
+Three defects the grader does not check, seen while reading the completions: `logistics-video-link` says "Tuesday, September 23" (it is a Wednesday, and the history names no weekday); `thank-you-hm-specific-topic` says "yesterday" and `thank-you-sparse-notes` says "last week", both invented relative dates. Logged as a fast-follow (a grader check for weekdays that do not match the date and for relative-date words), deliberately non-blocking: end-to-end delivery comes first. Not fixed here, so the 86% is unchanged by them. One capture round of a 28-case suite is a band, not a point.
+
 ### Routing round 5: 26/26, zero false-routine
 
 Re-captured the whole routing suite through Jess's own Claude.ai chats (Haiku, one fresh chat per case) against the tightened wording and the corrected `routine-recruiter-ack` fixture; `evals/routing/recorded.json` was reset first, so all 26 recordings are round-5 completions and none come from proxies. `eval routing --replay`: **26/26 (100%)** against the 0.85 bar, no false-routine. `non_routine-dietary-needs-unknown`, the round-4 false-routine, now goes to a human with the unrecorded dietary detail named. All 12 routine cases stayed routine. A few completions reasoned from the chat's real date; none changed a verdict, so no "as of" date was added to the fixtures.
