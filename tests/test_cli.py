@@ -454,7 +454,7 @@ def test_ingest_url_success_creates_application(
     from jscc.fetcher import FetchResult
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
     )
 
@@ -492,7 +492,7 @@ def test_ingest_passes_playwright_flag_from_pipeline_config(
         captured_kwargs.update(kw)
         return FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300)
 
-    monkeypatch.setattr("jscc.cli.fetch_jd", fake_fetch_jd)
+    monkeypatch.setattr("jscc.cli.ingest.fetch_jd", fake_fetch_jd)
 
     result = runner.invoke(
         cli,
@@ -520,7 +520,7 @@ def test_ingest_url_failure_creates_dlq_entry_not_application(
     from jscc.models import FailureMode
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(
             ok=False, failure_mode=FailureMode.blocked, error_detail="HTTP 403"
         ),
@@ -565,7 +565,7 @@ def test_ingest_url_twice_without_update_asks_before_reprocessing(
     from jscc.fetcher import FetchResult
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
     )
     argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
@@ -593,7 +593,7 @@ def test_ingest_url_twice_confirmed_updates_the_existing_application(
     from jscc.fetcher import FetchResult
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
     )
     argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
@@ -626,7 +626,7 @@ def test_ingest_url_twice_with_update_flag_skips_the_prompt(
     from jscc.fetcher import FetchResult
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
     )
     argv = ["ingest", "--url", "https://example.com/jobs/1", "--data-dir", str(tmp_path)]
@@ -751,7 +751,7 @@ def test_ingest_converts_a_fetchresult_failure_to_a_dlq_entry(
     from jscc.models import FailureMode
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(
             ok=False, failure_mode=FailureMode.timeout, error_detail="timed out"
         ),
@@ -1187,7 +1187,7 @@ def test_ingest_and_eval_traffic_stay_separable_in_the_ledger(
     from jscc.fetcher import FetchResult
 
     monkeypatch.setattr(
-        "jscc.cli.fetch_jd",
+        "jscc.cli.ingest.fetch_jd",
         lambda url, **kw: FetchResult(ok=True, title="Senior Engineer", raw_text="a" * 300),
     )
     runner.invoke(
@@ -1623,8 +1623,12 @@ def _eval_paths(tmp_path, monkeypatch):
     from jscc import evals
 
     recording = tmp_path / "recorded.json"
-    monkeypatch.setattr("jscc.cli.load_recording", lambda: evals.load_recording(recording))
-    monkeypatch.setattr("jscc.cli.save_recording", lambda r: evals.save_recording(r, recording))
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.load_recording", lambda: evals.load_recording(recording)
+    )
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.save_recording", lambda r: evals.save_recording(r, recording)
+    )
     return recording
 
 
@@ -1791,7 +1795,7 @@ def test_eval_fit_scoring_manual_prompts_for_each_case_and_records_the_pasted_re
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
     recording_path = tmp_path / "fit_scoring_recorded.json"
-    monkeypatch.setattr("jscc.cli.FIT_SCORING_RECORDING_PATH", recording_path)
+    monkeypatch.setattr("jscc.cli.eval_cmds.FIT_SCORING_RECORDING_PATH", recording_path)
 
     canned_response = '{"score": 50, "rationale": "manual capture test response."}\nEND\n'
     result = runner.invoke(
@@ -1947,7 +1951,7 @@ def test_eval_composition_manual_prompts_for_each_case_and_records_the_pasted_re
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
 
     recording_path = tmp_path / "composition_recorded.json"
-    monkeypatch.setattr("jscc.cli.COMPOSITION_RECORDING_PATH", recording_path)
+    monkeypatch.setattr("jscc.cli.eval_cmds.COMPOSITION_RECORDING_PATH", recording_path)
 
     import json
 
@@ -1971,7 +1975,7 @@ def test_eval_composition_replay_without_recordings_is_a_usage_error(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(ENV_VAR, raising=False)
-    monkeypatch.setattr("jscc.cli.COMPOSITION_RECORDING_PATH", tmp_path / "missing.json")
+    monkeypatch.setattr("jscc.cli.eval_cmds.COMPOSITION_RECORDING_PATH", tmp_path / "missing.json")
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     result = runner.invoke(cli, ["eval", "composition", "--replay", "--data-dir", str(tmp_path)])
     assert result.exit_code == 2

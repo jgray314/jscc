@@ -14,6 +14,10 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### Phase D gate, step 0: `cli.py` split into a `jscc/cli/` package
+
+Walkthrough finding W-13 (Phase C -> D gate) had asked for a split "before Phase D adds a drafter command on top". Phase D added `route` and `followup` and the split didn't happen, so the file went from 1,068 to 1,422 lines. The backlog sweep that opens the Phase D gate caught it. The code moved without changes: `_app` (root group), `_common` (the exit-code contract, mode/DB open helpers, `--now` parsing), and one module per command family (`admin`, `ingest`, `agents`, `eval_cmds`). `jscc.cli` still exports `cli`, `main` and the exit codes. The only test changes are mock targets, which now name the module where each command looks the patched name up. 572 tests pass.
+
 ### D4b: composition manual capture, 24/28 (86%)
 
 All 28 composition cases captured through Jess's own Claude.ai chats (Sonnet 4.5, `claude-sonnet-4-5-20250929`, one fresh chat per case) and recorded to `evals/composition/recorded.json`; none of it is proxy output. Replay: **24/28 (86%)** against `COMPOSITION_PASS_THRESHOLD = 0.75`, which passes. All 3 escalation cases returned `needs_input` correctly. The 4 failures are all `style_reuse` (a verbatim style-sample phrase): `interview-availability-confirm`, `logistics-video-link`, `cadence-nudge-after-onsite`, `cadence-nudge-applied-quiet`. A full 28-case Sonnet proxy run beforehand (25/28, advisory only) had predicted 3 of the 4.

@@ -181,7 +181,7 @@ def test_cli_routine_prints_the_draft(
 ) -> None:
     app_id = _ingest(runner, tmp_path, monkeypatch)
     monkeypatch.setattr(
-        "jscc.cli.followup",
+        "jscc.cli.agents.followup",
         lambda app, history, samples, conn=None: DraftEmail(subject="Hello", body="Body text"),
     )
     result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
@@ -264,7 +264,7 @@ def test_cli_needs_input_prints_a_briefing(
     # patching the module attributes wouldn't reach them; inject instead.
     real = followup
     monkeypatch.setattr(
-        "jscc.cli.followup",
+        "jscc.cli.agents.followup",
         lambda app, history, samples, conn=None: real(
             app,
             history,
@@ -290,7 +290,7 @@ def test_cli_reports_a_composer_parse_error_without_a_traceback(
     def boom(app, history, samples, conn=None):
         raise CompositionParseError("composition response was not valid JSON")
 
-    monkeypatch.setattr("jscc.cli.followup", boom)
+    monkeypatch.setattr("jscc.cli.agents.followup", boom)
     result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
     assert result.exit_code != 0
     assert "drafting failed" in result.output

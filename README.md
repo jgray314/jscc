@@ -96,7 +96,8 @@ jscc/           library code
   composition.py  compose_followup, the composition prompt + call path (D10 step 2A, D4a)
   followup.py   briefing renderer (D10 step 2B) + the top-level followup() orchestrator
   report.py     staleness detector + funnel counts
-  cli.py        click entry point (ingest, dlq list, resolve-dlq, route, followup, ...)
+  cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
+                ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>)
 tests/          pytest suite (572 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
