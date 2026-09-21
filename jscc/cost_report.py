@@ -34,6 +34,9 @@ class FeatureCostSummary(BaseModel):
     avg_cost_usd: float
     p50_latency_ms: float
     p95_latency_ms: float
+    # Calls that raised mid-request. Possibly billed, so counted, but their zeroed
+    # usage stays out of the cost and latency figures above.
+    failed: int = 0
 
 
 class CostRegressionFinding(BaseModel):
@@ -61,32 +64,30 @@ _REGRESSION_ABSOLUTE_FLOOR_USD = 0.0005
 def summarize_costs(calls: list[LLMCallRecord]) -> list[FeatureCostSummary]:
     """One row per feature (D5's cost-isolation label), sorted by feature name.
 
-    Rows with `error` set (gate finding G3: a call that raised mid-request,
-    possibly after billing, before any real usage figures were returned) are
-    excluded here the same way an unpriced model is excluded from regression
-    detection below -- their zeroed cost/latency isn't a real measurement, so
-    averaging it in would understate both. `list_llm_calls` still returns
-    them; a reader who needs failed-attempt visibility reads the ledger
-    directly rather than through this summary.
+    A row with `error` set is a call that raised mid-request, possibly after the
+    provider had started billing, before any usage figures came back. It is counted
+    in `failed` and kept out of cost and latency, where its zeroed figures would
+    understate both. A feature whose every call failed still gets a row: a ledger of
+    nothing but failures is exactly what the report must not hide.
     """
     by_feature: dict[str, list[LLMCallRecord]] = {}
     for call in calls:
-        if call.error is not None:
-            continue
         by_feature.setdefault(call.feature, []).append(call)
 
     summaries: list[FeatureCostSummary] = []
     for feature, feature_calls in sorted(by_feature.items()):
-        latencies = [c.latency_ms for c in feature_calls]
-        total_cost = sum(c.cost_usd for c in feature_calls)
+        ok = [c for c in feature_calls if c.error is None]
+        latencies = [c.latency_ms for c in ok]
+        total_cost = sum(c.cost_usd for c in ok)
         summaries.append(
             FeatureCostSummary(
                 feature=feature,
-                calls=len(feature_calls),
+                calls=len(ok),
                 total_cost_usd=total_cost,
-                avg_cost_usd=total_cost / len(feature_calls),
-                p50_latency_ms=percentile(latencies, 50),
-                p95_latency_ms=percentile(latencies, 95),
+                avg_cost_usd=total_cost / len(ok) if ok else 0.0,
+                p50_latency_ms=percentile(latencies, 50) if ok else 0.0,
+                p95_latency_ms=percentile(latencies, 95) if ok else 0.0,
+                failed=len(feature_calls) - len(ok),
             )
         )
     return summaries
@@ -134,12 +135,19 @@ def format_cost_report(
 
     lines: list[str] = []
     lines.append(
-        f"{'feature':<20}{'calls':>8}{'total_usd':>12}{'avg_usd':>10}{'p50_ms':>10}{'p95_ms':>10}"
+        f"{'feature':<20}{'calls':>8}{'failed':>8}{'total_usd':>12}{'avg_usd':>10}"
+        f"{'p50_ms':>10}{'p95_ms':>10}"
     )
     for s in summaries:
         lines.append(
-            f"{s.feature:<20}{s.calls:>8}{s.total_cost_usd:>12.4f}{s.avg_cost_usd:>10.4f}"
-            f"{s.p50_latency_ms:>10.1f}{s.p95_latency_ms:>10.1f}"
+            f"{s.feature:<20}{s.calls:>8}{s.failed:>8}{s.total_cost_usd:>12.4f}"
+            f"{s.avg_cost_usd:>10.4f}{s.p50_latency_ms:>10.1f}{s.p95_latency_ms:>10.1f}"
+        )
+    failed = sum(s.failed for s in summaries)
+    if failed:
+        lines.append(
+            f"{failed} call(s) failed mid-request and may still have been billed; "
+            "their cost is not included above."
         )
 
     lines.append("")

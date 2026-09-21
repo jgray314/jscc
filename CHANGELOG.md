@@ -14,6 +14,18 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D7: Phase D gate, eval integrity
+
+- **The zero-tolerance gates are tested.** Routing fails its gate on any false-routine case, whatever the pass rate. Deleting that check left every test green. The decision now lives in `routing_gate`, and a CLI test fails if a fake router answering routine everywhere passes at `--min-pass-rate 0`.
+- **The composer's decline gets the same treatment.** The 3 cases that withhold a detail only the candidate has could all have come back as invented drafts and the suite would still have passed at 25/28. `composition_gate` now fails any run where one of them is drafted rather than asked. The committed recording asks in all 3.
+- **A hedged "routine" is malformed.** A routine answer that also gives a reason or considerations, or names no intent, used to parse, and `followup` drafted from it. `RoutingDecision` now rejects it, so it becomes a parse failure with no draft, and the grader checks the same shapes. None of the 26 recorded answers has this shape.
+- **Published numbers are pinned.** `tests/test_published_results.py` replays every committed recording and fails if a suite no longer lands on 27/33, 21/25, 26/26 or 24/28.
+- **`--record` with no key refuses.** It used to record the placeholder stub over the hand-captured responses, which only git could undo. It now exits 2, and `RecordingClient` refuses a stub on its own as well.
+- **`jscc costs` shows failed calls.** A call that raised mid-request (possibly billed) was dropped from the report. A ledger containing only failures printed "no LLM calls recorded yet". Failures now have their own column and a note under the table.
+- A missing recording's error message named `eval jd_extraction` for every suite. It now names the suite being replayed.
+
++14 tests (607).
+
 ### D6: Phase D gate, safety hardening
 
 Two cold reviews ran at the end of Phase D, one adversarial and one reading the repo as an outside reviewer would. This slice closes their safety findings. Every replay (27/33, 21/25, 26/26, 24/28) is unchanged, so no recording was invalidated and no capture round was needed.

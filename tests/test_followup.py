@@ -123,7 +123,10 @@ def test_non_routine_returns_a_briefing_and_never_composes() -> None:
 
 def test_routine_without_an_intent_falls_back_to_a_briefing() -> None:
     composer = _Spy(DraftEmail(subject="x", body="y"))
-    intentless = RoutingDecision(classification=RoutingClassification.routine)
+    # The model rejects this shape; followup's own guard is the second layer.
+    intentless = RoutingDecision.model_construct(
+        classification=RoutingClassification.routine, intent=None, reason=None, considerations=[]
+    )
     result = followup(_app(), _history(), [], router=_Spy(intentless), composer=composer)
     assert isinstance(result, Briefing)
     assert composer.calls == []

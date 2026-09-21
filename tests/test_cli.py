@@ -16,6 +16,7 @@ from click.testing import CliRunner
 
 from jscc.cli import cli
 from jscc.mode import ENV_VAR
+from jscc.models import DraftEmail, RoutingClassification, RoutingDecision
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = REPO_ROOT / "config"
@@ -1629,7 +1630,39 @@ def _eval_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "jscc.cli.eval_cmds.save_recording", lambda r: evals.save_recording(r, recording)
     )
+    monkeypatch.setattr("jscc.cli.eval_cmds.default_client", _FakeLiveClient)
     return recording
+
+
+class _FakeLiveClient:
+    """Stands in for a keyed client: not a stub, so `--record` accepts it."""
+
+    def complete(self, *, model: str, system: str, user: str):
+        from jscc.llm_client import StubExtractionClient
+
+        return StubExtractionClient().complete(model=model, system=system, user=user)
+
+
+def test_record_without_a_key_refuses_and_leaves_the_recording_alone(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    recording = tmp_path / "recorded.json"
+    recording.write_text(json.dumps({"hand-captured": "real output"}), encoding="utf-8")
+    from jscc import evals
+
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.save_recording", lambda r, *a: evals.save_recording(r, recording)
+    )
+    for suite in ("jd_extraction", "fit_scoring", "routing", "composition"):
+        result = runner.invoke(cli, ["eval", suite, "--record", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 2, (suite, result.output)
+        assert "placeholder" in result.output
+    assert json.loads(recording.read_text(encoding="utf-8")) == {"hand-captured": "real output"}
 
 
 def test_eval_fails_below_the_threshold_and_says_the_number(
@@ -1931,13 +1964,61 @@ def test_eval_composition_fails_below_the_threshold_and_says_the_number(
     assert "75%" in result.output
 
 
-def test_eval_composition_passes_when_the_bar_is_lowered(
+def test_eval_composition_drafting_a_must_ask_case_fails_even_with_the_bar_lowered(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The stub drafts every case, including the ones that withhold a detail."""
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
     result = runner.invoke(
         cli, ["eval", "composition", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 1
+    assert "drafted where the composer had to ask" in result.output
+    assert "escalate-availability-unrecorded" in result.output
+
+
+def test_eval_composition_passes_a_lowered_bar_when_every_must_ask_case_asks(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.compose_followup",
+        lambda *args, **kwargs: DraftEmail(needs_input="which time works"),
+    )
+    result = runner.invoke(
+        cli, ["eval", "composition", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_eval_routing_a_false_routine_fails_even_with_the_bar_lowered(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.route_followup",
+        lambda *args, **kwargs: RoutingDecision(
+            classification=RoutingClassification.routine, intent="cadence_nudge"
+        ),
+    )
+    result = runner.invoke(
+        cli, ["eval", "routing", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 1
+    assert "false-routine" in result.output
+
+
+def test_eval_routing_passes_a_lowered_bar_without_a_false_routine(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stub answers non_routine everywhere: routine cases fail, none is false-routine."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli, ["eval", "routing", "--min-pass-rate", "0.0", "--data-dir", str(tmp_path)]
     )
     assert result.exit_code == 0, result.output
 

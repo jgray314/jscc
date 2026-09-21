@@ -646,10 +646,25 @@ def test_grade_routing_decision_wrong_classification_fails() -> None:
 def test_grade_routing_decision_routine_with_empty_intent_fails() -> None:
     result = grade_routing_decision(
         _routing_case(expected_classification="routine"),
-        RoutingDecision(classification=RoutingClassification.routine, intent=""),
+        # Built without validation: the model rejects this shape, the grader must too.
+        RoutingDecision.model_construct(classification=RoutingClassification.routine, intent=""),
     )
     assert not result.passed
     assert any(d.field == "intent" for d in result.diffs)
+
+
+def test_grade_routing_decision_routine_with_considerations_fails() -> None:
+    result = grade_routing_decision(
+        _routing_case(expected_classification="routine"),
+        RoutingDecision.model_construct(
+            classification=RoutingClassification.routine,
+            intent="cadence_nudge",
+            reason="comp talk pending",
+            considerations=["salary"],
+        ),
+    )
+    assert not result.passed
+    assert any(d.field == "considerations" for d in result.diffs)
 
 
 def test_grade_routing_decision_non_routine_missing_considerations_fails() -> None:

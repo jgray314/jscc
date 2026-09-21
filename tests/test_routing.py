@@ -237,3 +237,17 @@ def test_route_followup_propagates_sanitizer_refusal(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(stage_call, "sanitize_for_llm", _force_flag)
     with pytest.raises(SanitizerRefusal):
         route_followup(_app(), _history(), client=StubRoutingClient())
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"classification": "routine", "intent": "cadence_nudge", "reason": "comp talk pending"},
+        {"classification": "routine", "intent": "cadence_nudge", "considerations": ["salary"]},
+        {"classification": "routine", "intent": "   "},
+        {"classification": "routine"},
+    ],
+)
+def test_a_hedged_or_intentless_routine_answer_is_a_parse_error(answer: dict) -> None:
+    with pytest.raises(RoutingParseError):
+        route_followup(_app(), _history(), client=_FakeClient(json.dumps(answer)))

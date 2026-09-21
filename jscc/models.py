@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def _new_id() -> str:
@@ -174,6 +174,22 @@ class RoutingDecision(BaseModel):
     intent: str | None = None
     reason: str | None = None
     considerations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _routine_is_unhedged(self) -> RoutingDecision:
+        """A routine answer must name an intent and flag nothing.
+
+        "Routine" is the one answer that leads to an automatic draft, so an answer
+        that says routine while giving a reason or considerations, or naming no
+        intent, is treated as malformed rather than read either way. Non-routine
+        answers are not checked: every reading of one ends at a person.
+        """
+        if self.classification == RoutingClassification.routine:
+            if not (self.intent or "").strip():
+                raise ValueError("a routine decision must name an intent")
+            if (self.reason or "").strip() or self.considerations:
+                raise ValueError("a routine decision cannot carry a reason or considerations")
+        return self
 
 
 class DraftEmail(BaseModel):

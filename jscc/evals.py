@@ -20,7 +20,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from .config import Profile
-from .llm_client import LLMResponse
+from .llm_client import STUB_CLIENTS, LLMResponse
 from .models import Application, DraftEmail, ExtractedJD, FitResult, Interaction, RoutingDecision
 from .paths import PACKAGE_ROOT
 from .sanitizer import LLMSendError, SanitizerRefusal
@@ -373,6 +373,13 @@ class RecordingClient:
     def __init__(
         self, inner: Any, *, on_captured: Callable[[str, str], None] | None = None
     ) -> None:
+        if isinstance(inner, STUB_CLIENTS):
+            # Recording merges into `recorded.json` by prompt key, so recording the
+            # stub would replace every hand-captured response with placeholder text.
+            raise ValueError(
+                f"refusing to record {type(inner).__name__}: its output is a placeholder, "
+                "not model output"
+            )
         self._inner = inner
         self._on_captured = on_captured
         self.captured: dict[str, str] = {}
@@ -390,8 +397,9 @@ class ReplayClient:
     """Serves recorded responses. Opens no socket and spends nothing, so the
     zero usage figures it reports are accurate rather than a placeholder."""
 
-    def __init__(self, recorded: dict[str, str]) -> None:
+    def __init__(self, recorded: dict[str, str], *, suite: str = "<suite>") -> None:
         self._recorded = recorded
+        self._suite = suite
 
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse:
         key = _prompt_key(model, system, user)
@@ -399,10 +407,10 @@ class ReplayClient:
             text = self._recorded[key]
         except KeyError:
             raise RecordingMissing(
-                "no recorded response for this prompt. The prompt or the "
-                "redaction rules changed since the recording was made -- "
-                "re-record with `eval jd_extraction --record` against a live "
-                "key rather than editing the recording by hand."
+                "no recorded response for this prompt. The prompt or the redaction "
+                "rules changed since the recording was made; re-record with "
+                f"`eval {self._suite} --record` against a live key or with --manual, "
+                "rather than editing the recording by hand."
             ) from None
         return LLMResponse(
             text=text, input_tokens=0, output_tokens=0, cost_usd=0.0, stop_reason="end_turn"
@@ -563,8 +571,18 @@ def grade_routing_decision(case: RoutingEvalCase, decision: RoutingDecision) -> 
             )
         )
     elif case.expected_classification == "routine":
+        # `RoutingDecision` already rejects these shapes at parse time; the grader
+        # checks again so a decision built without validation cannot pass either.
         if not (decision.intent or "").strip():
             diffs.append(FieldDiff(field="intent", expected="<non-empty>", actual=decision.intent))
+        if (decision.reason or "").strip() or decision.considerations:
+            diffs.append(
+                FieldDiff(
+                    field="considerations",
+                    expected="<none on a routine decision>",
+                    actual=[decision.reason, *decision.considerations],
+                )
+            )
     else:
         if not (decision.reason or "").strip():
             diffs.append(FieldDiff(field="reason", expected="<non-empty>", actual=decision.reason))
@@ -616,6 +634,27 @@ def false_routine_cases(summary: EvalSummary) -> list[str]:
         for d in r.diffs
         if d.field == "classification" and d.expected == "non_routine" and d.actual == "routine"
     ]
+
+
+def routing_gate(summary: EvalSummary, min_pass_rate: float) -> list[str]:
+    """Why this routing run fails its gate, or an empty list if it passes.
+
+    Two independent conditions. The pass rate must clear `min_pass_rate`, and no
+    case may be a false-routine, whatever the pass rate: auto-drafting a situation
+    that needed a person is the failure the router exists to prevent. The CLI exits
+    non-zero exactly when this returns anything.
+    """
+    failures = []
+    if summary.pass_rate < min_pass_rate:
+        failures.append(f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar")
+    false_routine = false_routine_cases(summary)
+    if false_routine:
+        failures.append(
+            f"{len(false_routine)} false-routine case(s): a non_routine situation was "
+            f"classified routine, an automatic fail regardless of the pass rate: "
+            f"{', '.join(false_routine)}"
+        )
+    return failures
 
 
 # --- composition (Slice D3) -----------------------------------------------
@@ -884,3 +923,36 @@ def run_composition_evals(
         results.append(grade_composition(case, draft))
     passed = sum(1 for r in results if r.passed)
     return EvalSummary(total=len(results), passed=passed, results=results)
+
+
+def drafted_instead_of_asking(summary: EvalSummary) -> list[str]:
+    """Case ids where the composer wrote a draft for a case that required it to ask.
+
+    Those cases withhold a detail only the candidate knows, so a draft there was
+    built on an invented fact. Naming the wrong detail, or failing to parse, is an
+    ordinary miss; returning a draft is not.
+    """
+    return [
+        r.case_id
+        for r in summary.results
+        for d in r.diffs
+        if d.field == "needs_input" and d.actual == "a draft"
+    ]
+
+
+def composition_gate(summary: EvalSummary, min_pass_rate: float) -> list[str]:
+    """Why this composition run fails its gate, or an empty list if it passes.
+
+    Same shape as `routing_gate`: the pass rate must clear the bar, and no case that
+    required the composer to ask may come back as a draft, whatever the pass rate.
+    """
+    failures = []
+    if summary.pass_rate < min_pass_rate:
+        failures.append(f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar")
+    invented = drafted_instead_of_asking(summary)
+    if invented:
+        failures.append(
+            f"{len(invented)} case(s) drafted where the composer had to ask for a missing "
+            f"detail, an automatic fail regardless of the pass rate: {', '.join(invented)}"
+        )
+    return failures

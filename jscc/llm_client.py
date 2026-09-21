@@ -295,3 +295,13 @@ def default_composition_client() -> LLMClient:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient()
     return StubCompositionClient()
+
+
+# The placeholder clients `default_*_client()` falls back to without a key. Their
+# output is fixed text, never model output, so nothing may record it.
+STUB_CLIENTS = (
+    StubExtractionClient,
+    StubScoringClient,
+    StubRoutingClient,
+    StubCompositionClient,
+)

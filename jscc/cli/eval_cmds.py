@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -18,9 +19,10 @@ from ..evals import (
     ManualCaptureClient,
     RecordingClient,
     ReplayClient,
-    false_routine_cases,
+    composition_gate,
     format_eval_summary,
     load_recording,
+    routing_gate,
     run_composition_evals,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
@@ -29,6 +31,7 @@ from ..evals import (
 )
 from ..extraction import EXTRACTION_EVAL_FEATURE, extract_jd
 from ..llm_client import (
+    STUB_CLIENTS,
     default_client,
     default_composition_client,
     default_routing_client,
@@ -39,7 +42,6 @@ from ..routing import ROUTING_EVAL_FEATURE, route_followup
 from ..scoring import SCORING_EVAL_FEATURE, score_fit
 from ._app import cli
 from ._common import (
-    EXIT_OK,
     EXIT_UNEXPECTED,
     EXIT_USAGE,
     _open_or_exit,
@@ -51,6 +53,19 @@ from ._common import (
 @cli.group("eval")
 def eval_group() -> None:
     """Run an eval suite."""
+
+
+def _recordable(inner: Any) -> Any:
+    """Refuse to record a stub client: without a key there is nothing real to capture,
+    and recording would overwrite the hand-captured responses with placeholder text."""
+    if isinstance(inner, STUB_CLIENTS):
+        echo(
+            "no ANTHROPIC_API_KEY is set, so --record would capture the stub's placeholder "
+            "over the recorded responses. Set a key, or use --manual to paste real output.",
+            err=True,
+        )
+        sys.exit(EXIT_USAGE)
+    return inner
 
 
 @eval_group.command("jd_extraction")
@@ -107,7 +122,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
         if not recorded:
             echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
-        client = ReplayClient(recorded)
+        client = ReplayClient(recorded, suite="jd_extraction")
     elif record:
         # Gate finding M-12: persist each capture to disk the moment it
         # happens, not only after the whole run returns -- a run that raises
@@ -116,7 +131,8 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
         # merges rather than overwrites, so writing one entry at a time
         # accumulates correctly instead of each write erasing the last.
         client = RecordingClient(
-            default_client(), on_captured=lambda key, text: save_recording({key: text})
+            _recordable(default_client()),
+            on_captured=lambda key, text: save_recording({key: text}),
         )
 
     mode = _resolve_mode_or_exit()
@@ -209,9 +225,9 @@ def eval_fit_scoring(
         if not recorded:
             echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
-        client = ReplayClient(recorded)
+        client = ReplayClient(recorded, suite="fit_scoring")
     elif record:
-        inner = ManualCaptureClient() if manual else default_scoring_client()
+        inner = _recordable(ManualCaptureClient() if manual else default_scoring_client())
         client = RecordingClient(
             inner,
             on_captured=lambda key, text: save_recording({key: text}, FIT_SCORING_RECORDING_PATH),
@@ -317,9 +333,9 @@ def eval_routing(
         if not recorded:
             echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
-        client = ReplayClient(recorded)
+        client = ReplayClient(recorded, suite="routing")
     elif record:
-        inner = ManualCaptureClient() if manual else default_routing_client()
+        inner = _recordable(ManualCaptureClient() if manual else default_routing_client())
         client = RecordingClient(
             inner,
             on_captured=lambda key, text: save_recording({key: text}, ROUTING_RECORDING_PATH),
@@ -342,24 +358,11 @@ def eval_routing(
 
     echo(format_eval_summary(summary))
 
-    exit_code = EXIT_OK
-    if summary.pass_rate < min_pass_rate:
-        echo(
-            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
-            err=True,
-        )
-        exit_code = EXIT_UNEXPECTED
-    false_routine = false_routine_cases(summary)
-    if false_routine:
-        echo(
-            f"{len(false_routine)} false-routine case(s) — a non_routine situation was "
-            f"classified routine, which D10 treats as an automatic fail regardless of the "
-            f"overall pass rate: {', '.join(false_routine)}",
-            err=True,
-        )
-        exit_code = EXIT_UNEXPECTED
-    if exit_code != EXIT_OK:
-        sys.exit(exit_code)
+    failures = routing_gate(summary, min_pass_rate)
+    for failure in failures:
+        echo(failure, err=True)
+    if failures:
+        sys.exit(EXIT_UNEXPECTED)
 
 
 @eval_group.command("composition")
@@ -424,9 +427,9 @@ def eval_composition(
         if not recorded:
             echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
-        client = ReplayClient(recorded)
+        client = ReplayClient(recorded, suite="composition")
     elif record:
-        inner = ManualCaptureClient() if manual else default_composition_client()
+        inner = _recordable(ManualCaptureClient() if manual else default_composition_client())
         client = RecordingClient(
             inner,
             on_captured=lambda key, text: save_recording({key: text}, COMPOSITION_RECORDING_PATH),
@@ -454,9 +457,8 @@ def eval_composition(
         echo(f"recorded {len(client.captured)} responses")
 
     echo(format_eval_summary(summary))
-    if summary.pass_rate < min_pass_rate:
-        echo(
-            f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
-            err=True,
-        )
+    failures = composition_gate(summary, min_pass_rate)
+    for failure in failures:
+        echo(failure, err=True)
+    if failures:
         sys.exit(EXIT_UNEXPECTED)

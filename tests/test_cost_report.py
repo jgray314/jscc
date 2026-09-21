@@ -85,9 +85,22 @@ def test_summarize_costs_excludes_failure_marker_rows() -> None:
     assert summaries["scoring"].total_cost_usd == pytest.approx(0.50)
 
 
-def test_summarize_costs_omits_a_feature_whose_only_calls_all_failed() -> None:
+def test_a_feature_whose_only_calls_failed_is_still_reported() -> None:
     calls = [_call(feature="scoring", error="TimeoutError: read timed out")]
-    assert summarize_costs(calls) == []
+    [summary] = summarize_costs(calls)
+    assert (summary.feature, summary.calls, summary.failed) == ("scoring", 0, 1)
+    report = format_cost_report([summary], [])
+    assert "no LLM calls recorded yet" not in report
+    assert "1 call(s) failed mid-request" in report
+
+
+def test_failed_calls_are_counted_alongside_completed_ones() -> None:
+    calls = [
+        _call(feature="scoring", cost_usd=0.50, latency_ms=300.0),
+        _call(feature="scoring", error="ConnectionError: reset"),
+    ]
+    [summary] = summarize_costs(calls)
+    assert (summary.calls, summary.failed) == (1, 1)
 
 
 def test_find_cost_regressions_skips_failure_marker_rows() -> None:
