@@ -15,6 +15,7 @@ from jscc.config import (
     load_stages,
     resolve_profile_path,
 )
+from jscc.mode import Mode
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_CONFIG = REPO_ROOT / "config"
@@ -62,8 +63,18 @@ def test_resolve_profile_prefers_private(tmp_path: Path) -> None:
         "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
         encoding="utf-8",
     )
-    resolved = resolve_profile_path(tmp_path)
+    resolved = resolve_profile_path(tmp_path, mode=Mode.real)
     assert resolved.name == "profile.private.yaml"
+
+
+def test_synthetic_mode_never_uses_the_private_profile(tmp_path: Path) -> None:
+    for name in ("profile.private.yaml", "profile.example.yaml"):
+        (tmp_path / name).write_text(
+            "display_name: X\nrole_focus: [em]\nlevel_target: L6\n"
+            "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
+            encoding="utf-8",
+        )
+    assert resolve_profile_path(tmp_path, mode=Mode.synthetic).name == "profile.example.yaml"
 
 
 def test_resolve_profile_falls_back_to_example(tmp_path: Path) -> None:
@@ -72,13 +83,13 @@ def test_resolve_profile_falls_back_to_example(tmp_path: Path) -> None:
         "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\n",
         encoding="utf-8",
     )
-    resolved = resolve_profile_path(tmp_path)
+    resolved = resolve_profile_path(tmp_path, mode=Mode.real)
     assert resolved.name == "profile.example.yaml"
 
 
 def test_resolve_profile_none_present_raises(tmp_path: Path) -> None:
     with pytest.raises(LoadError, match="no profile config found"):
-        resolve_profile_path(tmp_path)
+        resolve_profile_path(tmp_path, mode=Mode.real)
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:

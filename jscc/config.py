@@ -6,6 +6,8 @@ from typing import Annotated
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from .mode import Mode
+
 
 class StagesConfig(BaseModel):
     stages: Annotated[list[str], Field(min_length=1)]
@@ -83,14 +85,16 @@ PROFILE_PRIVATE = "profile.private.yaml"
 PROFILE_EXAMPLE = "profile.example.yaml"
 
 
-def resolve_profile_path(config_dir: Path) -> Path:
-    """Return profile.private.yaml if present, else profile.example.yaml.
+def resolve_profile_path(config_dir: Path, *, mode: Mode) -> Path:
+    """The profile file for `mode`.
 
-    Per D7 M7 and D8: the private file is where real personal data lives
-    (gitignored). The example file is a public template committed to the repo.
+    Synthetic mode always uses the committed example, even when a private profile
+    exists: synthetic runs are demos and evals, and the private file is where real
+    personal data lives (gitignored). Real mode prefers the private file and falls
+    back to the example. `mode` is required so no caller can skip the decision.
     """
     private = config_dir / PROFILE_PRIVATE
-    if private.exists():
+    if mode is Mode.real and private.exists():
         return private
     example = config_dir / PROFILE_EXAMPLE
     if example.exists():

@@ -28,11 +28,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from .config import Profile
-from .instrumentation import LLMResult, instrumented
 from .json_utils import strip_code_fence
 from .llm_client import SCORING_MODEL, LLMClient, default_scoring_client
 from .models import ExtractedJD, FitResult
-from .sanitizer import sanitize_for_llm, send_to_llm
+from .stage_call import call_stage
 
 SCORING_SYSTEM_PROMPT = """You are a job-fit scorer. Given a candidate's profile and a job posting (structured extraction plus the raw text), return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 
@@ -74,43 +73,19 @@ def _parse_response(text: str) -> FitResult:
         raise ScoringParseError(f"scoring response did not match FitResult: {e}") from e
 
 
-def _build_user_prompt(extracted: ExtractedJD, raw_jd_text: str, profile: Profile) -> str:
-    return json.dumps(
-        {
-            "profile": profile.model_dump(),
-            "extracted_jd": extracted.model_dump(),
-            "raw_jd_text": raw_jd_text,
-        },
-        sort_keys=True,
-    )
+def _build_user_payload(
+    extracted: ExtractedJD, raw_jd_text: str, profile: Profile
+) -> dict[str, Any]:
+    return {
+        "profile": profile.model_dump(mode="json"),
+        "extracted_jd": extracted.model_dump(mode="json"),
+        "raw_jd_text": raw_jd_text,
+    }
 
 
-def _raw_scoring_call(
-    conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
-) -> LLMResult:
-    """The billed unit, and only the billed unit — same split as
-    `extraction._raw_extraction_call`: nothing that can fail after the money
-    is spent belongs in here, so parsing lives in `score_fit`."""
-    response = client.complete(model=model, system=system, user=prompt)
-    return LLMResult(
-        output=response,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-    )
-
-
-# One pre-decorated variant per ledger feature, same reasoning as
-# extraction.py's `_CALL_BY_FEATURE`: separating production `score_fit` calls
-# from `eval fit_scoring` traffic keeps prompt iteration off the
-# per-application cost figure in `jscc costs`.
+# Separate ledger features for production and eval traffic, as in extraction.
 SCORING_FEATURE = "scoring"
 SCORING_EVAL_FEATURE = "scoring_eval"
-
-_CALL_BY_FEATURE = {
-    SCORING_FEATURE: instrumented(SCORING_FEATURE)(_raw_scoring_call),
-    SCORING_EVAL_FEATURE: instrumented(SCORING_EVAL_FEATURE)(_raw_scoring_call),
-}
 
 
 def score_fit(
@@ -134,43 +109,15 @@ def score_fit(
     """
     client = client or default_scoring_client()
 
-    payload = {
-        "model": SCORING_MODEL,
-        "system": SCORING_SYSTEM_PROMPT,
-        "user": _build_user_prompt(extracted, raw_jd_text, profile),
-        # Not flagged: a job posting and a candidate's own profile describe
-        # roles and preferences, not a named third party. The sanitizer
-        # redacts every payload unconditionally regardless of this flag
-        # (D7 M5) -- that guarantee is what protects a `profile.private.yaml`
-        # `display_name` or a JD forwarded with a recruiter's signature in
-        # `raw_jd_text`, not this comment's reasoning.
-        "contains_personal": False,
-    }
-    sanitized = sanitize_for_llm(payload)
-    verified = send_to_llm(sanitized)
-
-    if conn is not None:
-        try:
-            call = _CALL_BY_FEATURE[feature]
-        except KeyError:
-            raise ValueError(
-                f"unknown instrumentation feature {feature!r}; "
-                f"expected one of {sorted(_CALL_BY_FEATURE)}"
-            ) from None
-        response = call(
-            conn, verified["model"], verified["user"], client=client, system=verified["system"]
-        )
-    else:
-        response = client.complete(
-            model=verified["model"], system=verified["system"], user=verified["user"]
-        )
-    if response.stop_reason == "max_tokens":
-        # Same reasoning as extraction's truncation check (gate finding M2):
-        # the tokens were already spent, so this is a parse-error message,
-        # not a retry -- raised after the ledger row would have been written.
-        raise ScoringParseError(
-            f"scoring response was truncated at the model's max_tokens limit "
-            f"after {response.output_tokens} output tokens; the JSON is incomplete. "
-            "Raise max_tokens on the client, or shorten what the prompt asks for."
-        )
+    response = call_stage(
+        stage="scoring",
+        model=SCORING_MODEL,
+        system=SCORING_SYSTEM_PROMPT,
+        user=_build_user_payload(extracted, raw_jd_text, profile),
+        client=client,
+        conn=conn,
+        feature=feature,
+        features=(SCORING_FEATURE, SCORING_EVAL_FEATURE),
+        parse_error=ScoringParseError,
+    )
     return _parse_response(response.text)

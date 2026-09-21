@@ -39,6 +39,7 @@ from ._common import (
     EXIT_USAGE,
     _open_or_exit,
     _resolve_mode_or_exit,
+    echo,
 )
 
 
@@ -72,10 +73,10 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
     try:
         app = get_application(conn, application_id)
         if app is None:
-            click.echo(f"no application found with id {application_id!r}", err=True)
+            echo(f"no application found with id {application_id!r}", err=True)
             sys.exit(EXIT_USAGE)
         if app.extracted_jd is None:
-            click.echo(
+            echo(
                 f"application {application_id} has no extracted_jd yet -- run "
                 "`ingest`/`resolve-dlq` first.",
                 err=True,
@@ -83,10 +84,10 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
             sys.exit(EXIT_USAGE)
 
         try:
-            profile_path = resolve_profile_path(config_dir)
+            profile_path = resolve_profile_path(config_dir, mode=mode)
             profile = load_profile(profile_path)
         except (LoadError, ValidationError) as e:
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
 
         extracted = ExtractedJD(**app.extracted_jd)
@@ -95,23 +96,23 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
                 extracted, app.source_raw, profile, conn=conn, feature=SCORING_FEATURE
             )
         except ScoringParseError as e:
-            click.echo(f"scoring failed: {e}", err=True)
+            echo(f"scoring failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except anthropic.APIError as e:
             # Same reasoning as `ingest`'s H-6 handling: a transient API
             # error should not crash with a raw traceback. Scoring has no
             # DLQ concept (nothing was fetched to re-queue) so this is a
             # plain failure, not a queued one -- retry is just `score` again.
-            click.echo(f"LLM API error: {e}", err=True)
+            echo(f"LLM API error: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except UnknownModelPricingError as e:
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
 
         update_application(
             conn, application_id, fit_score=result.score, fit_rationale=result.rationale
         )
-        click.echo(f"scored application {application_id}: {result.score} — {result.rationale}")
+        echo(f"scored application {application_id}: {result.score} — {result.rationale}")
     finally:
         conn.close()
 
@@ -140,29 +141,29 @@ def route(application_id: str, data_dir: Path) -> None:
     try:
         app = get_application(conn, application_id)
         if app is None:
-            click.echo(f"no application found with id {application_id!r}", err=True)
+            echo(f"no application found with id {application_id!r}", err=True)
             sys.exit(EXIT_USAGE)
         history = list_interactions(conn, application_id)
 
         try:
             decision = route_followup(app, history, conn=conn, feature=ROUTING_FEATURE)
         except RoutingParseError as e:
-            click.echo(f"routing failed: {e}", err=True)
+            echo(f"routing failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except anthropic.APIError as e:
             # Same reasoning as `score`'s handling of the same exception.
-            click.echo(f"LLM API error: {e}", err=True)
+            echo(f"LLM API error: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except UnknownModelPricingError as e:
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
 
         if decision.classification == RoutingClassification.routine:
-            click.echo(f"routine (intent={decision.intent})")
+            echo(f"routine (intent={decision.intent})")
         else:
-            click.echo(f"non_routine: {decision.reason}")
+            echo(f"non_routine: {decision.reason}")
             for item in decision.considerations:
-                click.echo(f"  - {item}")
+                echo(f"  - {item}")
     finally:
         conn.close()
 
@@ -195,34 +196,39 @@ def followup_cmd(application_id: str, data_dir: Path, config_dir: Path) -> None:
     try:
         app = get_application(conn, application_id)
         if app is None:
-            click.echo(f"no application found with id {application_id!r}", err=True)
+            echo(f"no application found with id {application_id!r}", err=True)
             sys.exit(EXIT_USAGE)
         history = list_interactions(conn, application_id)
 
         try:
-            profile = load_profile(resolve_profile_path(config_dir))
+            profile = load_profile(resolve_profile_path(config_dir, mode=mode))
         except (LoadError, ValidationError) as e:
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
+            sys.exit(EXIT_USAGE)
+        if not profile.style_samples:
+            # Checked before routing, so no call is billed for a draft that could
+            # not be written in the candidate's voice.
+            echo("configuration error: the profile has no style_samples to draft from", err=True)
             sys.exit(EXIT_USAGE)
 
         try:
             result = followup(app, history, profile.style_samples, conn=conn)
         except RoutingParseError as e:
-            click.echo(f"routing failed: {e}", err=True)
+            echo(f"routing failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except CompositionParseError as e:
-            click.echo(f"drafting failed: {e}", err=True)
+            echo(f"drafting failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except anthropic.APIError as e:
-            click.echo(f"LLM API error: {e}", err=True)
+            echo(f"LLM API error: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except UnknownModelPricingError as e:
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
 
         if isinstance(result, Briefing):
-            click.echo(format_briefing(result))
+            echo(format_briefing(result))
         else:
-            click.echo(f"Subject: {result.subject}\n\n{result.body}")
+            echo(f"Subject: {result.subject}\n\n{result.body}")
     finally:
         conn.close()

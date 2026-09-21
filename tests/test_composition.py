@@ -245,7 +245,7 @@ def test_client_receives_redacted_history_and_style_samples() -> None:
 
 
 def test_propagates_sanitizer_refusal(monkeypatch: pytest.MonkeyPatch) -> None:
-    import jscc.composition as composition_module
+    import jscc.stage_call as composition_module
 
     original = composition_module.sanitize_for_llm
 
@@ -307,4 +307,10 @@ def test_a_blank_needs_input_without_a_draft_is_a_parse_error(blank) -> None:
 def test_a_non_string_needs_input_is_a_parse_error() -> None:
     text = json.dumps({"needs_input": ["diet"]})
     with pytest.raises(CompositionParseError):
+        compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))
+
+
+def test_an_empty_body_without_needs_input_is_a_parse_error() -> None:
+    text = json.dumps({"subject": "Hi", "body": "   "})
+    with pytest.raises(CompositionParseError, match="empty body"):
         compose_followup(_app(), _history(), "x", [], client=_FakeClient(text))

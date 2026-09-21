@@ -44,6 +44,7 @@ from ._common import (
     EXIT_USAGE,
     _open_or_exit,
     _resolve_mode_or_exit,
+    echo,
 )
 
 
@@ -104,7 +105,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
     if replay:
         recorded = load_recording()
         if not recorded:
-            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
@@ -132,11 +133,11 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
         # went; this is a final, redundant (and harmless -- save_recording
         # merges) flush plus the count for the message below.
         save_recording(client.captured)
-        click.echo(f"recorded {len(client.captured)} responses")
+        echo(f"recorded {len(client.captured)} responses")
 
-    click.echo(format_eval_summary(summary))
+    echo(format_eval_summary(summary))
     if summary.pass_rate < min_pass_rate:
-        click.echo(
+        echo(
             f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
             err=True,
         )
@@ -206,7 +207,7 @@ def eval_fit_scoring(
     if replay:
         recorded = load_recording(FIT_SCORING_RECORDING_PATH)
         if not recorded:
-            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
@@ -234,11 +235,11 @@ def eval_fit_scoring(
 
     if record and client is not None:
         save_recording(client.captured, FIT_SCORING_RECORDING_PATH)
-        click.echo(f"recorded {len(client.captured)} responses")
+        echo(f"recorded {len(client.captured)} responses")
 
-    click.echo(format_eval_summary(summary))
+    echo(format_eval_summary(summary))
     if summary.pass_rate < min_pass_rate:
-        click.echo(
+        echo(
             f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
             err=True,
         )
@@ -314,7 +315,7 @@ def eval_routing(
     if replay:
         recorded = load_recording(ROUTING_RECORDING_PATH)
         if not recorded:
-            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
@@ -337,20 +338,20 @@ def eval_routing(
 
     if record and client is not None:
         save_recording(client.captured, ROUTING_RECORDING_PATH)
-        click.echo(f"recorded {len(client.captured)} responses")
+        echo(f"recorded {len(client.captured)} responses")
 
-    click.echo(format_eval_summary(summary))
+    echo(format_eval_summary(summary))
 
     exit_code = EXIT_OK
     if summary.pass_rate < min_pass_rate:
-        click.echo(
+        echo(
             f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
             err=True,
         )
         exit_code = EXIT_UNEXPECTED
     false_routine = false_routine_cases(summary)
     if false_routine:
-        click.echo(
+        echo(
             f"{len(false_routine)} false-routine case(s) — a non_routine situation was "
             f"classified routine, which D10 treats as an automatic fail regardless of the "
             f"overall pass rate: {', '.join(false_routine)}",
@@ -421,7 +422,7 @@ def eval_composition(
     if replay:
         recorded = load_recording(COMPOSITION_RECORDING_PATH)
         if not recorded:
-            click.echo("no recordings yet; run once with --record against a live key", err=True)
+            echo("no recordings yet; run once with --record against a live key", err=True)
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded)
     elif record:
@@ -450,11 +451,11 @@ def eval_composition(
 
     if record and client is not None:
         save_recording(client.captured, COMPOSITION_RECORDING_PATH)
-        click.echo(f"recorded {len(client.captured)} responses")
+        echo(f"recorded {len(client.captured)} responses")
 
-    click.echo(format_eval_summary(summary))
+    echo(format_eval_summary(summary))
     if summary.pass_rate < min_pass_rate:
-        click.echo(
+        echo(
             f"pass rate {summary.pass_rate:.0%} is below the {min_pass_rate:.0%} bar",
             err=True,
         )

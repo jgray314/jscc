@@ -31,6 +31,7 @@ from ._common import (
     _open_or_exit,
     _parse_now,
     _resolve_mode_or_exit,
+    echo,
 )
 
 
@@ -44,21 +45,22 @@ from ._common import (
 )
 def validate_config(config_dir: Path) -> None:
     """Validate stages.yaml and the active profile. Exit 0 on success, non-zero on failure."""
+    mode = _resolve_mode_or_exit()
     errors: list[str] = []
 
     stages_path = config_dir / "stages.yaml"
     try:
         load_stages(stages_path)
-        click.echo(f"[OK] {stages_path}")
+        echo(f"[OK] {stages_path}")
     except LoadError as e:
         errors.append(f"[FAIL] {stages_path}: {e}")
     except ValidationError as e:
         errors.append(f"[FAIL] {stages_path}: schema errors:\n{e}")
 
     try:
-        profile_path = resolve_profile_path(config_dir)
+        profile_path = resolve_profile_path(config_dir, mode=mode)
         load_profile(profile_path)
-        click.echo(f"[OK] {profile_path}")
+        echo(f"[OK] {profile_path}")
     except LoadError as e:
         errors.append(f"[FAIL] {config_dir}: {e}")
     except ValidationError as e:
@@ -66,9 +68,9 @@ def validate_config(config_dir: Path) -> None:
 
     if errors:
         for msg in errors:
-            click.echo(msg, err=True)
+            echo(msg, err=True)
         sys.exit(1)
-    click.echo("all configs valid")
+    echo("all configs valid")
 
 
 @db.command("init")
@@ -88,7 +90,7 @@ def db_init(data_dir: Path) -> None:
         stamped = read_mode_marker(conn)
     finally:
         conn.close()
-    click.echo(
+    echo(
         f"initialized {data_dir}/{mode.value}.db "
         f"(schema v{version}, mode marker: {stamped.value if stamped else 'none'})"
     )
@@ -149,7 +151,7 @@ def seed(
     """
     active_mode = _resolve_mode_or_exit()
     if active_mode is not Mode.synthetic:
-        click.echo(
+        echo(
             f"refusing to seed: JSCC_DATA={active_mode.value}. "
             f"Synthetic seeding is only allowed in synthetic mode.",
             err=True,
@@ -172,7 +174,7 @@ def seed(
         conn.close()
 
     summary = ", ".join(f"{k}={v}" for k, v in counts.items())
-    click.echo(f"seeded {data_dir}/{active_mode.value}.db: {summary}")
+    echo(f"seeded {data_dir}/{active_mode.value}.db: {summary}")
 
 
 @cli.command("report")
@@ -236,8 +238,8 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
         if now_str is not None:
             raise click.UsageError(str(e)) from e
         raise
-    click.echo(f"[mode: {mode.value}]")
-    click.echo(format_report(counts, alerts, stages_cfg))
+    echo(f"[mode: {mode.value}]")
+    echo(format_report(counts, alerts, stages_cfg))
 
 
 @cli.command("costs")
@@ -264,7 +266,7 @@ def costs(data_dir: Path) -> None:
     finally:
         conn.close()
 
-    click.echo(f"[mode: {mode.value}]")
+    echo(f"[mode: {mode.value}]")
     summaries = summarize_costs(calls)
     regressions = find_cost_regressions(calls)
-    click.echo(format_cost_report(summaries, regressions))
+    echo(format_cost_report(summaries, regressions))

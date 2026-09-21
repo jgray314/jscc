@@ -64,7 +64,7 @@ class ModeMismatchError(RuntimeError):
     """A DB stamped with one mode is being opened under a different mode."""
 
 
-DB_SCHEMA_VERSION = 4  # bumped for llm_calls.error (gate finding G3, Phase C->D pass)
+DB_SCHEMA_VERSION = 4  # v4 added llm_calls.error
 
 SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS applications (
@@ -175,8 +175,32 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+# Columns added to an existing table after it first shipped. `CREATE TABLE IF NOT
+# EXISTS` creates a missing table with every current column but never alters one
+# that exists, so an older database keeps its old shape unless something adds the
+# column. Checked by column presence rather than by `user_version`: a database
+# stamped v4 by the earlier code without ever gaining the column is repaired too.
+_ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "llm_calls": {"error": "TEXT"},  # v4
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, columns in _ADDED_COLUMNS.items():
+        present = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for column, decl in columns.items():
+            if column not in present:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def _init_db(conn: sqlite3.Connection) -> None:
+    """Create missing tables, add missing columns, then stamp the version.
+
+    The stamp comes last, so a version number never claims a shape the database
+    does not have.
+    """
     conn.executescript(SCHEMA_DDL)
+    _migrate(conn)
     conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
     conn.commit()
 

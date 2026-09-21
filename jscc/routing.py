@@ -25,11 +25,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from .instrumentation import LLMResult, instrumented
 from .json_utils import strip_code_fence
 from .llm_client import ROUTING_MODEL, LLMClient, default_routing_client
-from .models import Application, Interaction, RoutingDecision
-from .sanitizer import sanitize_for_llm, send_to_llm
+from .models import Application, Contact, Interaction, RoutingDecision
+from .stage_call import call_stage
+from .storage import list_contacts
 
 ROUTING_SYSTEM_PROMPT = """You are a follow-up routing classifier for a job search tracker. Given an application and its interaction history, decide whether drafting the next follow-up message is a ROUTINE task safe to auto-draft, or a NON_ROUTINE situation that needs a human's judgment. Return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 
@@ -67,43 +67,40 @@ def _parse_response(text: str) -> RoutingDecision:
         raise RoutingParseError(f"routing response did not match RoutingDecision: {e}") from e
 
 
-def _build_user_prompt(app: Application, history: list[Interaction]) -> str:
-    return json.dumps(
-        {
-            "application": app.model_dump(mode="json"),
-            "history": [interaction.model_dump(mode="json") for interaction in history],
-        },
-        sort_keys=True,
-    )
+# Application fields withheld from the drafter's prompts. None of them bears on
+# whether a follow-up is routine or on what it should say, and `source_raw` is
+# third-party posting text: sending it would let a hostile posting argue the
+# router toward "routine", the one direction the router must not be pushed. The
+# keys stay, set to each field's empty default, so the prompt keeps its shape.
+_WITHHELD_APPLICATION_FIELDS = ("source_raw", "source_url", "extracted_jd", "fit_rationale")
 
 
-def _raw_routing_call(
-    conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
-) -> LLMResult:
-    """The billed unit, and only the billed unit — same split as
-    `extraction._raw_extraction_call` / `scoring._raw_scoring_call`: nothing
-    that can fail after the money is spent belongs in here, so parsing lives
-    in `route_followup`."""
-    response = client.complete(model=model, system=system, user=prompt)
-    return LLMResult(
-        output=response,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-    )
+def application_for_prompt(app: Application) -> dict[str, Any]:
+    data = app.model_dump(mode="json")
+    for field in _WITHHELD_APPLICATION_FIELDS:
+        data[field] = Application.model_fields[field].default
+    return data
 
 
-# One pre-decorated variant per ledger feature, same reasoning as
-# extraction.py's / scoring.py's `_CALL_BY_FEATURE`: separating production
-# `route_followup` calls from `eval routing` traffic keeps prompt iteration
-# off the per-application cost figure in `jscc costs`.
+def name_roles_for(contacts: list[Contact]) -> dict[str, str]:
+    """Known contact names mapped to their roles, for the sanitizer to substitute.
+
+    Full names only. The substitution is a case-insensitive substring match, so
+    adding bare first names would also rewrite ordinary words that contain them.
+    """
+    return {c.name: c.role.value for c in contacts if c.name.strip()}
+
+
+def _build_user_payload(app: Application, history: list[Interaction]) -> dict[str, Any]:
+    return {
+        "application": application_for_prompt(app),
+        "history": [interaction.model_dump(mode="json") for interaction in history],
+    }
+
+
+# Separate ledger features for production and eval traffic, as in extraction.
 ROUTING_FEATURE = "routing"
 ROUTING_EVAL_FEATURE = "routing_eval"
-
-_CALL_BY_FEATURE = {
-    ROUTING_FEATURE: instrumented(ROUTING_FEATURE)(_raw_routing_call),
-    ROUTING_EVAL_FEATURE: instrumented(ROUTING_EVAL_FEATURE)(_raw_routing_call),
-}
 
 
 def route_followup(
@@ -113,6 +110,7 @@ def route_followup(
     conn: sqlite3.Connection | None = None,
     client: LLMClient | None = None,
     feature: str = ROUTING_FEATURE,
+    contacts: list[Contact] | None = None,
 ) -> RoutingDecision:
     """Classify whether the next follow-up for `app` is safe to auto-draft.
 
@@ -126,44 +124,18 @@ def route_followup(
     """
     client = client or default_routing_client()
 
-    payload = {
-        "model": ROUTING_MODEL,
-        "system": ROUTING_SYSTEM_PROMPT,
-        "user": _build_user_prompt(app, history),
-        # Not flagged: an application's own metadata and its interaction
-        # history describe the candidate's own job search, not a named third
-        # party forwarded wholesale — same reasoning scoring.py's payload
-        # uses. The sanitizer redacts every payload unconditionally
-        # regardless of this flag (D7 M5) -- that guarantee is what protects
-        # a contact's name inside an interaction note, not this comment.
-        "contains_personal": False,
-    }
-    sanitized = sanitize_for_llm(payload)
-    verified = send_to_llm(sanitized)
-
-    if conn is not None:
-        try:
-            call = _CALL_BY_FEATURE[feature]
-        except KeyError:
-            raise ValueError(
-                f"unknown instrumentation feature {feature!r}; "
-                f"expected one of {sorted(_CALL_BY_FEATURE)}"
-            ) from None
-        response = call(
-            conn, verified["model"], verified["user"], client=client, system=verified["system"]
-        )
-    else:
-        response = client.complete(
-            model=verified["model"], system=verified["system"], user=verified["user"]
-        )
-    if response.stop_reason == "max_tokens":
-        # Same reasoning as extraction's / scoring's truncation check (gate
-        # finding M2): the tokens were already spent, so this is a
-        # parse-error message, not a retry -- raised after the ledger row
-        # would have been written.
-        raise RoutingParseError(
-            f"routing response was truncated at the model's max_tokens limit "
-            f"after {response.output_tokens} output tokens; the JSON is incomplete. "
-            "Raise max_tokens on the client, or shorten what the prompt asks for."
-        )
+    if contacts is None:
+        contacts = list_contacts(conn, app.id) if conn is not None else []
+    response = call_stage(
+        stage="routing",
+        model=ROUTING_MODEL,
+        system=ROUTING_SYSTEM_PROMPT,
+        user=_build_user_payload(app, history),
+        client=client,
+        conn=conn,
+        feature=feature,
+        features=(ROUTING_FEATURE, ROUTING_EVAL_FEATURE),
+        parse_error=RoutingParseError,
+        name_roles=name_roles_for(contacts),
+    )
     return _parse_response(response.text)

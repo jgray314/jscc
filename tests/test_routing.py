@@ -226,14 +226,14 @@ def test_conn_less_path_redacts_too() -> None:
 def test_route_followup_propagates_sanitizer_refusal(monkeypatch: pytest.MonkeyPatch) -> None:
     """The sanitizer's refusal path (D7 M5, D8) must propagate rather than be
     swallowed -- same guard extraction/scoring already have."""
-    import jscc.routing as routing_module
+    import jscc.stage_call as stage_call
 
-    original_sanitize = routing_module.sanitize_for_llm
+    original_sanitize = stage_call.sanitize_for_llm
 
     def _force_flag(payload, **kwargs):
         payload["contains_personal"] = True
         return original_sanitize(payload, **kwargs)
 
-    monkeypatch.setattr(routing_module, "sanitize_for_llm", _force_flag)
+    monkeypatch.setattr(stage_call, "sanitize_for_llm", _force_flag)
     with pytest.raises(SanitizerRefusal):
         route_followup(_app(), _history(), client=StubRoutingClient())

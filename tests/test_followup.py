@@ -294,3 +294,42 @@ def test_cli_reports_a_composer_parse_error_without_a_traceback(
     result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
     assert result.exit_code != 0
     assert "drafting failed" in result.output
+
+
+def test_cli_strips_terminal_escapes_from_model_output(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_id = _ingest(runner, tmp_path, monkeypatch)
+    esc = "\x1b]0;owned\x07\x1b[2J"
+    monkeypatch.setattr(
+        "jscc.cli.agents.followup",
+        lambda app, history, samples, conn=None: DraftEmail(
+            subject=f"Hello{esc}", body=f"Line one\n{esc}Line two\x9b31m"
+        ),
+    )
+    result = runner.invoke(cli, ["followup", app_id, "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output and "\x07" not in result.output
+    assert "\x9b" not in result.output
+    assert "Line one\n" in result.output
+
+
+def test_cli_refuses_a_profile_without_style_samples(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_id = _ingest(runner, tmp_path, monkeypatch)
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "profile.example.yaml").write_text(
+        "display_name: X\nrole_focus: [em]\nlevel_target: L6\n"
+        "experience_years: 5\ncomp_target: {min_usd: 100, max_usd: 200}\nstyle_samples: []\n",
+        encoding="utf-8",
+    )
+    called = []
+    monkeypatch.setattr("jscc.cli.agents.followup", lambda *a, **k: called.append(1))
+    result = runner.invoke(
+        cli, ["followup", app_id, "--data-dir", str(tmp_path), "--config-dir", str(config)]
+    )
+    assert result.exit_code == 2
+    assert "style_samples" in result.output
+    assert called == []

@@ -14,6 +14,7 @@ from ..storage import (
     ModeMismatchError,
     open_for_mode,
 )
+from ..terminal import printable
 
 FIRST_STAGE = "identified"
 
@@ -26,7 +27,7 @@ def _resolve_mode_or_exit() -> Mode:
     try:
         return resolve_mode()
     except InvalidModeError as e:
-        click.echo(str(e), err=True)
+        echo(str(e), err=True)
         sys.exit(EXIT_USAGE)
 
 
@@ -34,7 +35,7 @@ def _open_or_exit(mode: Mode, data_dir: Path):
     try:
         return open_for_mode(mode, data_dir)
     except ModeMismatchError as e:
-        click.echo(str(e), err=True)
+        echo(str(e), err=True)
         sys.exit(EXIT_USAGE)
 
 
@@ -79,3 +80,12 @@ def _parse_now(now_str: str | None) -> datetime | None:
             "--now must include a timezone offset (e.g. 2026-08-28T12:00:00+00:00)"
         )
     return parsed
+
+
+def echo(message: object = "", *, err: bool = False) -> None:
+    """`click.echo` with control characters removed.
+
+    Every command prints through this. Model output, posting text and exception
+    messages that quote them can all carry a terminal escape sequence.
+    """
+    click.echo(printable(str(message)), err=err)

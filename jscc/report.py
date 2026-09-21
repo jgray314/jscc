@@ -6,28 +6,13 @@ Testable in isolation; the CLI is a thin wrapper.
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
 from .config import StagesConfig
 from .models import Application
-
-# Gate finding L-report-format-injection-1: strips ASCII control bytes
-# (including ESC, 0x1b) from field values before they're rendered into a
-# terminal report. `company`/`title` can originate from a fetched job
-# posting's own text (via extraction) or a --company override -- both
-# attacker-influenceable once B3a/B3b's real URL fetching is in play, not
-# just hypothetically. Every raw ANSI/terminal-control sequence needs a
-# leading ESC byte to do anything, so stripping the C0 control range (which
-# includes ESC) closes the primitive without needing a full escape-sequence
-# parser.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
-
-
-def _sanitize_for_terminal(text: str) -> str:
-    return _CONTROL_CHARS_RE.sub("", text)
+from .terminal import printable_field
 
 
 class StaleAlert(BaseModel):
@@ -137,9 +122,7 @@ def format_report(
     if not alerts:
         lines.append("  (none)")
     else:
-        clean = [
-            (a, _sanitize_for_terminal(a.company), _sanitize_for_terminal(a.title)) for a in alerts
-        ]
+        clean = [(a, printable_field(a.company), printable_field(a.title)) for a in alerts]
         company_width = max(len(company) for _, company, _ in clean)
         for a, company, title in clean:
             lines.append(

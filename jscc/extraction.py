@@ -25,11 +25,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from .instrumentation import LLMResult, instrumented
 from .json_utils import strip_code_fence
 from .llm_client import EXTRACTION_MODEL, LLMClient, default_client
 from .models import ExtractedJD
-from .sanitizer import sanitize_for_llm, send_to_llm
+from .stage_call import call_stage
 
 EXTRACTION_SYSTEM_PROMPT = """You are a job description parser. Given the raw text of a job posting, extract structured fields and return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 
@@ -70,39 +69,10 @@ def _parse_response(text: str) -> ExtractedJD:
         raise ExtractionParseError(f"extraction response did not match ExtractedJD: {e}") from e
 
 
-def _raw_extraction_call(
-    conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
-) -> LLMResult:
-    """The billed unit, and only the billed unit.
-
-    Nothing that can fail *after* the money is spent belongs in here: the
-    ledger row is written when this returns, so parsing lives in `extract_jd`.
-    A malformed response is the likeliest failure while iterating on a prompt,
-    which is exactly when the cost figures are being read. Keeping the
-    boundary here also makes recorded latency the network call alone.
-    """
-    response = client.complete(model=model, system=system, user=prompt)
-    return LLMResult(
-        output=response,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-    )
-
-
-# One pre-decorated variant per ledger feature. `@instrumented` fixes its label
-# at decoration time, so separating production traffic from eval traffic means
-# two wrappers over the same call, not a dynamic label. Keeping them apart
-# matters because `jscc costs` is a portfolio artifact (D5/C3) — prompt
-# iteration would otherwise inflate the per-application cost figure with runs
-# that never produced an application.
+# Production calls and eval runs are recorded under separate ledger features, so
+# prompt iteration never inflates the per-application cost figure in `jscc costs`.
 EXTRACTION_FEATURE = "extraction"
 EXTRACTION_EVAL_FEATURE = "extraction_eval"
-
-_CALL_BY_FEATURE = {
-    EXTRACTION_FEATURE: instrumented(EXTRACTION_FEATURE)(_raw_extraction_call),
-    EXTRACTION_EVAL_FEATURE: instrumented(EXTRACTION_EVAL_FEATURE)(_raw_extraction_call),
-}
 
 
 def extract_jd(
@@ -131,46 +101,18 @@ def extract_jd(
     """
     client = client or default_client()
 
-    payload = {
-        "model": EXTRACTION_MODEL,
-        "system": EXTRACTION_SYSTEM_PROMPT,
-        "user": raw_text,
-        # Not flagged: a job posting describes a role, not a named individual.
-        # But this flag is NOT what protects the call. `raw_text` here can be
-        # arbitrary pasted text (`ingest --paste`, `resolve-dlq --paste-text`),
-        # and a JD forwarded from a recruiter's email carries their name,
-        # address, and number in the signature. The sanitizer redacts every
-        # payload unconditionally regardless of this flag (D7 M5) — that is
-        # the guarantee, and this comment's reasoning is not.
-        "contains_personal": False,
-    }
-    sanitized = sanitize_for_llm(payload)
-    verified = send_to_llm(sanitized)
-
-    if conn is not None:
-        try:
-            call = _CALL_BY_FEATURE[feature]
-        except KeyError:
-            raise ValueError(
-                f"unknown instrumentation feature {feature!r}; "
-                f"expected one of {sorted(_CALL_BY_FEATURE)}"
-            ) from None
-        response = call(
-            conn, verified["model"], verified["user"], client=client, system=verified["system"]
-        )
-    else:
-        response = client.complete(
-            model=verified["model"], system=verified["system"], user=verified["user"]
-        )
-    if response.stop_reason == "max_tokens":
-        # Checked here, not inside the instrumented call: the tokens were
-        # spent, so the ledger row must be written first (finding M2). Raised
-        # as a parse error because that is what it is downstream -- incomplete
-        # JSON -- but the message says truncation so prompt iteration does not
-        # chase a prompt bug that is really a max_tokens ceiling.
-        raise ExtractionParseError(
-            f"extraction response was truncated at the model's max_tokens limit "
-            f"after {response.output_tokens} output tokens; the JSON is incomplete. "
-            "Raise max_tokens on the client, or shorten what the prompt asks for."
-        )
+    response = call_stage(
+        stage="extraction",
+        model=EXTRACTION_MODEL,
+        system=EXTRACTION_SYSTEM_PROMPT,
+        # Can be arbitrary pasted text (`ingest --paste`, `resolve-dlq --paste-text`);
+        # a posting forwarded from a recruiter's email carries their signature.
+        # Redaction in the sanitizer is what protects it.
+        user=raw_text,
+        client=client,
+        conn=conn,
+        feature=feature,
+        features=(EXTRACTION_FEATURE, EXTRACTION_EVAL_FEATURE),
+        parse_error=ExtractionParseError,
+    )
     return _parse_response(response.text)

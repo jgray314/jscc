@@ -1,4 +1,5 @@
-# Sample profile — public and generic. Real profile lives in profile.private.yaml (gitignored, lands in A4.5).
+# Sample profile, public and generic. A real profile lives in profile.private.yaml (gitignored)
+# and is only read in real mode.
 display_name: "Sample Candidate"
 role_focus:
   - "engineering manager"
@@ -13,4 +14,7 @@ must_haves:
   - "modern tooling and CI"
 deal_breakers:
   - "on-call rotations >1 week/month"
-style_samples: []
+# Short excerpts in the candidate's own voice; the drafter matches their tone.
+style_samples:
+  - "Really enjoyed digging into the platform migration work with your team today."
+  - "Appreciate you all making time -- the conversation about on-call ownership was especially useful."

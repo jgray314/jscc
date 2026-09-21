@@ -153,3 +153,27 @@ author writes one.
 
 **Revisit when:** a fifth caller is added, a caller is not shaped like the
 existing four, or the inspection test needs a special case to pass.
+
+## Second addendum (2026-09-20, Phase D gate) — one call path
+
+The Phase D gate found two things the inspection test above did not cover. The
+scan listed only the top level of `jscc/`, so it stopped seeing the CLI the day
+the CLI became a package. And the four stages each carried their own copy of the
+sanitize, verify, record and truncation steps, which the test checked line by line.
+
+**Decided:** the four stages now call the model through one function,
+`jscc/stage_call.py`'s `call_stage`, and that module is the only one allowed to
+call `LLMClient.complete`. The scan walks subpackages and has its own test that a
+nested caller is found. This is still inspection rather than a type, but the
+property checked is now "one module calls the client", which a new caller cannot
+satisfy by imitating the others.
+
+The same change moved serialization after redaction: each string field is redacted
+on its own, and the prompt text is produced from the verified payload. Redacting the
+serialized JSON had let non-ASCII danger-list names through (they were compared
+against their `\uXXXX` escapes) and could corrupt the JSON itself. The recorded eval
+prompts are byte-identical before and after, confirmed by replaying all four suites.
+
+**Revisit when:** a caller needs something `call_stage` does not provide, or anyone
+other than the author adds a stage.
+

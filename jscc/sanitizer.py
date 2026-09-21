@@ -48,6 +48,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -141,6 +142,14 @@ def _utcnow_iso() -> str:
 # but the carve-out is broader than the comment above describes it.
 _CONTROL_KEYS = frozenset({"model"})
 
+# Record ids are app-generated UUIDs, and roughly one in several carries a digit
+# run the phone heuristic matches, which rewrote the id the model is asked about.
+# Exempt only a value that is exactly UUID-shaped under an id key: a UUID cannot
+# hold a phone number or a name, and anything else under those keys is still
+# redacted.
+_ID_KEYS = frozenset({"id", "application_id", "contact_id"})
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
 
 def _redact_tree(
     value: Any, key: str | None, danger_terms: list[str], name_roles: Mapping[str, str] | None
@@ -151,6 +160,8 @@ def _redact_tree(
     if isinstance(value, list):
         return [_redact_tree(v, key, danger_terms, name_roles) for v in value]
     if isinstance(value, str) and key not in _CONTROL_KEYS:
+        if key in _ID_KEYS and _UUID_RE.fullmatch(value):
+            return value
         return redact(value, danger_terms=danger_terms, name_roles=name_roles)
     # TODO (gate L-4, documented not fixed): non-string scalars (int, float,
     # bool) pass through unredacted regardless of key or content -- the regex
@@ -210,7 +221,7 @@ def sanitize_for_llm(
 
     `name_roles` is an optional mapping of known contact names to their roles
     (e.g. `{"Dana Reyes": "recruiter"}` -> `[contact:recruiter]`). Callers that
-    hold contact records — Phase D's drafter — pass it to get D7 M5's role-token
+    hold contact records (routing and composition) pass it to get D7 M5's role-token
     substitution. Omitting it weakens nothing that the pattern rules already
     cover; it only means unknown names in free prose stay as written, which is
     the documented boundary in `personal_data.py`.

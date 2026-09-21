@@ -14,6 +14,20 @@ once Phase D closes.
 
 ## [Unreleased]
 
+### D6: Phase D gate, safety hardening
+
+Two cold reviews ran at the end of Phase D, one adversarial and one reading the repo as an outside reviewer would. This slice closes their safety findings. Every replay (27/33, 21/25, 26/26, 24/28) is unchanged, so no recording was invalidated and no capture round was needed.
+
+- **One call path to the model.** Extraction, scoring, routing and composition each carried a copy of sanitize, verify, meter, call, check for truncation. They now call `jscc/stage_call.py`'s `call_stage`, the only module that calls the model client. The egress test had listed only the top level of `jscc/`. That missed nothing until this morning's CLI split moved every command into `jscc/cli/`, after which a direct model call there would have passed. The scan now walks subpackages, with a test that it finds a nested caller.
+- **Contact names are redacted.** The sanitizer could substitute a stored contact's name with a role token, and the README, D8, the threat model and two docstrings said it did. No caller ever passed it the names. Routing and composition now load the application's contacts themselves. Full names only: a bare first name would also rewrite ordinary words that contain it, so a contact mentioned by first name still goes out. T1 and D8 now say so.
+- **Redaction before serialization.** Each prompt was serialized to JSON before redaction. `json.dumps` escapes non-ASCII, so a danger-list name with an accent was compared against its escaped form and went out unredacted. A redaction could also consume a quote and hand the model invalid JSON. String fields are now redacted one by one, and the prompt is serialized from the verified payload, byte-identical to before for every recorded case. Record ids that look like digit runs are left alone, but only when UUID-shaped.
+- **The drafter no longer sees posting text.** Routing and composition sent the whole application, including the raw posting. The posting is irrelevant to whether a follow-up is routine, and it is the one input a stranger controls, aimed at the component with a zero-tolerance gate on answering "routine". `source_raw`, `source_url`, `extracted_jd` and `fit_rationale` are now sent as their empty defaults, which is exactly what every fixture already had.
+- **Older databases.** The schema bump that added `llm_calls.error` created the column only in new databases, then stamped every database as v4. On an older file, every metered command failed after the call was billed. Opening a database now adds missing columns before stamping the version, including on files that already carry the false stamp.
+- **Terminal output.** Only `report` stripped control characters. Everything a command prints now goes through one helper that removes C0 and C1 controls, and a test fails if a command calls `click.echo` directly.
+- **Smaller.** Synthetic mode always uses the example profile, even when a private one exists (`resolve_profile_path` now requires the mode). The example profile gained generic style samples, and `followup` refuses a profile without any before making a billed call. An empty draft body with no `needs_input` is a parse error rather than an empty email.
+
+ADR-005 has a second addendum for the single call path. +21 tests (593).
+
 ### Phase D gate, step 0: `cli.py` split into a `jscc/cli/` package
 
 Walkthrough finding W-13 (Phase C -> D gate) had asked for a split "before Phase D adds a drafter command on top". Phase D added `route` and `followup` and the split didn't happen, so the file went from 1,068 to 1,422 lines. The backlog sweep that opens the Phase D gate caught it. The code moved without changes: `_app` (root group), `_common` (the exit-code contract, mode/DB open helpers, `--now` parsing), and one module per command family (`admin`, `ingest`, `agents`, `eval_cmds`). `jscc.cli` still exports `cli`, `main` and the exit codes. The only test changes are mock targets, which now name the module where each command looks the patched name up. 572 tests pass.

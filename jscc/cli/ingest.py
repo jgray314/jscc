@@ -42,6 +42,7 @@ from ._common import (
     FIRST_STAGE,
     _open_or_exit,
     _resolve_mode_or_exit,
+    echo,
 )
 
 
@@ -230,7 +231,7 @@ def ingest(
                     error_detail=result.error_detail,
                 )
                 entry_id = create_dlq_entry(conn, entry)
-                click.echo(f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})")
+                echo(f"fetch failed ({result.failure_mode.value}); added to DLQ ({entry_id})")
                 sys.exit(EXIT_QUEUED)
             raw_text = result.raw_text
             source_url: str | None = url
@@ -240,7 +241,7 @@ def ingest(
         else:
             raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
             if not raw_text.strip():
-                click.echo("no JD text provided (empty stdin/file)", err=True)
+                echo("no JD text provided (empty stdin/file)", err=True)
                 sys.exit(EXIT_USAGE)
             source_url = None
             fallback_company_val = "(pasted)"
@@ -255,17 +256,17 @@ def ingest(
         # -- --update is required there instead of prompted.
         existing = _find_duplicate_application(conn, source_url=source_url, raw_text=raw_text)
         if existing is not None and not update:
-            click.echo(
+            echo(
                 f"an application already exists for this "
                 f"{'URL' if source_url else 'pasted text'}: "
                 f"{existing.id} ({existing.title!r}, created {existing.created_at.isoformat()})"
             )
             read_from_stdin = not url and not paste_file
             if read_from_stdin:
-                click.echo("re-run with --update to reprocess and overwrite it", err=True)
+                echo("re-run with --update to reprocess and overwrite it", err=True)
                 sys.exit(EXIT_USAGE)
             if not click.confirm("Re-process and overwrite it instead of skipping?", default=False):
-                click.echo("no changes made")
+                echo("no changes made")
                 return
 
         try:
@@ -289,8 +290,8 @@ def ingest(
                 error_detail=str(e),
             )
             entry_id = create_dlq_entry(conn, entry)
-            click.echo(f"extraction failed; added to DLQ ({entry_id})")
-            click.echo(f"  {e}", err=True)
+            echo(f"extraction failed; added to DLQ ({entry_id})")
+            echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except anthropic.APIError as e:
             # Gate finding H-6: a transient API error (rate limit, overload,
@@ -310,8 +311,8 @@ def ingest(
                 error_detail=str(e),
             )
             entry_id = create_dlq_entry(conn, entry)
-            click.echo(f"LLM API error; added to DLQ ({entry_id})")
-            click.echo(f"  {e}", err=True)
+            echo(f"LLM API error; added to DLQ ({entry_id})")
+            echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except UnknownModelPricingError as e:
             # Deliberately *not* DLQ'd, unlike the reviewer's suggested shape.
@@ -319,10 +320,10 @@ def ingest(
             # ingest would fail identically, so filling the queue with entries
             # that re-fail on resolve would bury the one thing worth reading.
             # Nothing was billed either -- the check runs before the request.
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
         verb = "updated" if existing is not None else "created"
-        click.echo(f"{verb} application {app_id}: {app.title}")
+        echo(f"{verb} application {app_id}: {app.title}")
     finally:
         conn.close()
 
@@ -350,14 +351,14 @@ def dlq_list(data_dir: Path, show_all: bool) -> None:
     finally:
         conn.close()
 
-    click.echo(f"[mode: {mode.value}]")
+    echo(f"[mode: {mode.value}]")
     if not entries:
-        click.echo("no unresolved dlq entries")
+        echo("no unresolved dlq entries")
         return
 
-    click.echo(f"{'id':<38}{'failure_mode':<20}{'source_url'}")
+    echo(f"{'id':<38}{'failure_mode':<20}{'source_url'}")
     for entry in entries:
-        click.echo(f"{entry.id:<38}{entry.failure_mode.value:<20}{entry.source_url}")
+        echo(f"{entry.id:<38}{entry.failure_mode.value:<20}{entry.source_url}")
 
 
 @cli.command("resolve-dlq")
@@ -395,7 +396,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
         entries = list_dlq_entries(conn, unresolved_only=False)
         entry = next((e for e in entries if e.id == entry_id), None)
         if entry is None:
-            click.echo(f"no DLQ entry with id {entry_id}", err=True)
+            echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(EXIT_USAGE)
 
         # Gate finding M-1: this used to skip the entry's current resolution
@@ -407,7 +408,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
         # converted to `manual_paste` from here; there is no "reopen" path,
         # which is a real, undecided gap rather than an oversight in this fix.
         if entry.resolution is not Resolution.unresolved:
-            click.echo(
+            echo(
                 f"DLQ entry {entry_id} is already resolved ({entry.resolution.value}); "
                 "not creating another application"
             )
@@ -435,23 +436,23 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
             # No new DLQ entry here -- one already exists and stays unresolved,
             # which is the correct record. Creating a second would duplicate the
             # queue on every retry.
-            click.echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
-            click.echo(f"  {e}", err=True)
+            echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
+            echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except anthropic.APIError as e:
             # Gate finding H-6, same class as ingest's -- see the comment
             # there. No new DLQ entry: the one being resolved stays
             # unresolved, which is already the correct record.
-            click.echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
-            click.echo(f"  {e}", err=True)
+            echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
+            echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except UnknownModelPricingError as e:
             # Gate finding L-11: `ingest` already turns this into a clean
             # exit-2 configuration message; this path funnels through the
             # same helper and used to let it out as a raw traceback instead.
-            click.echo(f"configuration error: {e}", err=True)
+            echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
         resolve_dlq_entry(conn, entry_id, Resolution.manual_paste, application_id=app_id)
-        click.echo(f"created application {app_id} from DLQ entry {entry_id}")
+        echo(f"created application {app_id} from DLQ entry {entry_id}")
     finally:
         conn.close()

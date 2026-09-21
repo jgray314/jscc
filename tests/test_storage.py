@@ -456,3 +456,63 @@ def test_llm_calls_ordered_by_ts(conn: sqlite3.Connection) -> None:
 
     records = list_llm_calls(conn)
     assert [r.id for r in records] == [earlier.id, later.id]
+
+
+# ---- schema migration ---------------------------------------------------------------
+
+
+def _v3_database(path: Path, *, stamp: int) -> None:
+    """A database as the v3 code left it: `llm_calls` without the `error` column.
+
+    `stamp` covers both histories: 3 is an honest v3 file, 4 is one the earlier v4
+    code opened, which stamped v4 without ever adding the column.
+    """
+    from jscc.mode import Mode
+    from jscc.storage import SCHEMA_DDL, write_mode_marker
+
+    old_ddl = SCHEMA_DDL.replace(
+        "    ts TEXT NOT NULL,\n    error TEXT\n", "    ts TEXT NOT NULL\n"
+    )
+    assert old_ddl != SCHEMA_DDL
+    c = _connect(path)
+    c.executescript(old_ddl)
+    c.execute(f"PRAGMA user_version = {stamp}")
+    write_mode_marker(c, Mode.synthetic)
+    c.close()
+
+
+@pytest.mark.parametrize("stamp", [3, 4])
+def test_opening_an_older_database_adds_the_missing_column(tmp_path: Path, stamp: int) -> None:
+    from jscc.mode import Mode
+    from jscc.models import LLMCallRecord
+    from jscc.storage import open_for_mode, record_llm_call, resolve_db_path
+
+    _v3_database(resolve_db_path(Mode.synthetic, tmp_path), stamp=stamp)
+    c = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        record_llm_call(
+            c,
+            LLMCallRecord(
+                feature="routing",
+                model="m",
+                prompt_hash="h",
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                latency_ms=1.0,
+                ts=datetime.now(UTC),
+                error="TimeoutError: slow",
+            ),
+        )
+        assert c.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert c.execute("SELECT error FROM llm_calls").fetchone()[0] == "TimeoutError: slow"
+    finally:
+        c.close()
+
+
+def test_opening_a_current_database_twice_is_a_no_op(tmp_path: Path) -> None:
+    from jscc.mode import Mode
+    from jscc.storage import open_for_mode
+
+    open_for_mode(Mode.synthetic, tmp_path).close()
+    open_for_mode(Mode.synthetic, tmp_path).close()

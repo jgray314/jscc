@@ -1,18 +1,16 @@
 """Every model call goes through the sanitizer and the send boundary, enforced by test.
 
 `send_to_llm` verifies an authenticated payload, but the model client's `complete`
-takes three plain strings, so nothing at the type level stops a new caller from
-assembling them itself and skipping the sanitizer. ADR-005's addendum deferred a
-type-level fix until a second module called `complete`. Four do now, so this file
-holds the line by inspection instead: it fails when a caller appears that this test
-does not know about, when a known caller stops routing through the boundary, or when
-a stage would still reach the client after the boundary refuses.
+takes three plain strings, so nothing at the type level stops new code from calling it
+directly and skipping the sanitizer. The four LLM stages share one call path,
+`stage_call.call_stage`, and this file holds the line around it:
 
-Three checks, each of which fails for a different mistake:
-
-- the set of modules that call `.complete(` is exactly the known four;
-- inside each, the entry function sanitizes, then verifies, and hands the client only
-  values read out of the verified payload;
+- every `.py` file under `jscc/`, subpackages included, is scanned, and the only module
+  that calls `.complete(` is `stage_call`;
+- inside `stage_call`, `call_stage` sanitizes, then verifies, and hands the client only
+  values derived from the verified payload, and only `call_stage` and the billed
+  `_raw_call` touch the client;
+- each stage's entry function goes through `call_stage`;
 - with the send boundary made to refuse, no stage reaches its client.
 """
 
@@ -31,9 +29,8 @@ from jscc.sanitizer import LLMSendError
 
 PACKAGE = Path(__file__).resolve().parents[1] / "jscc"
 
-# The modules allowed to call the model client, each with the entry function that owns
-# the sanitize -> verify -> send sequence. Adding a caller means adding it here on
-# purpose, in the same change that routes it through the boundary.
+# Each LLM stage and the entry function that owns its call. Adding a stage means adding
+# it here on purpose, in the same change that routes it through `call_stage`.
 STAGES = {
     "extraction": "extract_jd",
     "scoring": "score_fit",
@@ -41,9 +38,12 @@ STAGES = {
     "composition": "compose_followup",
 }
 
-# Modules that mention `.complete(` without being a stage: `llm_client` defines the
-# clients, and `evals` wraps a client to record or replay an already-verified call.
-NOT_STAGES = {"llm_client.py", "evals.py"}
+# The one module allowed to call the model client.
+CHOKE_POINT = "stage_call.py"
+
+# Files that mention `.complete(` without sending anything: `llm_client` defines the
+# clients, and `evals` wraps a client to record or replay a call `call_stage` already made.
+NOT_SENDERS = {"llm_client.py", "evals.py"}
 
 
 def _parse(path: Path) -> ast.Module:
@@ -72,61 +72,104 @@ def _module_tree(module: str) -> ast.Module:
     return _parse(PACKAGE / f"{module}.py")
 
 
-def test_only_the_known_modules_call_the_model_client() -> None:
-    callers = set()
-    for path in PACKAGE.glob("*.py"):
-        if path.name in NOT_STAGES:
-            continue
-        if any(_is_complete_call(n) for n in ast.walk(_parse(path))):
-            callers.add(path.stem)
-    assert callers == set(STAGES), (
-        f"modules calling the model client changed: {sorted(callers)} vs {sorted(STAGES)}. "
-        "A new caller must go through sanitize_for_llm and send_to_llm; add it to STAGES "
-        "in this test in the same change, and revisit ADR-005's addendum."
+def model_callers(root: Path) -> tuple[list[Path], set[str]]:
+    """Every `.py` file under `root`, recursively, and the ones that call `.complete(`."""
+    scanned = sorted(root.rglob("*.py"))
+    callers = {
+        path.relative_to(root).as_posix()
+        for path in scanned
+        if path.name not in NOT_SENDERS
+        and any(_is_complete_call(n) for n in ast.walk(_parse(path)))
+    }
+    return scanned, callers
+
+
+def test_the_scan_covers_subpackages() -> None:
+    scanned, _ = model_callers(PACKAGE)
+    relative = {p.relative_to(PACKAGE).as_posix() for p in scanned}
+    assert any(r.startswith("cli/") for r in relative), (
+        "the egress scan no longer reaches jscc/cli/; it must walk subpackages"
     )
 
 
-@pytest.mark.parametrize("module, entry", sorted(STAGES.items()))
-def test_entry_function_sanitizes_then_verifies_then_calls(module: str, entry: str) -> None:
-    fn = _functions(_module_tree(module))[entry]
+def test_the_scan_catches_a_caller_in_a_subpackage(tmp_path: Path) -> None:
+    nested = tmp_path / "sub"
+    nested.mkdir()
+    (nested / "leak.py").write_text(
+        "def go(client, text):\n    return client.complete(model='m', system='s', user=text)\n",
+        encoding="utf-8",
+    )
+    _, callers = model_callers(tmp_path)
+    assert callers == {"sub/leak.py"}
+
+
+def test_only_the_choke_point_calls_the_model_client() -> None:
+    _, callers = model_callers(PACKAGE)
+    assert callers == {CHOKE_POINT}, (
+        f"modules calling the model client: {sorted(callers)}. Model calls go through "
+        "stage_call.call_stage, which sanitizes and verifies first; revisit ADR-005 "
+        "before adding another."
+    )
+
+
+def test_call_stage_sanitizes_then_verifies_then_calls() -> None:
+    fn = _functions(_module_tree("stage_call"))["call_stage"]
     calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call)]
 
     def first_line(name: str) -> int:
         lines = [c.lineno for c in calls if _call_name(c) == name]
-        assert lines, f"{module}.{entry} never calls {name}"
+        assert lines, f"call_stage never calls {name}"
         return min(lines)
 
     sanitize, verify = first_line("sanitize_for_llm"), first_line("send_to_llm")
-    assert sanitize < verify, f"{module}.{entry} verifies before it sanitizes"
+    assert sanitize <= verify, "call_stage verifies before it sanitizes"
 
-    reaching_client = [c for c in calls if _is_complete_call(c) or _call_name(c) == "call"]
-    assert reaching_client, f"{module}.{entry} has no path to the client"
+    # `prompt` is the one local allowed out besides `verified[...]`: it must be the
+    # serialized verified user payload and nothing else.
+    prompt_sources = [
+        n.value
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == "prompt" for t in n.targets)
+    ]
+    assert [ast.unparse(v) for v in prompt_sources] == ["serialize_user(verified['user'])"]
+
+    reaching_client = [
+        c
+        for c in calls
+        if _is_complete_call(c)
+        or (isinstance(c.func, ast.Call) and _call_name(c.func) == "_instrumented_call")
+    ]
+    assert len(reaching_client) == 2, "expected one recorded and one unrecorded call path"
     for call in reaching_client:
-        assert call.lineno > verify, f"{module}.{entry} reaches the client before verifying"
-        values = [*call.args, *(kw.value for kw in call.keywords)]
-        for value in values:
+        assert call.lineno > verify, "call_stage reaches the client before verifying"
+        for value in [*call.args, *(kw.value for kw in call.keywords)]:
             from_verified = (
                 isinstance(value, ast.Subscript)
                 and isinstance(value.value, ast.Name)
                 and value.value.id == "verified"
             )
-            plumbing = isinstance(value, ast.Name) and value.id in {"conn", "client"}
+            plumbing = isinstance(value, ast.Name) and value.id in {"conn", "client", "prompt"}
             assert from_verified or plumbing, (
-                f"{module}.{entry} passes {ast.unparse(value)!r} to the client; "
-                "only values read from the verified payload may go out"
+                f"call_stage passes {ast.unparse(value)!r} to the client; "
+                "only values derived from the verified payload may go out"
             )
 
 
-@pytest.mark.parametrize("module", sorted(STAGES))
-def test_no_other_function_in_a_stage_calls_the_client_except_the_raw_helper(module: str) -> None:
-    """The `_raw_*` helper is the billed unit and is handed verified strings by the entry."""
-    tree = _module_tree(module)
-    for name, fn in _functions(tree).items():
-        if name == STAGES[module] or name.startswith("_raw_"):
+def test_only_call_stage_and_the_billed_unit_touch_the_client() -> None:
+    for name, fn in _functions(_module_tree("stage_call")).items():
+        if name in {"call_stage", "_raw_call"}:
             continue
         assert not any(_is_complete_call(n) for n in ast.walk(fn)), (
-            f"{module}.{name} calls the model client outside the sanitized entry path"
+            f"stage_call.{name} calls the model client outside call_stage"
         )
+
+
+@pytest.mark.parametrize("module, entry", sorted(STAGES.items()))
+def test_each_stage_goes_through_call_stage(module: str, entry: str) -> None:
+    fn = _functions(_module_tree(module))[entry]
+    assert any(isinstance(n, ast.Call) and _call_name(n) == "call_stage" for n in ast.walk(fn)), (
+        f"{module}.{entry} does not call call_stage"
+    )
 
 
 # ---- behaviour: a refused payload never reaches the client ----------------------
@@ -202,7 +245,7 @@ def test_a_refused_payload_never_reaches_the_client(
     def refuse(payload):
         raise LLMSendError("refused for this test")
 
-    monkeypatch.setattr(importlib.import_module(f"jscc.{module}"), "send_to_llm", refuse)
+    monkeypatch.setattr(importlib.import_module("jscc.stage_call"), "send_to_llm", refuse)
     client = _ExplodingClient()
     with pytest.raises(LLMSendError):
         _run(module, client)

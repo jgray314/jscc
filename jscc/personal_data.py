@@ -36,7 +36,7 @@ trade D7 and D8 exist to refuse.
 **What it does not guarantee:** arbitrary person names in free text are not
 detected. That needs NER, not regex, and pretending a regex does it would be
 worse than not claiming it — the claim is the dangerous part. Callers holding
-known contact names (the `contacts` table, Phase D's drafter) pass them via
+known contact names (the `contacts` table: routing and composition) pass them via
 `name_roles` and get role-token substitution; unknown names in pasted prose
 are out of scope and D8's wording reflects that.
 

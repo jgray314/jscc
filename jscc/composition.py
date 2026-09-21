@@ -26,11 +26,12 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from .instrumentation import LLMResult, instrumented
 from .json_utils import strip_code_fence
 from .llm_client import COMPOSITION_MODEL, LLMClient, default_composition_client
-from .models import Application, DraftEmail, Interaction
-from .sanitizer import sanitize_for_llm, send_to_llm
+from .models import Application, Contact, DraftEmail, Interaction
+from .routing import application_for_prompt, name_roles_for
+from .stage_call import call_stage
+from .storage import list_contacts
 
 COMPOSITION_SYSTEM_PROMPT = """You draft a short follow-up email on behalf of a job candidate, in the candidate's own voice. You are given a JSON object with four fields: "application" (the role and company), "history" (the candidate's interaction history for that application, oldest first), "intent" (a snake_case label naming the purpose of this email, e.g. "post_interview_thank_you", "cadence_nudge", "logistics_confirmation"), and "style_samples" (1 to 3 short passages the candidate actually wrote). Return ONLY a JSON object — no prose, no markdown fences — matching this shape:
 
@@ -87,51 +88,30 @@ def _parse_response(text: str) -> DraftEmail:
             f"composition response did not match DraftEmail: missing {', '.join(missing)}"
         )
     try:
-        return DraftEmail(subject=data["subject"], body=data["body"])
+        draft = DraftEmail(subject=data["subject"], body=data["body"])
     except (TypeError, ValidationError) as e:
         raise CompositionParseError(f"composition response did not match DraftEmail: {e}") from e
+    if not draft.body.strip():
+        # Neither a draft nor a request for input; printing it would show an empty
+        # email as if it were the answer.
+        raise CompositionParseError("composition response had an empty body and no needs_input")
+    return draft
 
 
-def _build_user_prompt(
+def _build_user_payload(
     app: Application, history: list[Interaction], intent: str, style_samples: list[str]
-) -> str:
-    return json.dumps(
-        {
-            "application": app.model_dump(mode="json"),
-            "history": [interaction.model_dump(mode="json") for interaction in history],
-            "intent": intent,
-            "style_samples": style_samples,
-        },
-        sort_keys=True,
-    )
+) -> dict[str, Any]:
+    return {
+        "application": application_for_prompt(app),
+        "history": [interaction.model_dump(mode="json") for interaction in history],
+        "intent": intent,
+        "style_samples": style_samples,
+    }
 
 
-def _raw_composition_call(
-    conn: sqlite3.Connection, model: str, prompt: str, *, client: LLMClient, system: str
-) -> LLMResult:
-    """The billed unit, and only the billed unit -- same split as
-    `routing._raw_routing_call`: nothing that can fail after the money is
-    spent belongs in here, so parsing lives in `compose_followup`."""
-    response = client.complete(model=model, system=system, user=prompt)
-    return LLMResult(
-        output=response,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-    )
-
-
-# One pre-decorated variant per ledger feature, same reasoning as routing.py's
-# `_CALL_BY_FEATURE`: keeping `eval composition` traffic off the production
-# figure in `jscc costs` means prompt iteration doesn't inflate per-application
-# cost.
+# Separate ledger features for production and eval traffic, as in extraction.
 COMPOSITION_FEATURE = "composition"
 COMPOSITION_EVAL_FEATURE = "composition_eval"
-
-_CALL_BY_FEATURE = {
-    COMPOSITION_FEATURE: instrumented(COMPOSITION_FEATURE)(_raw_composition_call),
-    COMPOSITION_EVAL_FEATURE: instrumented(COMPOSITION_EVAL_FEATURE)(_raw_composition_call),
-}
 
 
 def compose_followup(
@@ -143,6 +123,7 @@ def compose_followup(
     conn: sqlite3.Connection | None = None,
     client: LLMClient | None = None,
     feature: str = COMPOSITION_FEATURE,
+    contacts: list[Contact] | None = None,
 ) -> DraftEmail:
     """Draft the follow-up email for a situation the router called routine.
 
@@ -152,43 +133,18 @@ def compose_followup(
     """
     client = client or default_composition_client()
 
-    payload = {
-        "model": COMPOSITION_MODEL,
-        "system": COMPOSITION_SYSTEM_PROMPT,
-        "user": _build_user_prompt(app, history, intent, style_samples),
-        # Not flagged: the application, its history, and the candidate's own
-        # style samples describe the candidate's own job search, not a named
-        # third party forwarded wholesale -- same reasoning routing.py's
-        # payload uses. The sanitizer redacts every payload unconditionally
-        # regardless of this flag (D7 M5); that guarantee, not this comment,
-        # is what protects a contact's email inside a note or a sample.
-        "contains_personal": False,
-    }
-    sanitized = sanitize_for_llm(payload)
-    verified = send_to_llm(sanitized)
-
-    if conn is not None:
-        try:
-            call = _CALL_BY_FEATURE[feature]
-        except KeyError:
-            raise ValueError(
-                f"unknown instrumentation feature {feature!r}; "
-                f"expected one of {sorted(_CALL_BY_FEATURE)}"
-            ) from None
-        response = call(
-            conn, verified["model"], verified["user"], client=client, system=verified["system"]
-        )
-    else:
-        response = client.complete(
-            model=verified["model"], system=verified["system"], user=verified["user"]
-        )
-    if response.stop_reason == "max_tokens":
-        # Same reasoning as routing's truncation check (gate finding M2): the
-        # tokens were already spent, so this is a parse-error message, not a
-        # retry -- raised after the ledger row has been written.
-        raise CompositionParseError(
-            f"composition response was truncated at the model's max_tokens limit "
-            f"after {response.output_tokens} output tokens; the JSON is incomplete. "
-            "Raise max_tokens on the client, or shorten what the prompt asks for."
-        )
+    if contacts is None:
+        contacts = list_contacts(conn, app.id) if conn is not None else []
+    response = call_stage(
+        stage="composition",
+        model=COMPOSITION_MODEL,
+        system=COMPOSITION_SYSTEM_PROMPT,
+        user=_build_user_payload(app, history, intent, style_samples),
+        client=client,
+        conn=conn,
+        feature=feature,
+        features=(COMPOSITION_FEATURE, COMPOSITION_EVAL_FEATURE),
+        parse_error=CompositionParseError,
+        name_roles=name_roles_for(contacts),
+    )
     return _parse_response(response.text)

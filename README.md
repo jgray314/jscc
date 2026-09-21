@@ -96,9 +96,11 @@ jscc/           library code
   composition.py  compose_followup, the composition prompt + call path (D10 step 2A, D4a)
   followup.py   briefing renderer (D10 step 2B) + the top-level followup() orchestrator
   report.py     staleness detector + funnel counts
+  stage_call.py the one path from an LLM stage to the model client: sanitize, verify, meter, call
+  terminal.py   strips control characters from everything a command prints
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>)
-tests/          pytest suite (572 tests)
+tests/          pytest suite (593 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias)
@@ -161,7 +163,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet — every call through Phase C ran against stub clients or hand-captured through Claude.ai chat, never a live billed `AnthropicClient` request, since this project isn't using the Anthropic Console (see B2b/C2b above). What does exist: every call path is instrumented from Phase A onward (D5), the ledger schema and `jscc costs` reporting are built and tested against synthetic call records (percentile latency, per-feature grouping, stale-rate regression detection), and — as of the Phase C → D gate — a call that fails mid-request now leaves a marked row instead of vanishing from the ledger entirely. The honest claim today is "the cost-transparency machinery is built and correct," not "here is what this costs to run" — that second claim waits on a live key, which may not happen under the current no-Console-account decision.
 
-572 pytest cases. Lint and format enforced via ruff (see Development, above).
+593 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 
