@@ -103,7 +103,7 @@ config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fal
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias)
 decisions/      ADRs (see below)
-docs/           design-principles.md; threat-model.md; gate-reviews.md; smoke-test-results.md (smoke_fetch.py output snapshot)
+docs/           design-principles.md; threat-model.md; gate-reviews.md; lessons-learned.md; smoke-test-results.md (smoke_fetch.py output snapshot)
 .github/        CI workflow
 data/           synthetic.db, real.db -- both gitignored; seed regenerates the synthetic one
 ```
@@ -119,6 +119,8 @@ Design decisions with rejected alternatives:
 - [ADR-005 — sanitizer authenticity via HMAC wrapper](decisions/005-sanitizer-authenticity.md)
 
 The ten locked design principles behind them are in [docs/design-principles.md](docs/design-principles.md).
+
+What building it taught me, as a running set of lessons with what worked and what each would mean for a team: [docs/lessons-learned.md](docs/lessons-learned.md). It is an early draft and still being edited.
 
 ## Development
 
