@@ -19,6 +19,20 @@ for everything else (design principle D10). Both prompts were checked against re
 model output captured by hand. The phase closed with a cold two-lens gate whose
 fixes are the first entries below.
 
+### Capture tooling, and a checklist for the next round
+
+The scripts that ran the routing and composition capture rounds lived in a session scratchpad and were
+rebuilt between D2b and D4b. `scripts/capture_tools.py` now does it for all four suites: it builds each
+case's prompt from the current code, prints a case for the chat with the target model at the top and
+bottom (the routing round captured on the wrong model once), records a completion under the key replay
+looks up, and runs the proxy loop. It refuses stale prompts, and refuses to record any file under a
+`proxy` directory, so proxy output cannot reach a recording. +11 tests (619 total).
+
+`evals/README.md` gained a "Before a capture round" checklist: freeze the prompt, run the full suite
+through proxies on the final wording, read some outputs for defects the grader does not check, date the
+fixtures whose answer depends on today, check the model. The parent plan now says to size a suite before
+authoring it: at least 25 cases, with n and its standard error stated in the slice's definition of done.
+
 ### Phase D gate: prose and review hygiene
 
 The walkthrough lens's findings, most of them prose that described a slightly

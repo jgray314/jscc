@@ -33,6 +33,28 @@ Grading (`grade_extraction` in `jscc/evals.py`):
 
 Run: `python -m jscc eval jd_extraction`. Exits non-zero if the combined pass rate falls below `PASS_THRESHOLD`; `format_eval_summary` also reports a `short`/`long` breakdown so a regression says which distribution broke, without a second gate.
 
+## Before a capture round
+
+A round costs one fresh chat per case, and a prompt change afterwards throws the whole round away
+(recordings are keyed on the exact prompt text). Routing took five rounds for that reason. Before
+starting one:
+
+1. **Freeze the prompt.** Make every prompt-affecting change and decision first, including anything
+   the batched cleanup items would change. Fixture edits count too.
+2. **Run the full suite through proxies on the final wording,** with the target model, not a
+   targeted subset. A proxy is a lower bound on failures, not a prediction: routing round 4 was
+   proxy-clean and still failed on a real chat.
+3. **Read 5 to 10 proxy outputs yourself,** looking for defects the grader does not check. Composition
+   drafts that invented a weekday or a relative date passed every check.
+4. **Give each fixture an as-of date if its answer depends on today's date.** A model in a real chat
+   sees the real date and can turn a routine cadence case into a judgment call.
+5. **Check the model.** `capture_tools.py show` prints the target model first and last on every case.
+
+`scripts/capture_tools.py` does the mechanics for all four suites: `prompts` builds each case's exact
+prompt from the current code, `show` prints one for the chat, `record` saves a completion under the key
+replay looks up, and `proxy-prep` / `proxy-grade` run the proxy loop. It refuses stale prompts and
+refuses to record anything under a `proxy` directory, so proxy output cannot end up in a recording.
+
 ## Adding a case
 
 Append an object to `cases.json` with a unique `id`, `raw_jd` (never real personal/company data — synthetic or scrubbed only, per D7/D8), an optional `group` (`"short"` default, `"long"` for fetch-shaped noise), and an `expected` dict matching `ExtractedJD`'s fields. Cover both presence and absence of `comp_band` and a mix of `remote_policy` values — the grading logic branches on those. Avoid "X or Y" phrasing in a requirements section you expect graded by `must_have_skills` — the set-equality check can't credit a model for picking either disjunct, so it fails a correct answer either way.
