@@ -30,6 +30,7 @@ The reviewers are Opus-model agents run as separate sessions, chosen for simplic
 | Phase B to C, second pass (first cold rerun) | Everything after the fixes | 4 high, 6 medium, 10 low, 10 walkthrough | Produced the first CONTRADICTS |
 | Phase B to C, third pass | After the backlog closed | 2 high, 6 medium, 8 low | All closed or documented |
 | Phase C to D | Fit scoring and cost reporting | 1 high, 2 medium, 2 low, 4 walkthrough | High fixed, and it reversed an earlier rating |
+| Phase D | Routing, composition, follow-up briefing | 4 high, 5 medium, 4 low, plus 16 walkthrough (3 high, 2 duplicating adversarial findings) | All fixed in three hardening slices. One high was a regression the gate's own backlog fix introduced, and one reversed an earlier fix |
 
 **Note on the counts.** They are approximate. Some findings were merged, split or renumbered while being fixed, a few were renumbered to avoid colliding with an earlier gate's IDs, and the Phase A rounds are tallied from the changelog rather than from the original review documents. Treat them as scale, not as exact figures.
 
@@ -87,11 +88,11 @@ An earlier fix had made the seeded fixture reproducible by threading a seeded ra
 ## Where the process falls short
 
 - **A slice can be missing and no gate notices.** LLM call instrumentation slipped past all three Phase A rounds because every round reviewed code that shipped, and none had a reason to look for what was not there. I caught it re-reading the plan before starting Phase B.
-- **Status prose goes stale within hours.** The README contradicted itself about what had shipped in three separate passes. A test now keeps the test count honest, but nothing checks the rest of the status text, and the cheap fix so far is dating it.
+- **Status prose goes stale within hours.** The README contradicted itself about what had shipped in three separate passes. Tests now keep the test count and the published eval figures honest, but nothing checks the rest of the status text, and the cheap fix so far is dating it.
 - **Severity ratings are judgments and can be wrong.** Finding 5 is the example. A reviewer's Low and my agreement with it did not make it Low.
 - **This is one author and one model family.** All reviewers were Opus agents, and much of the code they reviewed was written with AI assistance, so they may share blind spots with it. No human outside the project has reviewed it. The cold-read rule and verify-by-deletion reduce that. They do not remove it.
 - **The number of findings is a property of the process, not a quality score.** A reviewer told to find problems finds them, so a long list says as much about the instructions as about the code.
 
 ## Open items
 
-None of the findings above remain open. The current backlog lives in the CHANGELOG. Items deferred with a stated revisit trigger, rather than closed, include one minimization finding for the scoring payload and a second validation round for fit scoring; both are named in the Phase C to D gate entry of the CHANGELOG.
+None of the findings above remain open. The current backlog lives in the CHANGELOG. Items deferred with a stated revisit trigger, rather than closed, include one minimization finding for the scoring payload and a second validation round for fit scoring; both are named in the Phase C to D gate entry of the CHANGELOG. The Phase D gate added one more: routing's 26/26 comes from the cases its prompt was tuned against, so the next routing capture adds fresh held-out cases and reports them separately ([evals README](../evals/README.md)).
