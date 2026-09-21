@@ -104,7 +104,7 @@ class SanitizedPayload:
 def _stable_json(payload: dict[str, Any]) -> str:
     """Deterministic JSON for HMAC input. sort_keys locks map ordering.
 
-    Gate finding L-json-default-sanitizer-1: this used to fall back to
+    This used to fall back to
     `default=str`, silently stringifying any type it didn't recognize --
     while storage's equivalent (`_dump_json`) raised on the same case. An
     unexpected type here is a real bug (a stray `bytes` object, a class that
@@ -134,7 +134,7 @@ def _utcnow_iso() -> str:
 # small as possible: `system` is app-authored too but is left in scope, since
 # redacting it is a no-op today and a carve-out is how holes start.
 #
-# TODO (gate L-3, documented not fixed): the exemption applies at *any*
+# TODO (documented residual, not fixed): the exemption applies at *any*
 # nesting depth, including list elements under a control key -- `_redact_tree`
 # passes the parent `key` straight through recursive calls without resetting
 # it. A phone number nested under a `model` key would survive. No live
@@ -163,7 +163,7 @@ def _redact_tree(
         if key in _ID_KEYS and _UUID_RE.fullmatch(value):
             return value
         return redact(value, danger_terms=danger_terms, name_roles=name_roles)
-    # TODO (gate L-4, documented not fixed): non-string scalars (int, float,
+    # TODO (documented residual, not fixed): non-string scalars (int, float,
     # bool) pass through unredacted regardless of key or content -- the regex
     # rules in `personal_data.py` only operate on strings. Honest given
     # today's payload shapes (every field that could carry personal data is
@@ -229,7 +229,7 @@ def sanitize_for_llm(
     if not isinstance(payload, dict):
         raise TypeError(f"payload must be a dict, got {type(payload).__name__}")
 
-    # TODO (gate L-4, documented not fixed): only the top-level key is
+    # TODO (documented residual, not fixed): only the top-level key is
     # checked. A caller building a nested payload with `contains_personal`
     # set on an inner dict would sail through refusal (1) below and rely on
     # redaction (2) alone -- which is why (2) is unconditional and does not

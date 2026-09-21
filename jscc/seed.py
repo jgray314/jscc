@@ -12,9 +12,8 @@ the seeded RNG (not `uuid4()`) and all timestamps are anchored on `now` (not
 wall clock).
 
 Content contract: obviously fake company names, obviously fake contact names
-("Placeholder"), and role-tagged interaction chains. Per D7/D8 (parent plan
-Rule 0), personal-data-shaped strings do not belong here even in synthetic
-mode — the synthetic fixture is committed to a public repo.
+("Placeholder"), and role-tagged interaction chains. Per D7/D8, personal-data-shaped strings do not belong here even in synthetic
+mode: this code, and anything it generates, is public.
 
 Chain generation rule: interactions are anchored on `applied_at` and stepped
 forward with realistic gaps, so `list_interactions()` returns events in
@@ -306,7 +305,7 @@ def _build_chain(
 
     Chain end is clamped to `now`: an interaction that would land in the future
     is dropped. Synthetic fixtures must not emit future timestamps — the report
-    module now raises on them (M6 regression).
+    module raises on them.
     """
     events: list[Interaction] = []
     recruiter = contacts_by_role.get(ContactRole.recruiter)

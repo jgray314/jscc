@@ -64,15 +64,14 @@ from .paths import PACKAGE_ROOT
 # brackets) as well as `.`: none of it is TLD-valid, and without the exclusion
 # "reach me at dana@x.example," redacts the comma along with the address --
 # cosmetic, not a safety gap (the address itself never survives either way),
-# but a gate finding (L-10) worth closing since the fix is one character class.
+# but worth closing since the fix is one character class.
 EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().,;:!?'\"\]\)}]{2,}")
 
 # Phone char class allows separator variants seen in the wild: dashes,
 # whitespace, parens (US area-code grouping), dots (international dotted
 # format). Real disambiguation from noise happens in the digit-count filter.
 #
-# Same false-positive class as a model id or a uv.lock hash (gate finding
-# L-18): a long enough requisition-ID digit run in a real fetched JD --
+# Same false-positive class as a model id or a uv.lock hash: a long enough requisition-ID digit run in a real fetched JD --
 # "Req ID 2026-04-118823" -- redacts as a phone number. Not fixed, on
 # purpose: D7's design point is to err toward blocking, and this repo has
 # no fetched-JD fixtures today to make it visible. It will be visible in a
@@ -246,7 +245,7 @@ def redact(
     for a key -- a committed key is the damage -- while the sanitizer's contract
     is to rewrite unconditionally and never refuse work it can make safe.
 
-    Gate finding L-13: `name_roles` now runs before the danger-term pass, not
+    `name_roles` now runs before the danger-term pass, not
     after. A name that happens to contain a listed danger term (a surname
     like "Reyes" matching a danger-list entry `reyes`) used to hit the danger
     pass first and become `Dana [redacted]`, which no longer matches

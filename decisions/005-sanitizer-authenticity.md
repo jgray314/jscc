@@ -69,8 +69,7 @@ Three coupled mechanisms:
 ## Consequences
 
 - Positive: forgery attempts are structurally caught by `verify()`, not by
-  convention. Reviewer signal: this is what "structural safety over
-  discipline" looks like at the code level, not just the architecture level.
+  convention.
 - Positive: the wrapper type makes the LLM-send function's signature
   self-documenting — `def send(prompt: SanitizedPayload)` is unambiguous.
 - Positive: the truthy refusal catches naive-upstream bugs without adding a

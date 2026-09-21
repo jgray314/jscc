@@ -46,7 +46,7 @@ def _open_or_exit(mode: Mode, data_dir: Path):
 # 1 erases exactly the distinction the queue exists to make; leaving the queued
 # case at 0 tells a caller that an Application was created when none was.
 #
-# Gate finding M-9: EXIT_OK on a record-producing command means "the record
+# EXIT_OK on a record-producing command means "the record
 # this command is about is in the state it should be" -- not "this specific
 # invocation was the one that produced it". `resolve-dlq` against an
 # already-resolved entry exits 0 for the same reason `db init` against an

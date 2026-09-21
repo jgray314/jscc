@@ -99,7 +99,7 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
             echo(f"scoring failed: {e}", err=True)
             sys.exit(EXIT_UNEXPECTED)
         except anthropic.APIError as e:
-            # Same reasoning as `ingest`'s H-6 handling: a transient API
+            # Same reasoning as `ingest`'s API-error handling: a transient API
             # error should not crash with a raw traceback. Scoring has no
             # DLQ concept (nothing was fetched to re-queue) so this is a
             # plain failure, not a queued one -- retry is just `score` again.
@@ -129,12 +129,9 @@ def score(application_id: str, data_dir: Path, config_dir: Path) -> None:
 def route(application_id: str, data_dir: Path) -> None:
     """Classify whether the next follow-up for an application is routine.
 
-    Per D10, this is step 1 of the routing-first drafter -- a classification
-    only, not a draft. No `Application` field stores the decision (nothing
-    in the data model needs it, and the sub-plan's D2 DoD doesn't call for
-    persistence); this command exists so the routing decision is inspectable
-    on its own before composition (step 2A) and the non-routine briefing
-    renderer (step 2B) land in later Phase D slices.
+    Per D10, this is step 1 of the routing-first drafter: a classification
+    only, not a draft, and nothing stores it. `followup` runs the whole path;
+    this command shows the routing decision on its own.
     """
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)

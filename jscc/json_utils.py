@@ -3,7 +3,7 @@ sanitizer, and fence stripping for the LLM response parsers.
 
 `json_default` (serialization):
 
-Gate finding L-json-default-sanitizer-1: `jscc/sanitizer.py`'s `_stable_json`
+`jscc/sanitizer.py`'s `_stable_json`
 used to fall back to `default=str`, silently stringifying any type it didn't
 recognize -- while `jscc/storage.py`'s `_dump_json` raised on the same case.
 An unexpected type reaching either one (a stray `bytes` object, a custom
@@ -60,7 +60,7 @@ def strip_code_fence(text: str) -> str:
     """Unwrap one markdown code fence that encloses the whole response.
 
     The routing/extraction/scoring prompts forbid fences, but a fenced reply
-    is still a correct answer (D2b's chat captures produced them), so the
+    is still a correct answer (real chat captures produced them), so the
     parsers accept it instead of failing the call. Deliberately narrow: only a
     fence that is the entire response is stripped, never JSON hunted out of
     surrounding prose, which would mask a model that stopped following the

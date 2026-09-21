@@ -101,12 +101,9 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
     """Run the JD-extraction eval suite (33 cases) against the current `extract_jd`.
 
     Exits non-zero when the pass *rate* falls below `--min-pass-rate`, which
-    defaults to `PASS_THRESHOLD`. Not a CI gate yet (gate finding L-15: this
-    used to say wiring it in "would gate on 0/15" -- there are 33 cases, and
-    the real reason is different now): without live traffic there's nothing
-    for CI to run against beyond the fixed `--replay` recording, so gating
-    today would gate on a frozen fixture's response to the prompt that
-    produced it, not on the prompt's judgment against new input.
+    defaults to `PASS_THRESHOLD`. CI replays the committed recording and checks
+    the published result still holds, which catches a grader or prompt change;
+    it cannot judge the prompt against new input without a live model.
 
     Calls are recorded to the `llm_calls` ledger under the `extraction_eval`
     feature (D5), separate from production `extraction` traffic so prompt
@@ -124,7 +121,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
             sys.exit(EXIT_USAGE)
         client = ReplayClient(recorded, suite="jd_extraction")
     elif record:
-        # Gate finding M-12: persist each capture to disk the moment it
+        # Persist each capture to disk the moment it
         # happens, not only after the whole run returns -- a run that raises
         # partway through (a safety refusal, a transient API error, Ctrl-C)
         # used to discard every capture already paid for. save_recording
@@ -209,7 +206,7 @@ def eval_fit_scoring(
     ANTHROPIC_API_KEY is configured for this project, so `--manual` is how
     that actually happens -- one case at a time, this command prints the
     exact prompt to paste into Claude.ai chat and waits for the pasted-back
-    response, persisting it immediately (M-12) the same way a live `--record`
+    response, persisting it immediately the same way a live `--record`
     run would.
 
     Calls are recorded to the `llm_calls` ledger under the `scoring_eval`
@@ -306,10 +303,9 @@ def eval_routing(
 ) -> None:
     """Run the routing eval suite (26 cases) against the current `route_followup`.
 
-    Same shape as `eval fit_scoring` (D2a mirrors C2a/B2a): --record/--replay
-    exist so D2b can validate the prompt against real model output; --manual
-    is how that actually happens, since no ANTHROPIC_API_KEY is configured
-    for this project.
+    Same shape as `eval fit_scoring`: --record/--replay exist to validate the
+    prompt against real model output; --manual is how that happens, since no
+    ANTHROPIC_API_KEY is configured for this project.
 
     Two separate gates, per D10: the combined pass rate must clear
     `--min-pass-rate` (85% by default, stricter than the 80%
@@ -409,10 +405,11 @@ def eval_composition(
 ) -> None:
     """Run the composition eval suite (28 cases: 25 draft, 3 escalate) against the current `compose_followup`.
 
-    Same shape as `eval routing` (D4a mirrors D2a): --record/--replay exist so
-    D4b can validate the prompt against real model output; --manual is how
-    that actually happens, since no ANTHROPIC_API_KEY is configured for this
-    project. The bar is 75%, per the sub-plan's D4.
+    Same shape as `eval routing`: --record/--replay exist to validate the
+    prompt against real model output; --manual is how that happens, since no
+    ANTHROPIC_API_KEY is configured for this project. Two gates: the pass rate
+    must clear 75%, and no case that required the composer to ask may come
+    back as a draft.
 
     Calls are recorded to the `llm_calls` ledger under the `composition_eval`
     feature (D5), separate from production `composition` traffic.

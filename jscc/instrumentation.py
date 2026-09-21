@@ -58,8 +58,8 @@ def instrumented(feature: str) -> Callable[[Callable[..., LLMResult]], Callable[
                 # `fn` owns the actual network call; if it raises, tokens may
                 # already be billed on the provider's side (a connection reset
                 # or read-timeout after the response started generating) but
-                # there is no `LLMResult` to read real figures from. Gate
-                # finding G3 (Phase C->D pass): previously this wrote nothing
+                # there is no `LLMResult` to read real figures from.
+                # Previously this wrote nothing
                 # at all, so the ledger -- whose stated purpose is cost
                 # transparency -- had no record an attempt was even made.
                 # Record what's known (zeroed usage, the error) and re-raise

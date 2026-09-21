@@ -1,10 +1,7 @@
 """Follow-up routing -- D10 step 1 of the routing-first drafter architecture.
 
-Slice D2a: real prompt + client plumbing, mirroring B2a's and C2a's shape.
-Every call routes through the full D7/D8 choke point before anything
-touches the network: build a payload -> `sanitize_for_llm` -> `send_to_llm`
-(raises `LLMSendError` if verification fails) -> only then hand the
-verified dict to an `LLMClient`.
+The call goes through `stage_call.call_stage`, which sanitizes and verifies
+the payload before any client sees it.
 
 No `ANTHROPIC_API_KEY` is configured for this project (same as extraction
 and scoring), so `default_routing_client()` resolves to `StubRoutingClient`
@@ -12,9 +9,9 @@ by default. Per D10's own bias -- a false-routine auto-draft is a much
 larger product failure than a false-non-routine briefing card -- the stub's
 fixed answer is `non_routine`, not an arbitrary placeholder: an
 unconfigured router that never auto-drafts is the honestly correct "safe
-when uncertain" behavior, not just a stand-in for one. D2b (manual capture
-+ replay through Claude.ai chat, mirroring B2b/C2b) is what actually
-validates this prompt against real model output.
+when uncertain" behavior, not just a stand-in for one. The prompt was
+validated against real model output captured by hand through Claude.ai chat
+(see evals/README.md).
 """
 
 from __future__ import annotations

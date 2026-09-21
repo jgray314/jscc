@@ -115,7 +115,7 @@ class Hit:
         return f"{self.path}:{self.line_no}: {self.reason} -- {self.match!r}"
 
 
-# Gate finding L-14: `evals/jd_extraction/recorded.json` used to be excluded
+# `evals/jd_extraction/recorded.json` used to be excluded
 # from scanning wholesale because its sha256 recording keys -- 64 hex chars,
 # no separators -- can contain a digit run long enough to trip the phone
 # heuristic. That exclusion covered the file's *values* too (real model

@@ -1,7 +1,7 @@
 [project]
 name = "jscc"
 version = "0.1.0"
-description = "Job Search Command Center — an agentic pipeline tracker with eval-gated LLM stages."
+description = "Job Search Command Center: a job-search pipeline tracker with eval-backed LLM stages."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

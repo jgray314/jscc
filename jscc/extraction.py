@@ -1,9 +1,7 @@
 """JD extraction — D9 step 1 of the split extract/score architecture.
 
-Slice B2: real prompt + client plumbing. Every call routes through the full
-D7/D8 choke point before anything touches the network: build a payload ->
-`sanitize_for_llm` -> `send_to_llm` (raises `LLMSendError` if verification
-fails) -> only then hand the verified dict to an `LLMClient`.
+The call goes through `stage_call.call_stage`, which sanitizes and verifies the
+payload (D7/D8) before any client sees it.
 
 No `ANTHROPIC_API_KEY` is configured for this project (it isn't using the
 Anthropic Console), so `default_client()` resolves to `StubExtractionClient`
@@ -11,9 +9,7 @@ by default and `python -m jscc eval jd_extraction` reports a near-zero pass
 rate against it -- that's expected, not a regression. B2b validated this
 prompt anyway: real (not stub) model output was captured by hand through
 Claude.ai chat and replayed via `--record`/`--replay`, clearing the eval
-suite's >=80% DoD as a 76-82% band across two capture rounds (gate finding
-L-15 -- this docstring used to say live iteration was simply "blocked until
-a key is set", which stopped being true the day B2b closed). See README's
+suite's >=80% DoD as a 76-82% band across two capture rounds. See README's
 Status section for the current figure and CHANGELOG for the breakdown.
 """
 

@@ -27,14 +27,14 @@ The `seed synthetic` command carries an additional guard: it refuses to run when
 
 ## Consequences
 
-- Positive: mode-crossing is a structural error, not a discipline error. Reviewer signal.
+- Positive: mode-crossing is a structural error, not a discipline error.
 - Positive: the marker survives file operations that path-only enforcement would miss.
 - Positive: tests still get an escape hatch via raw `connect(path)`, which is fine because tests are not the vector we're protecting against.
 - Cost: schema bump to v2 to introduce the `meta` table.
-- Cost: every user-facing CLI now has two entry points (`db init`, `seed`, `report`) each of which opens through `open_for_mode` and needs consistent error handling. Kept the wiring in `cli.py` in one place.
+- Cost: every user-facing CLI now has two entry points (`db init`, `seed`, `report`) each of which opens through `open_for_mode` and needs consistent error handling. Kept the wiring in one place (now `jscc/cli/_common.py`).
 - Revisit if: a legitimate multi-tenant use case ever arrives (unlikely for a personal tool) or if the check overhead becomes measurable (single-digit microseconds, so effectively never).
 
 ## Related
 
 - Follow-on Slice A4.5b introduces `M3` (pre-commit content controls) and `M5` (sanitizer skeleton). The mode isolation here is a precondition — the pre-commit hook needs to know where real data lives to know what to scan for.
-- Rule 0 in the parent plan (privacy/dual-use safety is non-negotiable across all three portfolio projects).
+- D7 in docs/design-principles.md (dual-use data safety is structural, not disciplinary).

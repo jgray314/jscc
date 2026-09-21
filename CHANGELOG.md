@@ -1,20 +1,38 @@
 # Changelog
 
-Slice-by-slice arc. **Phases A and B are summarized** — both are closed and
-hardened, and the per-slice detail is in git history where it belongs. Phase C
-entries keep their reasoning, because that work is current and the reasoning
-is still load bearing. Review findings are recorded here rather than in code
-comments.
+Slice-by-slice arc, newest first. Phase D, the phase that just closed, keeps its
+reasoning in full. Phases A to C are summarized: the shape of the build and the
+lessons worth keeping, with per-slice detail in git history. Review findings are
+recorded here rather than in code comments.
 
-This file gets compacted one phase behind the current one as a standing
-practice, not a one-off: Phase A was compacted when Phase B was the current
-work; Phase B is compacted here, now that Phase C has shipped and closed its
-own gate. Expect Phase B's summary below to become the next one folded down
-once Phase D closes.
+Standing practice: at each phase gate, the phase before the one that just closed
+is folded into a summary. Phase C was folded at the Phase D gate; Phase D will be
+folded at the Phase E gate.
 
-## [Unreleased]
+Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
+design principles D1 to D10 in `docs/design-principles.md`.
 
-### D7: Phase D gate, eval integrity
+## Phase D — follow-up drafter (D1–D5, Phase D gate 2026-09-20)
+
+Routing first, then composition for routine situations only, and a briefing card
+for everything else (design principle D10). Both prompts were checked against real
+model output captured by hand. The phase closed with a cold two-lens gate whose
+fixes are the first entries below.
+
+### Phase D gate: prose and review hygiene
+
+The walkthrough lens's findings, most of them prose that described a slightly
+better system than the one that exists:
+- The README said composition was both "not yet validated" and 24/28.
+- The routing headline read as a measured rate. The prompt was tuned on the same 26 cases over five rounds, three of which failed the zero-false-routine gate. evals/README.md now has the round history, says there is no held-out set, and has a published-results table that a test keeps in sync with the recordings.
+- The 75% composition bar was justified by a tone judgment the deterministic grader does not make; the rationale is rewritten.
+- About sixty review-finding IDs had crept back into code comments and `--help` text; they are gone, and the explanations stay.
+- Phase D slice names in code (D2, D4, D5) collided with the design principles D1 to D10; code now names the stage instead.
+- Public docs linked into a private workspace. The Phase C entries are compacted, per this file's own standing practice, which had not been followed.
+- A "Sample drafter output" section shows a real draft and a real briefing card.
+- ADR-006 records the eval decisions that had no ADR: the per-stage bars, manual capture instead of live traffic, and deterministic grading without a judge.
+
+### Phase D gate: eval integrity
 
 - **The zero-tolerance gates are tested.** Routing fails its gate on any false-routine case, whatever the pass rate. Deleting that check left every test green. The decision now lives in `routing_gate`, and a CLI test fails if a fake router answering routine everywhere passes at `--min-pass-rate 0`.
 - **The composer's decline gets the same treatment.** The 3 cases that withhold a detail only the candidate has could all have come back as invented drafts and the suite would still have passed at 25/28. `composition_gate` now fails any run where one of them is drafted rather than asked. The committed recording asks in all 3.
@@ -26,7 +44,7 @@ once Phase D closes.
 
 +14 tests (607).
 
-### D6: Phase D gate, safety hardening
+### Phase D gate: safety hardening
 
 Two cold reviews ran at the end of Phase D, one adversarial and one reading the repo as an outside reviewer would. This slice closes their safety findings. Every replay (27/33, 21/25, 26/26, 24/28) is unchanged, so no recording was invalidated and no capture round was needed.
 
@@ -40,19 +58,19 @@ Two cold reviews ran at the end of Phase D, one adversarial and one reading the 
 
 ADR-005 has a second addendum for the single call path. +21 tests (593).
 
-### Phase D gate, step 0: `cli.py` split into a `jscc/cli/` package
+### Phase D gate, backlog sweep: `cli.py` split into a `jscc/cli/` package
 
 Walkthrough finding W-13 (Phase C -> D gate) had asked for a split "before Phase D adds a drafter command on top". Phase D added `route` and `followup` and the split didn't happen, so the file went from 1,068 to 1,422 lines. The backlog sweep that opens the Phase D gate caught it. The code moved without changes: `_app` (root group), `_common` (the exit-code contract, mode/DB open helpers, `--now` parsing), and one module per command family (`admin`, `ingest`, `agents`, `eval_cmds`). `jscc.cli` still exports `cli`, `main` and the exit codes. The only test changes are mock targets, which now name the module where each command looks the patched name up. 572 tests pass.
 
 ### D4b: composition manual capture, 24/28 (86%)
 
-All 28 composition cases captured through Jess's own Claude.ai chats (Sonnet 4.5, `claude-sonnet-4-5-20250929`, one fresh chat per case) and recorded to `evals/composition/recorded.json`; none of it is proxy output. Replay: **24/28 (86%)** against `COMPOSITION_PASS_THRESHOLD = 0.75`, which passes. All 3 escalation cases returned `needs_input` correctly. The 4 failures are all `style_reuse` (a verbatim style-sample phrase): `interview-availability-confirm`, `logistics-video-link`, `cadence-nudge-after-onsite`, `cadence-nudge-applied-quiet`. A full 28-case Sonnet proxy run beforehand (25/28, advisory only) had predicted 3 of the 4.
+All 28 composition cases captured through my own Claude.ai chats (Sonnet 4.5, `claude-sonnet-4-5-20250929`, one fresh chat per case) and recorded to `evals/composition/recorded.json`; none of it is proxy output. Replay: **24/28 (86%)** against `COMPOSITION_PASS_THRESHOLD = 0.75`, which passes. All 3 escalation cases returned `needs_input` correctly. The 4 failures are all `style_reuse` (a verbatim style-sample phrase): `interview-availability-confirm`, `logistics-video-link`, `cadence-nudge-after-onsite`, `cadence-nudge-applied-quiet`. A full 28-case Sonnet proxy run beforehand (25/28, advisory only) had predicted 3 of the 4.
 
 Three defects the grader does not check, seen while reading the completions: `logistics-video-link` says "Tuesday, September 23" (it is a Wednesday, and the history names no weekday); `thank-you-hm-specific-topic` says "yesterday" and `thank-you-sparse-notes` says "last week", both invented relative dates. Logged as a fast-follow (a grader check for weekdays that do not match the date and for relative-date words), deliberately non-blocking: end-to-end delivery comes first. Not fixed here, so the 86% is unchanged by them. One capture round of a 28-case suite is a band, not a point.
 
 ### Routing round 5: 26/26, zero false-routine
 
-Re-captured the whole routing suite through Jess's own Claude.ai chats (Haiku, one fresh chat per case) against the tightened wording and the corrected `routine-recruiter-ack` fixture; `evals/routing/recorded.json` was reset first, so all 26 recordings are round-5 completions and none come from proxies. `eval routing --replay`: **26/26 (100%)** against the 0.85 bar, no false-routine. `non_routine-dietary-needs-unknown`, the round-4 false-routine, now goes to a human with the unrecorded dietary detail named. All 12 routine cases stayed routine. A few completions reasoned from the chat's real date; none changed a verdict, so no "as of" date was added to the fixtures.
+Re-captured the whole routing suite through my own Claude.ai chats (Haiku, one fresh chat per case) against the tightened wording and the corrected `routine-recruiter-ack` fixture; `evals/routing/recorded.json` was reset first, so all 26 recordings are round-5 completions and none come from proxies. `eval routing --replay`: **26/26 (100%)** against the 0.85 bar, no false-routine. `non_routine-dietary-needs-unknown`, the round-4 false-routine, now goes to a human with the unrecorded dietary detail named. All 12 routine cases stayed routine. A few completions reasoned from the chat's real date; none changed a verdict, so no "as of" date was added to the fixtures.
 
 ### Routing wording tightened after round 4
 
@@ -111,7 +129,7 @@ not fill a gap in the record with an invented fact either. It can now decline.
 
 Composition proxy runs had the drafter invent a personal fact (a dietary answer)
 in every round: it never says "I don't know", so the router has to keep a reply
-that needs an unrecorded detail away from it. Decided with Jess 2026-09-19: a
+that needs an unrecorded detail away from it. Decided 2026-09-19: a
 **lenient** rule. Accepting or confirming a single proposal the candidate's own
 next action names stays routine; a reply that must state a detail the history
 and next action do not supply (dietary needs, availability, which of several
@@ -137,7 +155,7 @@ proposed slots) is non_routine, with the missing detail named in `reason`.
 Proxy runs on Sonnet (25 cases, three rounds, advisory only) showed the 6-word
 verbatim-reuse check flagging good drafts: the fixtures' style samples are
 one-line answers to their own situation, so echoing a polite convention read as
-a defect. Decided with Jess 2026-09-19:
+a defect. Decided 2026-09-19:
 
 - 21 stock phrases (her seven plus additions drawn from the proxy drafts) count
   as one unit in the reuse check; the 6-unit limit is unchanged, so a whole
@@ -151,8 +169,8 @@ a defect. Decided with Jess 2026-09-19:
 
 ### D4b (grader) -- deterministic composition grading
 
-`grade_composition` is no longer presence-only. Decided with Jess
-2026-09-19: deterministic checks in code, tone not graded (a Jess-graded tone
+`grade_composition` is no longer presence-only. Decided
+2026-09-19: deterministic checks in code, tone not graded (a hand-graded tone
 pass stays a possible follow-up).
 
 - Generic checks: placeholders/redaction tokens, body 30-160 words, subject
@@ -254,7 +272,7 @@ prompt, the same shape B1/C1/D1 took ahead of their own B2/C2/D2 prompts.
 - `evals.py`: presence-only grading (non-empty `subject`/`body`) -- the same
   deferral `responsibilities_summary` (B1), `rationale` (C1), and
   `intent`/`reason`/`considerations` (D1) each got: real quality grading
-  (the LLM-judge rubric the parent plan names -- tone match, reference to
+  (the LLM-judge rubric the original plan named -- tone match, reference to
   the prior touchpoint, no hallucinated facts, appropriate to the declared
   intent) waits on Slice D4's real prompt.
 - `python -m jscc eval composition` CLI command, no `--record`/`--replay`
@@ -345,259 +363,28 @@ C2.
   scoring's did at C2a.
 - +9 tests (413 total). DoD met: runs, reports 0/12 passed (no prompt yet).
 
-### Phase C -> D gate: G1 (SSRF pin), G2 (score bounds), G3 (failure-marker ledger row)
+## Phase C — fit scoring (C1–C3, closed 2026-09-12; Phase C → D gate 2026-09-12)
 
-A cold two-lens review (adversarial + outside-reviewer walkthrough) ran
-against everything Phase C shipped -- the first review pass to touch
-`scoring.py`, `cost_report.py`, or `evals/fit_scoring/`. `/backlog-prune`
-ran first, per the gate skill's own step 0 (see `jscc.md`'s backlog and
-"Open decisions" sections for that disposition).
+The second LLM stage: a scorer that sees both the extracted fields and the raw
+posting (design principle D9), its eval suite, its first manual-capture round, and
+the cost report that finally reads the ledger back. Per-slice detail is in git history.
 
-- **G1 (CONTRADICTS-L-2) -- fixed.** The fetcher's URL guard checked one DNS
-  resolution (`_check_url`) but let `requests` perform its own, independent
-  resolution to actually connect -- a short-TTL DNS record could answer the
-  check with a public address and the real connection, moments later, with
-  a private or cloud-metadata one. An earlier gate pass (L-2) rated this
-  "reasoned not exploited" and closed it by documenting the residual in D6;
-  this pass re-examined it with a concrete attack path and found the "not
-  exploited" call didn't hold. `_check_url` now returns the validated
-  `(host, addresses)`, and `_get_guarded` wraps every request -- including
-  each redirect hop -- in a new `_pinned_resolution` context manager that
-  forces any DNS lookup for that host, for the duration of the request, to
-  return exactly what was already checked. Verified with a test that
-  simulates a "live" resolver answering a different (rebinding) address and
-  confirms the pinned block still connects to the validated one, with the
-  patch restored (not left globally active) once the block exits.
-  `docs/design-principles.md`'s D6 section rewritten to say "fixed, not just
-  documented" for this gap specifically, naming the earlier rating as wrong
-  rather than quietly dropping it.
-- **G2 (NEW) -- fixed.** `FitResult.score` had no range or finite-value
-  check, even though the scoring prompt contracts it to 0-100. `json.loads`
-  accepts `NaN`/`Infinity` by default, so a live model response containing
-  either -- or any out-of-contract value like `-40` or `9001` -- parsed
-  cleanly and would have persisted silently. `score: float = Field(ge=0,
-  le=100)` closes it; verified directly (not assumed) that the range check
-  also rejects `NaN`/`Infinity`, since every comparison against either is
-  `False`.
-- **G3 (NEW, extends M2's class) -- fixed.** M2 (Phase B) covers a billed
-  call that returns cleanly and then fails to *parse*. This is the sibling
-  gap: a network fault (connection reset, read-timeout) raised *during* the
-  call, possibly after tokens were already generated/billed on the
-  provider's side, left no ledger row at all -- not even a failure marker --
-  because `instrumented`'s wrapper only wrote a row after the wrapped call
-  returned normally. `llm_calls` gained a nullable `error` column
-  (`DB_SCHEMA_VERSION` 3 -> 4; this project has no live migration path
-  pre-v1, per the existing schema-version convention). `instrumented` now
-  catches an exception from the wrapped call, writes a marker row (zeroed
-  usage, `error` set to the exception's type and message, real latency),
-  and re-raises unchanged -- callers' existing DLQ-routing behavior for
-  these exceptions is untouched. `summarize_costs`/`find_cost_regressions`
-  exclude `error`-set rows from cost/latency math, the same treatment an
-  unpriced model already gets, since a zeroed row isn't a real measurement;
-  `list_llm_calls` still returns them for a reader who wants failed-attempt
-  visibility.
-- **G4 (NEW) -- re-deferred, not fixed.** `scoring.py` sends the full
-  `Profile` (including `display_name` and free-text `style_samples`) to the
-  scoring LLM though none of the five weighted factors use either field.
-  Discovered mid-fix: any change to the scoring payload changes the exact
-  "user" prompt text, which invalidates all 25 of C2b's just-closed
-  manual-capture recordings (keyed by a hash of model+system+user, per
-  H-5). Not worth burning a just-closed validation round for a Low-severity
-  minimization finding -- re-deferred to next time the scoring prompt
-  changes for another reason anyway.
-- **G5 (REPEAT-OF-L-3)** -- reconfirmed still open, no severity change; the
-  `_CONTROL_KEYS`/`model`-key redaction exemption in `sanitizer.py` still
-  applies at any nesting depth. No live payload nests under `model` today.
-- **W-15 confirmed live, fixed.** The walkthrough lens flagged a *pattern*
-  (README status prose going stale within hours of a shipping commit) with
-  no current instance found -- checking anyway turned up a real one:
-  README's opening paragraphs and "Built and shipped" section still
-  described "Phase B shipped, before Phase C" days after Phase C actually
-  closed, directly contradicting the Status table two screens below in the
-  same file. All four spots rewritten; a new "Phase C -> D gate" paragraph
-  added alongside the existing "Phase B -> C gate" one. Cost envelope
-  paragraph (deferred since Phase A) written for real rather than
-  re-deferred again -- see below.
-- **W-12 (NEW), W-13 (NEW), W-14 (NEW)** -- not fixed this pass. CHANGELOG's
-  length (now past 1,500 lines), `cli.py`'s size, and fit_scoring's
-  single-round validation are all logged in `jscc.md`'s cleanup backlog with
-  their own dispositions (a docs-restructuring decision for Jess, a
-  Phase-D-triggered refactor, and a second manual-capture round only Jess
-  can run, respectively).
-- 404 tests (+12 total this pass), lint/format/scanner clean. Full findings
-  and disposition: `jscc-phase-b-rerun-gate.md` (not tracked in this repo).
+**The build**
 
-### C3 - cost/latency reporting, Phase C closed
+| | |
+|---|---|
+| C1 | Fit-scoring eval suite. Each case grades a score band, not an exact score, because a fit judgment has no single right answer. Rationale is checked for presence only. |
+| C2a | Scoring prompt (Sonnet) and call path, behind `StubScoringClient`: there is no API key for this project. |
+| Sizing | Suite resized 10 → 25 cases before any capture effort was spent, from the binomial standard error at the 80% bar. Extraction had learned the same lesson mid-round in Phase B. |
+| C2b | `eval --manual`: prints each prompt to paste into a chat and records the pasted reply, keyed exactly as a live recording would be. Round 1: 21/25 (84%), above the bar. Three misses sat just outside a band on comp/level judgment. The fourth (case-14) is a real prompt finding: an adjacent higher title reads as "far outside" the target role. Deferred to the next scoring-prompt change, so one re-capture covers it. |
+| C3 | `jscc costs`: per-feature cost, p50/p95 latency, and a check that flags any recorded cost that no longer matches its model's published rate (the Phase B pricing error, found by hand, is the shape it catches). |
 
-Instrumentation (D5) has landed one `llm_calls` row per call since Phase A;
-this slice is the reporting layer that finally reads it back. New
-`cost_report.py`, pure functions in `report.py`'s style -- no DB access, the
-CLI is a thin wrapper.
+**What the Phase C → D gate changed**
 
-- `summarize_costs`: groups by feature, reports calls/total-cost/avg-cost
-  plus `p50`/`p95` latency (nearest-rank `percentile`) instead of just an
-  average, so a slow tail doesn't hide behind a good mean.
-- `find_cost_regressions`: turns "per-slice cost regression tracking" into
-  something concrete without inventing a new schema field. For every call
-  whose model has a rate on file, recompute the expected cost from its
-  token counts and flag a drift beyond 1% relative / $0.0005 absolute (float
-  noise floor) -- the exact discrepancy shape B12 caught by hand, where a
-  stale rate silently under-recorded every call by a fixed factor. A call
-  against an unknown model (stub clients, test fixtures) is skipped, not
-  flagged -- it was never priced against a real rate to drift from.
-- `costs` CLI command (the minimal per-feature/avg-latency version that
-  already existed ahead of this slice) rewired onto the new module; same
-  command, richer report.
-- +12 tests (392 total): percentile edge cases, per-feature aggregation, a
-  correctly-priced call passing, a B12-shaped mispriced call flagged, float
-  rounding tolerated, and two CLI integration tests.
-
-**Phase C closed.** C1 (eval suite), C2a (prompt + plumbing), C2b (84% on
-round 1 manual capture, one deferred finding), and C3 (this slice) are all
-shipped. Phase D (routing/drafter) is next.
-
-### C2b round 1 - 84% on the first capture, above the 80% bar
-
-Ran `eval fit_scoring --manual` for real: all 25 cases hand-captured through
-Sonnet 4.5 chat (Jess's own session; a coding agent generating the
-completions itself would misrepresent the data's provenance in a project
-whose signature signal is honest eval-driven validation). 21/25 passed.
-
-Four misses:
-
-- case-02, case-06, case-08 -- comp/level boundary judgment landing just
-  outside a band, consistent with the pre-round notes' prediction that
-  these are inherently unstable judgment calls, not wording gaps.
-- case-14 (director/VP posting, one level above the profile's L6-L7
-  target, comp above range) -- scored 38 against a 70-95 expected band.
-  Spot-checked with a second independent capture: 22, same reasoning both
-  times ("far outside role_focus"). Two consistent fails rules out
-  capture-to-capture noise -- this is a real ambiguity in the prompt's
-  role/level factor, not sampling variance. `role_focus` names only exact
-  target titles, so an adjacent higher title reads as categorically
-  outside it rather than as one step up that comp should be allowed to
-  compensate for. Deferred, not fixed here -- 84% clears the bar and
-  doesn't block C3; tracked as a between-phases refinement in
-  [jscc.md](../context-directory/projects/ai-portfolio/jscc.md)'s cleanup
-  backlog.
-
-Both deal-breaker cases built to be detectable only from raw text or
-boilerplate (case-11, case-22) and both IC-profile cases (case-19,
-case-20) passed clean.
-
-### C2b prep — `--manual` capture tooling
-
-`jd_extraction`'s manual-capture round (B2b) had no tooling to speak of --
-`recorded.json` was hand-edited, one entry at a time, by whoever ran the
-prompt through Claude.ai chat. Before starting fit_scoring's own round,
-built the thing B2b was missing rather than repeating the same by-hand
-process for a second suite.
-
-- `evals.py`: `ManualCaptureClient`, an `LLMClient` whose "network call" is
-  a human pasting a prompt into Claude.ai chat and pasting the completion
-  back. Prints the exact model id, system prompt, and user message; reads
-  the response back line-by-line until a line that is exactly `END` (a
-  real completion can contain blank lines, so a blank line can't be the
-  sentinel). Reports zero tokens/cost, honestly -- no billed call happened.
-- `cli.py`: `eval fit_scoring --manual`. Implemented as `RecordingClient`
-  wrapping `ManualCaptureClient` instead of the real API client, so M-12's
-  persist-immediately behavior (a capture already paid for -- here, already
-  typed -- surviving a mid-run failure) comes for free rather than needing
-  its own version. `--manual` implies `--record`; both remain mutually
-  exclusive with `--replay`.
-- +4 tests (380 total): `ManualCaptureClient`'s prompt display, response
-  parsing, and blank-line-vs-`END` sentinel behavior; a CLI test driving
-  `--manual` through `CliRunner`'s stdin across all 25 cases and confirming
-  the recording file lands with one entry per case.
-
-### fit_scoring case sizing — resized 10 -> 25 before C2b spends any capture effort
-
-Caught proactively rather than discovered mid-round: at the >=80% threshold,
-the binomial standard error on a pass rate is `sqrt(p(1-p)/n)`. At n=10
-that's ~13 points -- worse than the exact problem `jd_extraction` hit at
-n=15 (~10 points), which is what forced its own resize to 33 cases (~7
-points) partway through B2b. C2b's validation is manual capture through
-Claude.ai chat -- expensive per round -- so spending it against a suite
-whose >=80% reading could swing ~25 points on model variance alone would
-have repeated jd_extraction's mistake with full knowledge it was coming.
-
-- Added 15 cases (case-11 through case-25): comp partially-below/missing
-  bands, level above target with executive scope, role-focus matching only
-  one of two profile entries or neither, a deal-breaker detectable only from
-  raw JD text (not the structured extraction) including one buried in
-  unrelated boilerplate, a must-have satisfied only via raw-text nuance, an
-  empty skills list that shouldn't tank an otherwise-strong match, an
-  ambiguous "Tech Lead" title, and two cases against a second IC-focused
-  profile to prove grading isn't hard-coded to one profile shape.
-- n=25 brings the standard error to ~8 points, matching the precision
-  `jd_extraction` settled on at n=33.
-- The stub's fixed score of 0 now clears 8/25 bands by coincidence (32%),
-  still far under the 80% bar -- same qualitative result as before the
-  resize, just measured against a suite whose eventual pass/fail reading
-  will mean something.
-- No new tests (the resize changes fixture size, not test count); updated
-  hardcoded `10`s to `25`s in `test_evals.py` and `test_cli.py`.
-
-### C2a — fit scoring prompt + client plumbing
-
-Mirrors B2a's shape: the real prompt and the full call path land now, but
-with no `ANTHROPIC_API_KEY` configured for this project, `default_scoring_
-client()` resolves to `StubScoringClient` and the eval suite runs end-to-end
-at $0 rather than against real judgment. C2b (manual capture through
-Claude.ai chat, same as B2b) is what actually validates the prompt.
-
-- `llm_client.py`: `SCORING_MODEL` (Sonnet, per D9's cost/quality split from
-  extraction's Haiku), its published rate, `StubScoringClient`, and
-  `default_scoring_client()`.
-- `scoring.py`: real `SCORING_SYSTEM_PROMPT` weighing deal-breakers first
-  (score capped below 20 if one is clearly met), then role/level fit, comp
-  band against the profile's target range, must-haves, and skill overlap
-  last -- in that order, matching how a real fit judgment should weigh
-  disqualifiers over nice-to-haves. `score_fit` now builds the same
-  sanitize -> verify -> instrumented-call path `extract_jd` uses, feeding
-  the model the extracted JD, the raw JD text, and the full profile as one
-  JSON user payload.
-- `cli.py`: new `score <application-id>` command -- reads `extracted_jd`
-  and `source_raw` off an existing `Application`, loads the active
-  profile, scores it, and persists `fit_score`/`fit_rationale` via
-  `update_application`. `eval fit_scoring` gained `--record`/`--replay`/
-  `--min-pass-rate`/`--data-dir` parity with `eval jd_extraction`, backed
-  by its own `evals/fit_scoring/recorded.json`.
-- The stub's fixed score of 0 happens to fall inside a few of C1's
-  deliberately-low-fit bands, so "every case fails" isn't the right
-  invariant here the way it was for extraction's stub (whose placeholder
-  values structurally can't match anything) -- what's testable instead is
-  that the pass rate stays far below `PASS_THRESHOLD`, since the 10 cases'
-  bands collectively span 0-100 and no constant score clears the bar.
-- +17 tests (376 total). Verified end-to-end: `ingest --paste` then
-  `score <id>` persists a score/rationale and shows up under its own
-  `scoring` ledger feature in `jscc costs`, separate from `extraction`.
-
-### C1 — fit scoring eval suite
-
-Per D9, extraction and scoring are split so scoring judgment can be graded
-independently of extraction facts. This suite is that independence made
-concrete, ahead of any real prompt -- the same shape B1 took ahead of B2.
-
-- `FitResult` model: the contract Slice C2's prompt is written against.
-- `scoring.py`: `score_fit(extracted, raw_jd_text, profile) -> FitResult`
-  stub, raises `FitScoringNotImplementedError` until C2. Signature is final
-  now, matching D9's locked decision that the scorer sees both the
-  extracted structured JD and the raw text.
-- `evals/fit_scoring/cases.json`: 10 hand-authored (JD, profile) pairs
-  across the fit spectrum -- clear high fit, comp below target, level
-  mismatch, a deal-breaker present, must-haves entirely missing, a
-  borderline hybrid case, comp above target, an ambiguous minimal posting, a
-  total role mismatch, and a single must-have miss on an otherwise strong
-  match.
-- `evals.py`: band-based grading (`min_score`/`max_score`, not an exact
-  figure -- a fit judgment doesn't have one right answer) plus a
-  non-empty-rationale check, deferring real rationale-quality grading to an
-  LLM-judge rubric once there's a prompt worth judging, the same deferral
-  `responsibilities_summary` got at B1.
-- `python -m jscc eval fit_scoring` CLI command, no `--record`/`--replay`
-  yet -- that machinery lands with C2, same as extraction's did at B2a.
-- +7 tests (359 total). DoD met: runs, reports 0/10 passed (no prompt yet).
+- **An earlier "accepted residual" was wrong.** The fetcher checked one DNS resolution and then let the HTTP library resolve again to connect, so a rebinding domain could pass the check and connect to a private or cloud-metadata address. An earlier gate had rated this "reasoned, not exploited" and documented it. This gate found the concrete path. Every request, including each redirect hop, is now pinned to the addresses already validated. The lesson became a line in the gate method: re-derive the severity of a carried-forward residual, not just its presence.
+- **A model score of `NaN` or `9001` would have been stored.** `FitResult.score` is now bounded to 0–100, which also rejects non-finite values.
+- **A call that failed mid-request left no ledger row**, although the provider may already have billed it. It now writes a marked row. The schema bump that added the column turned out, at the Phase D gate, to stamp older databases without migrating them. Fixed there.
+- **Kept, deliberately:** trimming unused profile fields from the scoring payload would invalidate every recording, so it waits for the next scoring-prompt change. The walkthrough flagged CHANGELOG length for the third time; Phase B was compacted the same day.
 
 ## Phase B — ingestion + extraction (A5, B1–B14, closed 2026-09-04; Phase B → C gate closed 2026-09-12)
 
@@ -694,12 +481,13 @@ as lessons the Phase C → D gate cited directly:
 **Still open from Phase B: nothing.** Every finding across the three gate
 passes (2026-09-01, the cold rerun at 2026-09-04, and a third pass the same
 morning B2b closed) is closed, fixed, or documented as an accepted residual as
-of 2026-09-12 — full audit trail in `jscc-phase-b-rerun-gate.md`. The entire
+of 2026-09-12; the full review notes are private working files, and
+[docs/gate-reviews.md](docs/gate-reviews.md) has the method and worked examples. The entire
 carried-forward A2/A9/A10-era backlog (walkthrough #5 ADR-001 framing fixed,
-#6 coverage badge killed, #7 CHANGELOG split killed the first time — see the
-note at the top of this file for why it came back — plus the `update_application`
+#6 coverage badge killed, #7 CHANGELOG split killed the first time, then
+replaced by compacting one phase behind — plus the `update_application`
 field-whitelist gap and three low-severity sanitizer/report findings) closed
-the same day, caught by the first `/backlog-prune` sweep rather than riding
+the same day, caught by the first backlog sweep (a standing step that opens every gate) rather than riding
 through indefinitely. Ruff (lint + format) landed the same week, ahead of
 Phase C, and surfaced 4 real bugs — a stale `__all__` export, three swallowed
 exception chains, an unverified blind `pytest.raises(Exception)`, and a Python
@@ -780,9 +568,7 @@ explicitly.
 
 **Left open from Phase A at the time, all closed by 2026-09-12** (see the Phase
 B summary above): walkthrough #5 (ADR-001 framing, fixed), #6 (coverage badge,
-killed), #7 (CHANGELOG split, killed then revisited — see the note at the top
-of this file), and L-json-default-sanitizer-1 (fixed once Phase C's fit-scoring
-payload gave it a real trigger). Caught by the first `/backlog-prune` sweep
+killed), #7 (CHANGELOG split, killed, then replaced by compacting one phase behind), and L-json-default-sanitizer-1 (fixed once Phase C's fit-scoring
+payload gave it a real trigger). Caught by the first backlog sweep
 after sitting untouched across two phase boundaries — nothing here rides
 silently through a third one now that the sweep exists.
-- L-report-format-injection-1 — control-char escaping in `format_report`.

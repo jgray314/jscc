@@ -20,7 +20,7 @@ Use Python's stdlib `sqlite3` module directly. Hand-written SQL in `jscc/storage
 ## Consequences
 
 - Positive: reader can trace any query in one file without leaving the module.
-- Positive: portfolio signal — reaching for the lightest tool that fits is a real judgment marker.
+- Positive: no ORM or server to learn, configure or pin; the whole storage layer reads as plain SQL.
 - Positive: no framework-shaped constraints on schema evolution; migrations are versioned by `PRAGMA user_version` (see `DB_SCHEMA_VERSION`) with hand-written upgrade scripts when the second version arrives.
 - Cost: every entity needs a hand-written row-to-model helper. Acceptable at this scale; watch for it as friction if the model grows large.
 - Cost: no compile-time protection against typos in column names. Test coverage on CRUD is the mitigation (`tests/test_storage.py`).

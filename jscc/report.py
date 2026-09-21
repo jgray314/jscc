@@ -75,7 +75,7 @@ def detect_stale(
         if ref.tzinfo is None:
             ref = ref.replace(tzinfo=UTC)
         days = (now - ref).days
-        # M6: a future reference timestamp means bad data (clock skew, corrupt
+        # A future reference timestamp means bad data (clock skew, corrupt
         # row, or a caller passing a --now in the past). Silent drop would
         # hide it — every alert path assumes the timestamp is in the past.
         if days < 0:

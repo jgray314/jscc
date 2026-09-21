@@ -101,7 +101,7 @@ def find_cost_regressions(calls: list[LLMCallRecord]) -> list[CostRegressionFind
     findings: list[CostRegressionFinding] = []
     for call in calls:
         if call.error is not None:
-            # Zeroed usage by construction (gate finding G3) -- nothing to
+            # Zeroed usage by construction -- nothing to
             # compare against a rate; would trivially match at 0 == 0 anyway,
             # but skip explicitly so that stays true if that ever changes.
             continue

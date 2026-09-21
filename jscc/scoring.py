@@ -1,10 +1,7 @@
 """Fit scoring — D9 step 2 of the split extract/score architecture.
 
-Slice C2a: real prompt + client plumbing, mirroring B2a's shape. Every call
-routes through the full D7/D8 choke point before anything touches the
-network: build a payload -> `sanitize_for_llm` -> `send_to_llm` (raises
-`LLMSendError` if verification fails) -> only then hand the verified dict to
-an `LLMClient`.
+The call goes through `stage_call.call_stage`, which sanitizes and verifies the
+payload (D7/D8) before any client sees it.
 
 No `ANTHROPIC_API_KEY` is configured for this project (same as extraction),
 so `default_scoring_client()` resolves to `StubScoringClient` by default and

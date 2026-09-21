@@ -1,7 +1,7 @@
 """Follow-up orchestration -- D10 step 2B and the top-level `followup()`.
 
 `followup` is the one entry point for "what do I do about this application
-next": route first (D2), then either compose a draft (D4, routine only) or
+next": route first, then either compose a draft (routine only) or
 render a briefing card (non-routine). The router's bias (a false-routine
 auto-draft is the larger failure) is what makes this the honest shape --
 a non-routine situation never reaches `compose_followup`.
@@ -57,7 +57,7 @@ def render_briefing(app: Application, decision: RoutingDecision) -> Briefing:
 
 
 def briefing_for_missing_input(app: Application, missing: str) -> Briefing:
-    """Card for a routine situation the composer declined to draft (D4c): the
+    """Card for a routine situation the composer declined to draft: the
     reply needs a detail only the candidate has."""
     return render_briefing(
         app,
@@ -99,7 +99,7 @@ def followup(
     `router`/`composer` are injectable so the orchestration is testable
     without either LLM step; production callers use the defaults. `conn` is
     forwarded to both LLM steps so each call lands in its own ledger feature
-    (`routing`, `composition`). A composer that returns `needs_input` (D4c)
+    (`routing`, `composition`). A composer that returns `needs_input`
     yields a briefing naming the missing detail, never a draft.
     """
     decision = router(app, history, conn=conn)

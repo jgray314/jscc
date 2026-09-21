@@ -166,7 +166,7 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    # M4: keep concurrent CLI invocations (seed + report, or Phase B agent
+    # Keep concurrent CLI invocations (seed + report, or Phase B agent
     # workers) from spuriously getting `database is locked`. WAL is safe for
     # this workload (single-machine, filesystem-local); busy_timeout gives
     # writers 5s of retry room before raising.
@@ -257,7 +257,7 @@ def write_mode_marker(conn: sqlite3.Connection, mode: Mode) -> None:
 def _ensure_meta_table(conn: sqlite3.Connection) -> None:
     """Create only the `meta` table. Used to inspect a DB before deciding
     whether to run full DDL — the full DDL must NEVER run against a DB that
-    was populated under a different mode (Phase A adversarial finding C4)."""
+    was populated under a different mode."""
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.commit()
 
@@ -276,7 +276,7 @@ def open_for_mode(
       is only reachable via bug/tampering; silently restamping it would
       overwrite an unknown-mode file with the caller's mode. Ordering
       matters: full DDL must NEVER run against a populated wrong-mode DB
-      (adversarial finding C4 — the previous ordering ran DDL first and
+      (the previous ordering ran DDL first and
       bumped `PRAGMA user_version` on the wrong file before catching the
       mismatch).
 
@@ -635,7 +635,7 @@ def resolve_dlq_entry(
     if resolution is Resolution.unresolved:
         raise ValueError("cannot resolve to 'unresolved'; use one of manual_paste, wont_fix")
     stamped_at = now if now is not None else _now()
-    # Gate finding M-7: this used to write `application_id` unconditionally,
+    # This used to write `application_id` unconditionally,
     # so a caller that omits it (the default) NULLed out a link a previous
     # call had set. COALESCE makes "argument omitted" mean "leave it alone"
     # rather than "clear it" -- a caller that actually wants to clear the

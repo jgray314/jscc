@@ -9,6 +9,7 @@ def cli() -> None:
 
     Exit codes for the commands that create records (`ingest`, `resolve-dlq`):
 
+    \b
       0  the record was created
       3  handled failure -- a DLQ entry was written; nothing is lost, retry
          with `resolve-dlq`

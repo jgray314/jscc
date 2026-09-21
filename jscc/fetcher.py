@@ -86,10 +86,9 @@ def _check_url(url: str) -> tuple[str, list[str]]:
     public address and the connection's own lookup, moments later, with the
     cloud instance-metadata address or any other private one (same false
     positive as the top-of-file comment; described here rather than quoted
-    for the same scanner reason). Gate finding G1 (Phase C->D pass) found
-    this in production, contradicting an earlier pass's "reasoned not
-    exploited" rating (L-2) of the same gap -- the two resolutions were
-    never actually pinned together.
+    for the same scanner reason). An earlier review rated this gap
+    "reasoned, not exploited"; a later one found the concrete rebinding path.
+    The two resolutions were never pinned together until this.
     """
     parts = urlsplit(url)
     scheme = parts.scheme.lower()
@@ -311,7 +310,7 @@ def fetch_jd(
             # `_get_guarded` only follows hops requests itself recognizes as a
             # redirect (a Location header present). A 3xx with no Location, or
             # one requests doesn't call a redirect (304 Not Modified), reaches
-            # here with no page to extract -- gate finding L-8/L-4: this used
+            # here with no page to extract -- this used
             # to fall through the status checks below (none of which catch
             # anything under 400) and get treated as a successful, empty-ish
             # fetch.

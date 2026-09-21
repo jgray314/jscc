@@ -212,7 +212,7 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
     mode = _resolve_mode_or_exit()
     now = _parse_now(now_str)
     stages_path = config_dir / "stages.yaml"
-    # Gate finding L-6: this used to call load_stages bare and let a bad
+    # This used to call load_stages bare and let a bad
     # config crash with a raw traceback from whatever CWD the user happened
     # to be in, unlike validate-config's try/except around the same call.
     try:
@@ -228,7 +228,7 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
     try:
         alerts = detect_stale(apps, stages_cfg, now=now)
     except ValueError as e:
-        # Gate finding M-11: detect_stale raises the same ValueError whether
+        # `detect_stale` raises the same ValueError whether
         # the cause is corrupt data (a genuinely unexpected bug -- let it
         # crash) or a --now the caller passed that lands before some app's
         # last-interaction timestamp. Only we know here which one it was:
@@ -253,11 +253,8 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
 def costs(data_dir: Path) -> None:
     """Print per-feature LLM cost/latency summary for the active mode.
 
-    Empty for a mode that has made no LLM calls yet (gate finding L-15: this
-    used to say "empty until Phase B's first `@instrumented` call lands" --
-    that call landed in B2, so it's been possible for this to be non-empty
-    since then). The ledger exists ahead of Phase B's first real call on
-    purpose (D5), so nothing has ever been uninstrumented.
+    Empty for a mode that has made no LLM calls yet. Calls that failed
+    mid-request are counted separately, since they may still have been billed.
     """
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)

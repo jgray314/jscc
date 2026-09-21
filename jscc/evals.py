@@ -1,11 +1,11 @@
-"""Eval harness — Slice B1 (jd_extraction), hand-rolled per the sub-plan's
-"hand-rolled Python + JSON expectations for slice 1-3, revisit at slice 4."
+"""Eval harness for the four LLM stages: jd_extraction, fit_scoring, routing and
+composition. Hand-rolled: JSON fixtures, a grader per suite, and record/replay of
+real model output.
 
-Grading splits per the eval strategy doc: structural fields get exact (or
-presence) comparison; prose fields are recorded but not machine-graded here
-— an LLM-judge rubric is a later slice, once there's a real prompt whose
-prose is worth judging. A case with an ungraded prose field can still fail
-on its structural fields.
+Structural fields get exact (or normalized) comparison. Prose fields are either
+checked deterministically (composition's grader) or recorded and not graded
+(extraction's summary, scoring's rationale); no suite uses an LLM judge. A case
+with an ungraded prose field can still fail on its structural fields.
 """
 
 from __future__ import annotations
@@ -34,18 +34,20 @@ ROUTING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "routing" / "recorded.json"
 COMPOSITION_CASES_PATH = PACKAGE_ROOT / "evals" / "composition" / "cases.json"
 COMPOSITION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "composition" / "recorded.json"
 
-# Per the sub-plan's D2: routing is held to a higher combined bar (85%, not
-# the 80% PASS_THRESHOLD jd_extraction/fit_scoring use) *and* a separate,
-# stricter 100% bar on false-routine cases specifically -- see
-# `false_routine_cases` below. Two different numbers for two different
+# Routing is held to a higher combined bar (85%, not the 80% PASS_THRESHOLD
+# jd_extraction/fit_scoring use) *and* a separate zero-tolerance bar on
+# false-routine cases -- see `routing_gate` below. Two different numbers for two different
 # risks: overall accuracy vs. the one failure mode (auto-drafting something
 # that needed a human) D10 calls out as categorically worse than the rest.
 ROUTING_PASS_THRESHOLD = 0.85
 
-# Per the sub-plan's D4: composition is held to 75%, lower than the other suites
-# because a draft is judged on tone and phrasing, which is fuzzier than a
-# classification or a field match. It has no second gate: D10 already made the
-# expensive mistake (auto-drafting a non-routine situation) the router's job.
+# Composition is held to 75%, the lowest bar, because its grader is the strictest
+# per case and the least forgiving of a good answer. It is deterministic, with no
+# judge of tone: a draft fails if it misses a synonym group, runs outside the word
+# range, or reuses six words of a style sample, and a good email can do any of
+# those. The failure that matters for safety, drafting a case that required the
+# composer to ask, does not ride on the 75%: `composition_gate` fails the run on
+# any one of them, and the router has already kept non-routine situations out.
 COMPOSITION_PASS_THRESHOLD = 0.75
 
 # The bar the suite is held to. It lives here rather than in prose so it is a
@@ -81,7 +83,7 @@ PASS_THRESHOLD = 0.80
 #                            the case: containment forgives wording, not
 #                            scope.
 #   comp_band             -- presence only; exact dollar figures are too
-#                            brittle to pin a prompt to (eval strategy doc)
+#                            brittle to pin a prompt to
 #   location              -- presence, plus containment when both are present.
 #                            Presence carries real signal (a remote-only role
 #                            should yield null), but "Denver" vs "Denver, CO"
@@ -267,7 +269,7 @@ def save_recording(responses: dict[str, str], path: Path = JD_EXTRACTION_RECORDI
     """Merge `responses` into whatever's already on disk at `path` and write
     the result.
 
-    Gate finding M-12: this used to overwrite the file unconditionally, so a
+    This used to overwrite the file unconditionally, so a
     `--record` over a subset of cases (a resumed run after a crash, or a
     deliberate partial re-record) silently dropped every recording that
     wasn't in this call's `responses`. Merging means the file can only gain
@@ -284,7 +286,7 @@ def _prompt_key(model: str, system: str, user: str) -> str:
     response the client actually receives: the model id, the system prompt,
     and the (post-sanitizer) user prompt.
 
-    Gate finding H-5: this used to hash `user` alone. The docstring already
+    This used to hash `user` alone. The docstring already
     claimed the key covered "the prompt the client actually receives", and a
     prompt is model + system + user, not one third of it -- replacing the
     entire system prompt with unrelated text replayed the exact same
@@ -292,7 +294,7 @@ def _prompt_key(model: str, system: str, user: str) -> str:
     prompt was in the key. A NUL separator keeps `("ab", "c")` and `("a",
     "bc")` from colliding, which plain concatenation would not.
 
-    Gate finding L-14: the `sha256:` prefix isn't cosmetic. A bare hex digest
+    The `sha256:` prefix isn't cosmetic. A bare hex digest
     is indistinguishable from a phone number to the pre-commit scanner's
     digit-run heuristic, which is why `recorded.json` used to be excluded
     from scanning wholesale -- covering its *values* (real model output)
@@ -308,7 +310,7 @@ class ManualCaptureClient:
     """An `LLMClient` whose "network call" is a human pasting a prompt into
     Claude.ai chat and pasting the completion back -- the mechanism C2b (and
     B2b before it) needs when no `ANTHROPIC_API_KEY` is configured for this
-    project. Wrap it in `RecordingClient` to get M-12's persist-immediately
+    project. Wrap it in `RecordingClient` to get its persist-immediately
     behavior for free; nothing about capture-safety needed reinventing here.
 
     `input_fn`/`output_fn` are injectable so tests can drive this without a
@@ -361,10 +363,10 @@ class ManualCaptureClient:
 class RecordingClient:
     """Wraps a real client and captures each response for later replay.
 
-    Gate finding M-12: `eval --record` used to hold every capture in memory
+    `eval --record` used to hold every capture in memory
     (`.captured`) and write it to disk only after the whole run returned --
     so the deliberate `SanitizerRefusal`/`LLMSendError` re-raise, a
-    transient API error (H-6), or a Ctrl-C at case 31 of 33 discarded every
+    transient API error, or a Ctrl-C at case 31 of 33 discarded every
     capture from a run that had already spent the money on all of them.
     `on_captured`, when given, is called with each (key, response text) pair
     the moment it's captured, so a caller can persist it immediately rather
@@ -475,11 +477,10 @@ def format_eval_summary(summary: EvalSummary) -> str:
     return "\n".join(lines)
 
 
-# --- fit_scoring (Slice C1) ---------------------------------------------
+# --- fit_scoring -------------------------------------------------------------
 #
-# Per the eval strategy doc, band placement is graded, not an exact score:
-# "expected score bands (not exact scores) — bands like 'high fit 75-95',
-# 'clear pass <30'". `rationale` is checked for non-empty only, the same
+# Band placement is graded, not an exact score: a fit judgment has no single
+# right answer, so each case names a band like 'high fit 75-95' or 'clear pass <30'. `rationale` is checked for non-empty only, the same
 # treatment `responsibilities_summary` gets above — real quality grading
 # (does the rationale actually name the right factors?) is an LLM-judge
 # rubric, deferred until there's a real prompt worth judging.
@@ -535,16 +536,15 @@ def run_fit_scoring_evals(
     return EvalSummary(total=len(results), passed=passed, results=results)
 
 
-# --- routing (Slice D1) --------------------------------------------------
+# --- routing -----------------------------------------------------------------
 #
 # Per D10, the router's job is a binary classification (routine /
 # non_routine), not a draft -- so grading checks the classification first,
 # since a wrong classification is the case-defining failure, then checks
 # presence of the shape-appropriate fields (`intent` for routine, `reason`
 # + `considerations` for non_routine) the same way `fit_scoring`'s
-# `rationale` got a presence-only check at C1: real wording-quality grading
-# (is `intent` the RIGHT routine bucket, are `considerations` actually
-# useful) is deferred to Slice D2, once there's a real prompt worth judging.
+# `rationale` got a presence-only check: wording-quality grading (is `intent`
+# the right routine bucket, are `considerations` useful) is not done.
 
 
 class RoutingEvalCase(BaseModel):
@@ -657,17 +657,13 @@ def routing_gate(summary: EvalSummary, min_pass_rate: float) -> list[str]:
     return failures
 
 
-# --- composition (Slice D3) -----------------------------------------------
+# --- composition -------------------------------------------------------------
 #
 # Per D10 step 2A, composition is only ever reached for a `routine`
-# situation -- there is no `expected_classification` here the way
-# `RoutingEvalCase` needed one, since every fixture is routine by
-# construction. Grading is presence-only for now (non-empty `subject`/
-# `body`), the same deferral `responsibilities_summary` (B1), `rationale`
-# (C1), and `intent`/`reason`/`considerations` (D1) all got: real quality
-# grading (tone match, reference to the prior touchpoint, no hallucinated
-# facts, appropriate to the declared intent) is an LLM-judge rubric, deferred
-# to Slice D4 once there's a real prompt whose output is worth judging.
+# situation, so there is no `expected_classification` here the way
+# `RoutingEvalCase` needed one. Grading is deterministic (`grade_composition`):
+# required content by synonym group, a no-invention trap list, word range, and
+# no long verbatim reuse of the style samples. Tone is not graded.
 
 
 class CompositionEvalCase(BaseModel):
@@ -681,7 +677,7 @@ class CompositionEvalCase(BaseModel):
     # from every group; `must_not_include` is the no-hallucination trap list.
     must_include: list[list[str]] = Field(default_factory=list)
     must_not_include: list[str] = Field(default_factory=list)
-    # D4c: the case is one the router should never send here but the composer
+    # A case the router should never send here but the composer
     # must still refuse to guess on. Passing means it returned `needs_input`
     # naming the missing detail (`must_include` is checked against that text),
     # not that it drafted.

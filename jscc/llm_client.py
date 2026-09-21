@@ -89,7 +89,8 @@ def rates_for(model: str) -> tuple[float, float]:
 
     The check runs *before* the request is sent (see `complete`), not while
     pricing the response. Raising afterwards would spend the tokens and then
-    throw away the record, which is the failure M2 just fixed.
+    throw away the record, the same failure that keeps parsing outside the
+    metered call.
     """
     try:
         return _MODEL_RATES_USD_PER_MTOK[model]
@@ -111,12 +112,12 @@ _STUB_RESPONSE_TEXT = """{
   "location": null,
   "remote_policy": null,
   "must_have_skills": [],
-  "responsibilities_summary": "no live extraction — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubExtractionClient (jscc/llm_client.py)."
+  "responsibilities_summary": "no live extraction -- ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubExtractionClient (jscc/llm_client.py)."
 }"""
 
 _STUB_SCORING_RESPONSE_TEXT = """{
   "score": 0,
-  "rationale": "no live scoring — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubScoringClient (jscc/llm_client.py)."
+  "rationale": "no live scoring -- ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubScoringClient (jscc/llm_client.py)."
 }"""
 
 # Fixed at "non_routine", not an arbitrary placeholder like the other two
@@ -127,7 +128,7 @@ _STUB_SCORING_RESPONSE_TEXT = """{
 _STUB_ROUTING_RESPONSE_TEXT = """{
   "classification": "non_routine",
   "intent": null,
-  "reason": "no live routing — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubRoutingClient (jscc/llm_client.py).",
+  "reason": "no live routing -- ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubRoutingClient (jscc/llm_client.py).",
   "considerations": ["no live model call was made; defaulting to non_routine per D10's false-routine bias"]
 }"""
 
@@ -146,14 +147,10 @@ class LLMResponse(BaseModel):
 
 
 class LLMClient(Protocol):
-    # Gate finding M-5 (9/4 rerun gate), decided not extended -- see ADR-005's
-    # addendum. ADR-005's type-level choke point (`SanitizedPayload`, refused
-    # at runtime by `verify()`) stops at `send_to_llm`; this method takes
-    # three bare strings, so nothing stops a future caller from assembling
-    # them itself and skipping the sanitizer. `extraction.py` is still the
-    # only caller today, so wrapping these in a second authenticated type
-    # would be solving for D9/D10 call sites that don't exist yet. Revisit
-    # the day a second caller (the scorer, the drafter) is written.
+    # Takes three bare strings, so the type system does not stop a caller from
+    # skipping the sanitizer. `stage_call.call_stage` is the only caller, and
+    # tests/test_llm_egress.py fails if any other module calls this. ADR-005
+    # records why that is enforced by test rather than by an authenticated type.
     def complete(self, *, model: str, system: str, user: str) -> LLMResponse: ...
 
 
@@ -235,7 +232,7 @@ class StubScoringClient:
 # an unconfigured run reads as failing rather than as a suite of passing drafts.
 _STUB_COMPOSITION_RESPONSE_TEXT = """{
   "subject": "",
-  "body": "no live composition — ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubCompositionClient (jscc/llm_client.py)."
+  "body": "no live composition -- ANTHROPIC_API_KEY is not configured; this is a placeholder response from StubCompositionClient (jscc/llm_client.py)."
 }"""
 
 

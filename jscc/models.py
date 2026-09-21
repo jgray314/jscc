@@ -110,7 +110,7 @@ class ExtractedJD(BaseModel):
     the extraction prompt (Slice B2) is written against and the eval suite
     (Slice B1) grades against.
 
-    Gate finding M-10: `level` and `remote_policy` are the prompt's two
+    `level` and `remote_policy` are the prompt's two
     closed vocabularies (six levels, three remote policies) and `evals.py`
     grades both as exact matches on that assumption -- but the type here is
     bare `str`, so nothing stops an out-of-vocabulary value from parsing and
@@ -137,8 +137,7 @@ class FitResult(BaseModel):
     """Structured output of `score_fit` (D9 step 2). The contract Slice C2's
     prompt is written against and the eval suite (Slice C1) grades against.
 
-    `score` is bounded 0-100 per the scoring prompt's own contract (gate
-    finding G2, Phase C->D pass): `json.loads` accepts `NaN`/`Infinity` by
+    `score` is bounded 0-100 per the scoring prompt's own contract: `json.loads` accepts `NaN`/`Infinity` by
     default, and nothing upstream of this model checked the range against a
     live model's response -- only `evals.py`'s fixture grading did, which
     never runs against a live `score` CLI call. `Field(ge=0, le=100)` rejects
@@ -157,8 +156,8 @@ class RoutingClassification(StrEnum):
 
 class RoutingDecision(BaseModel):
     """Structured output of `route_followup` (D10 step 1). The contract
-    Slice D2's prompt is written against and the eval suite (Slice D1)
-    grades against.
+    the routing prompt is written against and the routing eval suite grades
+    against.
 
     Two shapes per D10, not one field set used inconsistently: a `routine`
     decision carries `intent` (what routine situation this is -- e.g.
@@ -194,17 +193,17 @@ class RoutingDecision(BaseModel):
 
 class DraftEmail(BaseModel):
     """Structured output of `compose_followup` (D10 step 2A). The contract
-    Slice D4's prompt is written against and the eval suite (Slice D3)
+    the composition prompt is written against and the composition eval suite
     grades against.
 
     Only reached when `route_followup` classifies a situation `routine` --
-    `non_routine` situations get a briefing card (D5) instead, never a draft.
+    `non_routine` situations get a briefing card instead, never a draft.
     `subject`/`body` mirror how an application/history-driven prompt (per
     D9/D10's existing shape) is expected to produce something pasteable
     straight into an email client, not a structured object requiring further
     assembly.
 
-    `needs_input` (D4c) is the composer's escape hatch: when the reply would
+    `needs_input` is the composer's escape hatch: when the reply would
     need a detail the input does not supply (a dietary answer, which of several
     proposed times), the composer names that detail here instead of writing a
     draft, `subject`/`body` stay empty, and `followup` turns it into a briefing.
@@ -246,11 +245,10 @@ class LLMCallRecord(BaseModel):
 
     `error`, when set, marks a row written for a call that raised before
     `LLMResult` could be built -- a connection reset or read-timeout mid-call,
-    possibly after Anthropic already generated/billed tokens (gate finding
-    G3, Phase C->D pass). `input_tokens`/`output_tokens`/`cost_usd` are 0 on
+    possibly after Anthropic already generated/billed tokens. `input_tokens`/`output_tokens`/`cost_usd` are 0 on
     such a row because the real figures were never returned; the point of the
     row is that the attempt is visible at all in a ledger whose stated
-    purpose is cost transparency, not that its cost is known. M2 (Phase B)
+    purpose is cost transparency, not that its cost is known. A separate rule
     covers the sibling case -- a billed call that returns cleanly and then
     fails to *parse* -- which already gets real token counts, since the
     response was fully received.

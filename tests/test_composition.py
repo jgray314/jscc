@@ -84,9 +84,9 @@ def test_compose_followup_uses_stub_by_default_no_key(monkeypatch: pytest.Monkey
     assert "StubCompositionClient" in draft.body
 
 
-def test_stub_draft_fails_the_presence_grader_so_an_unconfigured_run_reads_as_failing() -> None:
-    """The stub must not read as a passing draft: an empty subject keeps the
-    eval at 0% instead of a misleading 100% on presence-only grading."""
+def test_stub_draft_has_an_empty_subject_so_an_unconfigured_run_reads_as_failing() -> None:
+    """The stub must not read as a passing draft. Its subject is empty, which the
+    grader fails on every case, so an unconfigured run reads 0%."""
     draft = compose_followup(
         _app(), _history(), "cadence_nudge", [], client=StubCompositionClient()
     )

@@ -86,9 +86,8 @@ def _extracted(**overrides) -> ExtractedJD:
 
 
 def test_cases_file_has_thirty_three_cases() -> None:
-    """25 short (paste-shaped) + 8 long (fetch-shaped) — see decisions-log
-    2026-09-11 for the statistical sizing rationale (n=15 gave a ~10-point
-    standard error on the pass-rate threshold)."""
+    """25 short (paste-shaped) + 8 long (fetch-shaped); evals/README.md has the
+    sizing rationale (n=15 gave a ~10-point standard error on the pass rate)."""
     cases = load_cases(JD_EXTRACTION_CASES_PATH)
     assert len(cases) == 33
     assert len({c.id for c in cases}) == 33  # unique ids
@@ -132,7 +131,7 @@ def test_grade_extraction_comp_band_presence_mismatch_fails() -> None:
 
 
 def test_grade_extraction_comp_band_exact_figure_not_required() -> None:
-    """Presence-only per the eval strategy doc — dollar figures are too brittle."""
+    """Presence-only: dollar figures are too brittle to grade exactly."""
     result = grade_extraction(_case(comp_band="$100k-$150k"), _extracted(comp_band="$110k-$140k"))
     assert result.passed
 
@@ -565,18 +564,11 @@ def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> N
 
 
 def test_routing_cases_file_has_twenty_six_cases() -> None:
-    """20 (application, history) fixtures split across the routine/non-routine
-    surface D10 names -- resized from D1's original 12 during D2b (2026-09-17):
-    at ROUTING_PASS_THRESHOLD (0.85), SE(n=12) is ~10.3pt, the same
-    undersized range jd_extraction (n=15->33) and fit_scoring (n=10->25) were
-    each resized out of before their own manual-capture rounds. 8 cases added
-    (4 routine, 4 non_routine) to bring SE to ~8pt, matching the other two
-    suites' final precision, while also widening the separate false-routine
-    (non_routine) sample the D10 gate checks. Grown 20 -> 26 on 2026-09-19 for
-    the missing-information rule: 4 non_routine cases where the reply needs a
-    detail the history lacks (dietary needs, an unrecorded slot pick, unrecorded
-    availability, the candidate withdrawing) and 2 routine boundary anchors
-    where the candidate's own next_action records the answer."""
+    """26 (application, history) fixtures, 12 routine and 14 non-routine.
+
+    Sized so the standard error at the 0.85 bar is about 7 points, with enough
+    non-routine cases to exercise the false-routine gate; evals/README.md has the
+    growth history (12, then 20, then 26)."""
     cases = load_routing_cases(ROUTING_CASES_PATH)
     assert len(cases) == 26
     assert len({c.id for c in cases}) == 26  # unique ids

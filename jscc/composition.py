@@ -1,21 +1,18 @@
-"""Follow-up composition -- D10 step 2A of the routing-first drafter architecture.
+"""Follow-up composition -- D10 step 2A of the routing-first drafter.
 
-Slice D4a: real prompt + client plumbing, mirroring D2a's shape. Per D10,
-this is a Sonnet call reached only when `route_followup` (D2) has already
-classified a situation `routine` -- a `non_routine` situation never reaches
-this function; it gets a briefing card (D5) instead. Getting composition
-wrong (wrong tone, hallucinated facts, ignoring the declared intent) is a
-real failure, but a strictly smaller one than D2's false-routine failure
-mode: the drafter already refused to auto-draft anything a human needed to
-handle.
+A Sonnet call reached only after `route_followup` has classified a situation
+`routine`; a `non_routine` situation gets a briefing card instead and never
+reaches this function. Getting composition wrong (wrong tone, an invented fact,
+ignoring the declared intent) is a real failure, but a smaller one than the
+router's false-routine failure: anything a person needed to handle was already
+kept from the drafter. When the reply would need a detail nobody recorded, the
+composer returns `needs_input` instead of a draft.
 
-Every call routes through the full D7/D8 choke point before anything touches
-the network: build a payload -> `sanitize_for_llm` -> `send_to_llm` (raises
-`LLMSendError` if verification fails) -> only then hand the verified dict to
-an `LLMClient`. No `ANTHROPIC_API_KEY` is configured for this project, so
-`default_composition_client()` resolves to `StubCompositionClient`; D4b
-(manual capture through Claude.ai chat, mirroring B2b/C2b/D2b) is what
-validates this prompt against real model output.
+The call goes through `stage_call.call_stage`, which sanitizes and verifies the
+payload before any client sees it. No `ANTHROPIC_API_KEY` is configured for this
+project, so `default_composition_client()` resolves to `StubCompositionClient`;
+the prompt was validated against real model output captured by hand through
+Claude.ai chat (see evals/README.md).
 """
 
 from __future__ import annotations

@@ -61,7 +61,7 @@ def _company_from_url(url: str) -> str:
 # company inference. Same "(pasted)" spelling the company default already uses.
 PASTED_SOURCE = "(pasted)"
 
-# Gate finding M-6: `Application.fetch_status` defaulted to `ok` for every
+# `Application.fetch_status` defaulted to `ok` for every
 # creation path, including paste and DLQ resolution -- so the DB claimed
 # "fetched cleanly" about records that were never fetched. This is the one
 # `FailureMode` case with no corresponding `dlq_*` status: it is defined but
@@ -79,10 +79,10 @@ _DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
 def _find_duplicate_application(
     conn, *, source_url: str | None, raw_text: str
 ) -> Application | None:
-    """Gate finding M-8: `ingest` had no duplicate detection of any kind --
+    """`ingest` had no duplicate detection of any kind --
     the same JD file, or the same URL, ingested three times produced three
     Applications, feeding straight into `funnel_counts`/`detect_stale` just
-    like M-1's shape did one command over. A URL is matched by exact
+    like duplicate DLQ resolutions did one command over. A URL is matched by exact
     equality; pasted text has no URL to key on, so it's matched by exact
     `source_raw` equality among the other paste-sourced applications.
     Decided: refuse re-ingesting silently. `ingest` notifies the caller and
@@ -119,7 +119,7 @@ def _extract_and_create_application(
     cleanly; callers on the paste and DLQ-resolution paths pass the status
     that actually describes how the raw text arrived.
 
-    `update_id`, when given (gate finding M-8's confirmed-reprocess path),
+    `update_id`, when given (the confirmed-reprocess path),
     overwrites that existing Application's fields instead of creating a new
     one -- `stage` is deliberately left untouched, since a reprocess is a
     correction to the extracted record, not a reset of pipeline progress."""
@@ -209,8 +209,7 @@ def ingest(
     fetcher can't crack at all -- no URL, no fetch, no DLQ, just pasted JD
     text straight to extraction and storage.
 
-    Re-ingesting a URL or exact pasted text already on file (gate finding
-    M-8) does not silently create a second Application: it notifies you and
+    Re-ingesting a URL or exact pasted text already on file does not silently create a second Application: it notifies you and
     asks before reprocessing into the existing one, or skips with `--update`.
     """
     if url and (paste or paste_file):
@@ -248,7 +247,7 @@ def ingest(
             fallback_title = None
             fetch_status_val = FetchStatus.manual
 
-        # Gate finding M-8: re-ingesting the same URL, or the same pasted
+        # Re-ingesting the same URL, or the same pasted
         # text, used to silently create a second Application every time.
         # Decided: notify and confirm before reprocessing into the existing
         # row. Reading pasted text from stdin (no --file) already consumed
@@ -294,7 +293,7 @@ def ingest(
             echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except anthropic.APIError as e:
-            # Gate finding H-6: a transient API error (rate limit, overload,
+            # A transient API error (rate limit, overload,
             # timeout, connection reset) propagated straight out of
             # `_raw_extraction_call` uncaught -- crashing `ingest` with a raw
             # traceback and, on `--paste`, losing the pasted text for good,
@@ -302,7 +301,7 @@ def ingest(
             # contract is "produces an Application or a DLQEntry, never
             # crashes"; this did neither, for the single most likely failure
             # a live key introduces. Routed to `FailureMode.other`, which
-            # M-6's own comment notes is defined and never produced by
+            # the fetch-status comment above notes is defined and never produced by
             # `fetcher.py` -- there was already a slot waiting for exactly
             # this. Retry is `resolve-dlq`, same as any other DLQ entry.
             entry = DLQEntry(
@@ -371,11 +370,7 @@ def dlq_list(data_dir: Path, show_all: bool) -> None:
 @click.option(
     "--company",
     default=None,
-    help=(
-        "Company name override, same precedence as ingest --paste's (gate "
-        "finding L-12: this path funnels through the same helper but had no "
-        "way to reach the correction it documents as highest-precedence)."
-    ),
+    help=("Company name override, with the same precedence as ingest --paste's."),
 )
 @click.option(
     "--data-dir",
@@ -399,7 +394,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
             echo(f"no DLQ entry with id {entry_id}", err=True)
             sys.exit(EXIT_USAGE)
 
-        # Gate finding M-1: this used to skip the entry's current resolution
+        # This used to skip the entry's current resolution
         # entirely, so re-running the same command against an already-resolved
         # entry created a second Application each time and re-stamped
         # `resolved_at` -- three runs, three duplicate Applications, feeding
@@ -412,7 +407,7 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
                 f"DLQ entry {entry_id} is already resolved ({entry.resolution.value}); "
                 "not creating another application"
             )
-            # Gate finding M-9: exits 0, deliberately -- see EXIT_OK's
+            # Exits 0, deliberately -- see EXIT_OK's
             # comment above. The entry *is* resolved, which is the state
             # this command exists to bring about; that this particular
             # invocation didn't do the resolving is what the message above
@@ -440,14 +435,14 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
             echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except anthropic.APIError as e:
-            # Gate finding H-6, same class as ingest's -- see the comment
+            # Same class of failure as ingest's -- see the comment
             # there. No new DLQ entry: the one being resolved stays
             # unresolved, which is already the correct record.
             echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
             echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except UnknownModelPricingError as e:
-            # Gate finding L-11: `ingest` already turns this into a clean
+            # `ingest` already turns this into a clean
             # exit-2 configuration message; this path funnels through the
             # same helper and used to let it out as a raw traceback instead.
             echo(f"configuration error: {e}", err=True)
