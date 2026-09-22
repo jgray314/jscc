@@ -98,7 +98,7 @@ def _recordable(inner: Any) -> Any:
     help="Fail below this pass rate.",
 )
 def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate: float) -> None:
-    """Run the JD-extraction eval suite (33 cases) against the current `extract_jd`.
+    """Run the JD-extraction eval suite (36 cases) against the current `extract_jd`.
 
     Exits non-zero when the pass *rate* falls below `--min-pass-rate`, which
     defaults to `PASS_THRESHOLD`. CI replays the committed recording and checks
@@ -199,7 +199,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
 def eval_fit_scoring(
     data_dir: Path, record: bool, replay: bool, manual: bool, min_pass_rate: float
 ) -> None:
-    """Run the fit-scoring eval suite (25 cases) against the current `score_fit`.
+    """Run the fit-scoring eval suite (28 cases) against the current `score_fit`.
 
     Same shape as `eval jd_extraction` (C2a mirrors B2a): --record/--replay
     exist so C2b can validate the prompt against real model output. No
