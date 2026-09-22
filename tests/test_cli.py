@@ -714,7 +714,7 @@ def test_ingest_empty_response_body_dlqs_instead_of_crashing(
     empty.close = Mock()
     # The M5 guards resolve the host before fetching; keep this test offline.
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
-    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: empty)
+    monkeypatch.setattr("jscc.fetcher._http_get", lambda *a, **kw: empty)
 
     result = runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/9", "--data-dir", str(tmp_path)]
@@ -1446,7 +1446,7 @@ def test_url_path_extraction_failure_keeps_the_url_on_the_dlq_entry(
     resp.is_redirect = False
     resp.iter_content = lambda chunk_size=None: iter([body.encode("utf-8")])
     resp.close = Mock()
-    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: resp)
+    monkeypatch.setattr("jscc.fetcher._http_get", lambda *a, **kw: resp)
     monkeypatch.setattr("jscc.extraction.default_client", lambda: _CannedClient("not json"))
 
     result = runner.invoke(
@@ -1557,7 +1557,7 @@ def test_resolve_dlq_also_stores_the_extracted_fields(
     blocked.is_redirect = False
     blocked.iter_content = lambda chunk_size=None: iter([])
     blocked.close = Mock()
-    monkeypatch.setattr("jscc.fetcher.requests.get", lambda *a, **kw: blocked)
+    monkeypatch.setattr("jscc.fetcher._http_get", lambda *a, **kw: blocked)
     runner.invoke(
         cli, ["ingest", "--url", "https://example.com/jobs/3", "--data-dir", str(tmp_path)]
     )

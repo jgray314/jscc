@@ -13,8 +13,8 @@ Requests leave here through `_get_guarded`, which enforces an http(s)
 scheme allowlist, rejects hosts resolving to non-public addresses,
 pins the actual connection to the addresses it just checked (closing a
 DNS-rebinding gap a rating of "reasoned not exploited" once missed --
-see `_pinned_resolution`), re-checks every redirect hop, and caps the
-body size.
+see `_pinned_resolution`), re-checks every redirect hop, ignores proxy
+environment variables (see `_http_get`), and caps the body size.
 Known residual: the Playwright fallback is handed an already-checked URL,
 but the browser then follows its own redirects without those guards. It is
 off by default and opt-in per config.
@@ -142,6 +142,23 @@ def _pinned_resolution(host: str, addresses: list[str]):
         socket.getaddrinfo = real_getaddrinfo
 
 
+def _http_get(url: str, **kwargs) -> requests.Response:
+    """One GET with proxy environment variables ignored.
+
+    With `HTTPS_PROXY` (or `ALL_PROXY`) set, `requests` connects to the proxy
+    and the proxy resolves the target host itself: a third lookup that
+    `_pinned_resolution` never sees, so a rebinding answer at that point
+    reaches whatever the proxy can reach. `trust_env = False` closes that
+    path. The cost is that a machine which can only reach the web through a
+    proxy gets `blocked` fetches, which route to the DLQ's manual-paste
+    remedy like any other blocked posting. The session is not closed here
+    because a streamed response still needs its connection.
+    """
+    session = requests.Session()
+    session.trust_env = False
+    return session.get(url, **kwargs)
+
+
 def _get_guarded(url: str, timeout: float) -> requests.Response:
     """GET `url`, re-running `_check_url` on every redirect hop.
 
@@ -155,7 +172,7 @@ def _get_guarded(url: str, timeout: float) -> requests.Response:
     for _ in range(_MAX_REDIRECTS + 1):
         host, addresses = _check_url(current)
         with _pinned_resolution(host, addresses):
-            response = requests.get(current, timeout=timeout, allow_redirects=False, stream=True)
+            response = _http_get(current, timeout=timeout, allow_redirects=False, stream=True)
         if not response.is_redirect:
             return response
         location = response.headers.get("location", "")

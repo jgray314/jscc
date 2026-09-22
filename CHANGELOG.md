@@ -14,6 +14,10 @@ design principles D1 to D10 in `docs/design-principles.md`.
 
 ## Phase E — dashboard (shipped)
 
+### Phase E gate, backlog sweep: fetcher ignores proxy environment variables
+
+The Phase D gate recorded a new residual on the DNS-rebinding fix and never dispositioned it: with `HTTPS_PROXY` or `ALL_PROXY` set, `requests` hands the target hostname to the proxy, and the proxy's own lookup is one the pin cannot see. A rebinding answer at that point reaches whatever the proxy can reach. Every fetch now goes through a session with `trust_env = False`, so the request always connects direct to the address that was checked. A machine that can only reach the web through a proxy now gets `blocked` fetches, which land in the DLQ with the usual manual-paste remedy. The new test fails with that line removed.
+
 ### E1: web scaffold (ADR-007)
 
 Resolved the deferred web-stack discussion (parent-plan queue #4): FastAPI + Jinja2 +

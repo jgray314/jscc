@@ -78,7 +78,7 @@ def _redirect_response(location: str) -> Mock:
 
 
 def test_fetch_jd_success_extracts_readable_content():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, SAMPLE_HTML)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is True
     assert result.failure_mode is None
@@ -89,14 +89,14 @@ def test_fetch_jd_success_extracts_readable_content():
 
 
 def test_fetch_jd_403_is_blocked():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(403, "forbidden")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(403, "forbidden")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
 
 
 def test_fetch_jd_401_is_blocked():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(401, "unauthorized")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(401, "unauthorized")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
@@ -109,21 +109,21 @@ def test_fetch_jd_unresolved_redirect_is_blocked_not_extracted():
     as if it were a normal page."""
     resp = _mock_response(304, "")
     resp.is_redirect = False
-    with patch("jscc.fetcher.requests.get", return_value=resp):
+    with patch("jscc.fetcher._http_get", return_value=resp):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
 
 
 def test_fetch_jd_402_is_paywall():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(402, "payment required")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(402, "payment required")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.paywall
 
 
 def test_fetch_jd_timeout():
-    with patch("jscc.fetcher.requests.get", side_effect=requests.Timeout("timed out")):
+    with patch("jscc.fetcher._http_get", side_effect=requests.Timeout("timed out")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.timeout
@@ -131,7 +131,7 @@ def test_fetch_jd_timeout():
 
 def test_fetch_jd_connection_error_is_blocked():
     with patch(
-        "jscc.fetcher.requests.get",
+        "jscc.fetcher._http_get",
         side_effect=requests.ConnectionError("refused"),
     ):
         result = fetch_jd("https://example.com/jobs/1")
@@ -141,21 +141,21 @@ def test_fetch_jd_connection_error_is_blocked():
 
 def test_fetch_jd_thin_content_is_extraction_failed():
     thin_html = "<html><head><title>Job</title></head><body><p>Apply now.</p></body></html>"
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, thin_html)):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, thin_html)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
 
 
 def test_fetch_jd_5xx_is_blocked():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(503, "unavailable")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(503, "unavailable")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.blocked
 
 
 def test_fetch_jd_error_detail_is_populated_on_failure():
-    with patch("jscc.fetcher.requests.get", side_effect=requests.Timeout("timed out")):
+    with patch("jscc.fetcher._http_get", side_effect=requests.Timeout("timed out")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.error_detail
 
@@ -166,7 +166,7 @@ _SPA_SHELL_HTML = '<html><head><title>Job</title></head><body><div id="root"></d
 
 
 def test_thin_content_without_fallback_flag_stays_extraction_failed():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, _SPA_SHELL_HTML)):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=False)
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
@@ -175,7 +175,7 @@ def test_thin_content_without_fallback_flag_stays_extraction_failed():
 
 def test_thin_content_with_fallback_flag_routes_to_playwright():
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
         patch("jscc.fetcher._render_with_playwright", return_value=SAMPLE_HTML) as render,
     ):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
@@ -187,7 +187,7 @@ def test_thin_content_with_fallback_flag_routes_to_playwright():
 
 def test_rich_content_never_calls_playwright_even_with_flag_on():
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, SAMPLE_HTML)),
         patch("jscc.fetcher._render_with_playwright") as render,
     ):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
@@ -198,7 +198,7 @@ def test_rich_content_never_calls_playwright_even_with_flag_on():
 
 def test_playwright_still_thin_after_render_is_extraction_failed():
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
         patch("jscc.fetcher._render_with_playwright", return_value=_SPA_SHELL_HTML),
     ):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
@@ -209,7 +209,7 @@ def test_playwright_still_thin_after_render_is_extraction_failed():
 
 def test_playwright_render_error_is_blocked():
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
         patch(
             "jscc.fetcher._render_with_playwright",
             side_effect=PlaywrightFetchError("browser not installed"),
@@ -231,14 +231,14 @@ def test_playwright_render_error_is_blocked():
 
 
 def test_empty_body_is_extraction_failed_not_a_crash():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, "")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
 
 
 def test_whitespace_only_body_is_extraction_failed_not_a_crash():
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "   \n\t  ")):
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, "   \n\t  ")):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
@@ -247,7 +247,7 @@ def test_whitespace_only_body_is_extraction_failed_not_a_crash():
 def test_non_html_body_is_extraction_failed_not_a_crash():
     """A URL that serves a PDF or an image still has to come back as a result."""
     with patch(
-        "jscc.fetcher.requests.get",
+        "jscc.fetcher._http_get",
         return_value=_mock_response(200, "%PDF-1.4\x00\x01\x02 binary garbage"),
     ):
         result = fetch_jd("https://example.com/jobs/1")
@@ -259,7 +259,7 @@ def test_empty_body_routes_to_playwright_when_fallback_is_on():
     """An unparseable body is treated as thin content, so the render retry
     applies -- a server that returned nothing to plain HTTP may render fine."""
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, "")),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, "")),
         patch("jscc.fetcher._render_with_playwright", return_value=SAMPLE_HTML) as render,
     ):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
@@ -271,7 +271,7 @@ def test_empty_body_routes_to_playwright_when_fallback_is_on():
 def test_empty_rendered_html_is_extraction_failed_not_a_crash():
     """Same guard on the post-render extraction, not just the first one."""
     with (
-        patch("jscc.fetcher.requests.get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
+        patch("jscc.fetcher._http_get", return_value=_mock_response(200, _SPA_SHELL_HTML)),
         patch("jscc.fetcher._render_with_playwright", return_value=""),
     ):
         result = fetch_jd("https://example.com/jobs/1", use_playwright_fallback=True)
@@ -289,7 +289,7 @@ def test_empty_rendered_html_is_extraction_failed_not_a_crash():
 
 
 def test_non_http_scheme_is_refused_without_fetching():
-    with patch("jscc.fetcher.requests.get") as get:
+    with patch("jscc.fetcher._http_get") as get:
         result = fetch_jd("file:///etc/passwd")
     get.assert_not_called()
     assert result.ok is False
@@ -310,7 +310,7 @@ def test_non_public_destination_is_refused_without_fetching(
     address: str, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [address])
-    with patch("jscc.fetcher.requests.get") as get:
+    with patch("jscc.fetcher._http_get") as get:
         result = fetch_jd("http://internal.example.com/jobs/1")
     get.assert_not_called()
     assert result.ok is False
@@ -321,7 +321,7 @@ def test_non_public_destination_is_refused_without_fetching(
 def test_hostname_resolving_to_any_private_address_is_refused(monkeypatch: pytest.MonkeyPatch):
     """One public address in the set is not a pass -- all of them must be."""
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP, "127.0.0.1"])
-    with patch("jscc.fetcher.requests.get") as get:
+    with patch("jscc.fetcher._http_get") as get:
         result = fetch_jd("https://example.com/jobs/1")
     get.assert_not_called()
     assert result.failure_mode is FailureMode.blocked
@@ -332,7 +332,7 @@ def test_redirect_into_a_private_address_is_refused(monkeypatch: pytest.MonkeyPa
     hosts = {"example.com": [_PUBLIC_IP], "metadata.internal": [_METADATA_IP]}
     monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: hosts[host])
     with patch(
-        "jscc.fetcher.requests.get",
+        "jscc.fetcher._http_get",
         return_value=_redirect_response("http://metadata.internal/latest/meta-data/"),
     ):
         result = fetch_jd("https://example.com/jobs/1")
@@ -345,7 +345,7 @@ def test_redirect_to_a_public_url_is_followed():
     responses = iter(
         [_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)]
     )
-    with patch("jscc.fetcher.requests.get", side_effect=lambda *a, **kw: next(responses)):
+    with patch("jscc.fetcher._http_get", side_effect=lambda *a, **kw: next(responses)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is True
     assert "ingestion pipeline" in result.raw_text
@@ -353,7 +353,7 @@ def test_redirect_to_a_public_url_is_followed():
 
 def test_redirect_loop_terminates():
     with patch(
-        "jscc.fetcher.requests.get",
+        "jscc.fetcher._http_get",
         side_effect=lambda *a, **kw: _redirect_response("https://example.com/loop"),
     ):
         result = fetch_jd("https://example.com/loop")
@@ -370,7 +370,7 @@ def test_oversized_body_is_abandoned_rather_than_buffered():
     chunk = b"x" * (1024 * 1024)
     resp = _mock_response(200, "")
     resp.iter_content = lambda chunk_size=None: iter([chunk] * 10)
-    with patch("jscc.fetcher.requests.get", return_value=resp):
+    with patch("jscc.fetcher._http_get", return_value=resp):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is False
     assert result.failure_mode is FailureMode.extraction_failed
@@ -414,7 +414,7 @@ def test_fetch_passes_the_guard_arguments_to_requests():
     """`allow_redirects=False` is what makes the per-hop check reachable, and
     `stream=True` is what makes the size cap a cap rather than a check after
     the fact. Neither has any other observable effect at this level."""
-    with patch("jscc.fetcher.requests.get", return_value=_mock_response(200, SAMPLE_HTML)) as get:
+    with patch("jscc.fetcher._http_get", return_value=_mock_response(200, SAMPLE_HTML)) as get:
         fetch_jd("https://example.com/jobs/1")
     kwargs = get.call_args.kwargs
     assert kwargs["allow_redirects"] is False
@@ -527,6 +527,30 @@ def test_pinned_resolution_leaves_other_hosts_untouched(monkeypatch: pytest.Monk
     assert other[0][4][0] == other_address
 
 
+@pytest.mark.parametrize("var", ["HTTPS_PROXY", "https_proxy", "ALL_PROXY"])
+def test_proxy_environment_variables_are_ignored(monkeypatch: pytest.MonkeyPatch, var: str):
+    """With a proxy configured, the proxy resolves the target host itself, a
+    lookup the pin never sees. The request must go direct: the adapter is
+    handed no proxy at all, whatever the environment says."""
+    from jscc.fetcher import _http_get
+
+    monkeypatch.setenv(var, "http://proxy.invalid:3128")
+    seen: dict = {}
+
+    def fake_send(self, request, **kwargs):
+        seen.update(kwargs)
+        response = requests.Response()
+        response.status_code = 200
+        response.request = request
+        response.url = request.url
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", fake_send)
+    _http_get("https://example.com/job", timeout=1, allow_redirects=False, stream=True)
+    assert "proxies" in seen
+    assert not seen["proxies"]
+
+
 def test_get_guarded_pins_resolution_for_every_request(monkeypatch: pytest.MonkeyPatch):
     """Behavioural version: each request `_get_guarded` sends -- including a
     redirect hop, which is where this class of bug tends to hide -- must go
@@ -545,7 +569,7 @@ def test_get_guarded_pins_resolution_for_every_request(monkeypatch: pytest.Monke
     responses = iter(
         [_redirect_response("https://example.com/jobs/2"), _mock_response(200, SAMPLE_HTML)]
     )
-    with patch("jscc.fetcher.requests.get", side_effect=lambda *a, **kw: next(responses)):
+    with patch("jscc.fetcher._http_get", side_effect=lambda *a, **kw: next(responses)):
         result = fetch_jd("https://example.com/jobs/1")
 
     assert result.ok is True
@@ -583,7 +607,7 @@ def _fetch_body(body: bytes, content_type: str = "text/html") -> str:
         + b"Senior engineer role with real responsibilities. " * 12
         + b"</p></article></body></html>"
     )
-    with patch("jscc.fetcher.requests.get", return_value=_body_response(padded, content_type)):
+    with patch("jscc.fetcher._http_get", return_value=_body_response(padded, content_type)):
         result = fetch_jd("https://example.com/jobs/1")
     assert result.ok is True, result.error_detail
     return result.raw_text
