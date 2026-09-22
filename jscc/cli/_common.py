@@ -16,8 +16,6 @@ from ..storage import (
 )
 from ..terminal import printable
 
-FIRST_STAGE = "identified"
-
 # Anchored like DEFAULT_DATA_DIR: config lives with the package, not wherever
 # the process happened to start.
 DEFAULT_CONFIG_DIR = PACKAGE_ROOT / "config"

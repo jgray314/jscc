@@ -14,9 +14,18 @@
     th, td { text-align: left; padding: 0.25rem 1rem 0.25rem 0; }
     h2 { margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.25rem; }
     h3 { margin-top: 1rem; margin-bottom: 0.25rem; font-size: 1rem; color: #444; }
+    nav { margin-bottom: 1rem; }
+    nav a { margin-right: 1rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 1rem; }
+    dt { font-weight: 600; color: #444; }
+    dd { margin: 0; }
+    .outcome-created { color: #15803d; font-weight: 600; }
+    .outcome-error { color: #b91c1c; font-weight: 600; }
+    textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
   </style>
 </head>
 <body>
+  <nav><a href="/">Dashboard</a> · <a href="/dlq">DLQ</a></nav>
   {% if is_synthetic %}
   <div class="banner">SYNTHETIC MODE — no real personal data in this instance</div>
   {% endif %}

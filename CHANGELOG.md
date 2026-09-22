@@ -12,7 +12,7 @@ folded at the Phase E gate.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
-## Phase E — dashboard (in progress)
+## Phase E — dashboard (shipped)
 
 ### E1: web scaffold (ADR-007)
 
@@ -45,6 +45,39 @@ shell. Manually verified against the seeded synthetic fixture and `--now
 2026-08-28T12:00:00+00:00`: funnel counts, pipeline listing, and all 13 stale
 alerts matched `jscc report`'s output line for line. +7 tests (629 total).
 Application detail + DLQ resolve (E2b) are next.
+
+### E2b: application detail, DLQ views, and the one write path in Phase E
+
+Pipeline and stale-alert rows on the dashboard now link to `/applications/{id}`:
+title, company, stage, fit score and rationale, the full extracted JD, contacts,
+and the interaction timeline, all off the same storage functions the CLI already
+had (`get_application`, `list_contacts`, `list_interactions`) — no new read path.
+
+The DLQ half needed an actual write, and D6's `resolve-dlq` already carried real
+behavior worth not duplicating: the idempotency guard (gate finding M-1/M-9) and
+the `dlq_*` fetch-status mapping (gate finding M-6). Rather than reimplement
+either in the web layer, `_extract_and_create_application` and its small helpers
+moved out of `jscc/cli/ingest.py` into a new `jscc/ingest_logic.py`, and the
+resolve logic itself moved into a new `jscc/dlq.py` as `resolve_dlq_entry_via_paste`
+— a typed result (`DLQResolveOutcome`) instead of echo calls and `sys.exit`, so
+each caller renders it in its own idiom. `resolve-dlq` is now a thin translation
+of that result into click's exit-code contract; all 85 existing CLI tests passed
+unchanged after the refactor, which is the point — the behavior didn't move, only
+where it lives. The dashboard's `/dlq/{id}/resolve` form calls the identical
+function, so the CLI and the browser cannot drift on how a DLQ entry gets resolved.
+
+Manually verified end to end against a freshly seeded synthetic DB: loaded the
+resolve form for a real `blocked` DLQ entry, posted a pasted JD through the actual
+HTTP form (not a test client), got back a created-application link, and confirmed
+`jscc dlq list` immediately stopped showing that entry as unresolved — the CLI and
+the web session were reading the same state. +19 tests across `tests/test_dlq.py`
+(new, direct coverage of `resolve_dlq_entry_via_paste`) and `tests/test_web.py`
+(643 total).
+
+**Phase E complete.** E1 (scaffold), E2a (funnel/pipeline/stale views), and E2b
+(application detail + DLQ resolve) all shipped 2026-09-21. A phase-boundary
+review gate (adversarial + walkthrough, per the parent plan's working practices)
+is due before Phase F starts.
 
 ## Phase D — follow-up drafter (D1–D5, Phase D gate 2026-09-20)
 

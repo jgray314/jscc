@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}JSCC — Resolve DLQ entry{% endblock %}
+{% block content %}
+  <p><a href="/dlq">&larr; Back to DLQ</a></p>
+  <h1>Resolve DLQ entry</h1>
+  <dl>
+    <dt>Failure mode</dt><dd>{{ entry.failure_mode }}</dd>
+    <dt>Source</dt><dd>{{ entry.source_url }}</dd>
+    <dt>Error detail</dt><dd>{{ entry.error_detail if entry.error_detail else "(none)" }}</dd>
+  </dl>
+
+  {% if result %}
+    {% if result.outcome == outcome.created %}
+    <p class="outcome-created">Created application <a href="/applications/{{ result.application_id }}">{{ result.application_id }}</a> from this entry.</p>
+    {% elif result.outcome == outcome.already_resolved %}
+    <p>This entry is already resolved ({{ result.prior_resolution }}); no application was created.</p>
+    {% elif result.outcome == outcome.extraction_failed %}
+    <p class="outcome-error">Extraction failed; entry left unresolved. {{ result.detail }}</p>
+    {% elif result.outcome == outcome.llm_api_error %}
+    <p class="outcome-error">LLM API error; entry left unresolved. {{ result.detail }}</p>
+    {% elif result.outcome == outcome.config_error %}
+    <p class="outcome-error">Configuration error: {{ result.detail }}</p>
+    {% endif %}
+  {% endif %}
+
+  {% if not result or result.outcome != outcome.created %}
+  <form method="post" action="/dlq/{{ entry.id }}/resolve">
+    <p>
+      <label for="paste_text">Pasted JD text</label><br>
+      <textarea id="paste_text" name="paste_text" rows="12" required>{{ submitted_paste_text or "" }}</textarea>
+    </p>
+    <p>
+      <label for="company">Company override (optional)</label><br>
+      <input id="company" name="company" type="text" value="{{ submitted_company or "" }}">
+    </p>
+    <button type="submit">Resolve</button>
+  </form>
+  {% endif %}
+{% endblock %}

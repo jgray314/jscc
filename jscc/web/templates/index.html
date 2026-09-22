@@ -24,7 +24,7 @@
   {% if pipeline.get(stage) %}
   <ul>
     {% for app in pipeline[stage] %}
-    <li>{{ app.company }} — {{ app.title }}</li>
+    <li><a href="/applications/{{ app.id }}">{{ app.company }} — {{ app.title }}</a></li>
     {% endfor %}
   </ul>
   {% else %}
@@ -35,7 +35,7 @@
   <h3>(unknown stage) ({{ pipeline["__unknown__"] | length }})</h3>
   <ul>
     {% for app in pipeline["__unknown__"] %}
-    <li>{{ app.company }} — {{ app.title }} <em>[stage: {{ app.stage }}]</em></li>
+    <li><a href="/applications/{{ app.id }}">{{ app.company }} — {{ app.title }}</a> <em>[stage: {{ app.stage }}]</em></li>
     {% endfor %}
   </ul>
   {% endif %}
@@ -44,7 +44,7 @@
   {% if alerts %}
   <ul>
     {% for alert in alerts %}
-    <li>{{ alert.stage }} — {{ alert.company }} — {{ alert.title }} —
+    <li><a href="/applications/{{ alert.application_id }}">{{ alert.stage }} — {{ alert.company }} — {{ alert.title }}</a> —
         overdue by {{ alert.overdue_by_days }}d
         (last interaction {{ alert.days_since_last_interaction }}d ago, threshold {{ alert.threshold_days }}d)</li>
     {% endfor %}

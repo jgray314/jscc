@@ -4,7 +4,7 @@
 
 A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, scores fit against a profile through a second eval-backed LLM stage, stores them, and surfaces stale opportunities. A follow-up drafter first routes each case as routine or non-routine, drafts only the routine ones, and hands everything else to a person as a briefing card. Both drafter prompts have been checked against real model output; how far that evidence goes is in [Status](#status).
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) is in progress: E1 (scaffold) and E2a (funnel, pipeline, stale-alert views) have shipped. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) shipped as planned: E1 (scaffold), E2a (funnel, pipeline, stale-alert views), and E2b (application detail + DLQ resolve). See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
 ## Start here: five things worth reading first
 
@@ -127,13 +127,15 @@ jscc/           library code
   routing.py    the route_followup interface (D10 step 1) + routing prompt v1
   composition.py  compose_followup, the composition prompt (D10 step 2A)
   followup.py   briefing renderer (D10 step 2B) + the top-level followup() orchestrator
-  report.py     staleness detector + funnel counts
+  report.py     staleness detector + funnel counts + pipeline grouping (group_by_stage)
+  ingest_logic.py  shared extract-then-store path (extract_and_create_application) for ingest and DLQ resolution
+  dlq.py        DLQ resolution (resolve_dlq_entry_via_paste), shared by resolve-dlq and the dashboard's resolve form
   stage_call.py the one path from an LLM stage to the model client: sanitize, verify, meter, call
   terminal.py   strips control characters from everything a command prints
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
   web/          FastAPI + Jinja2 + HTMX dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (629 tests)
+tests/          pytest suite (643 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias)
@@ -153,6 +155,7 @@ Design decisions with rejected alternatives:
 - [ADR-004 — pre-commit.com framework + local Python hook](decisions/004-precommit-framework.md)
 - [ADR-005 — sanitizer authenticity via HMAC wrapper](decisions/005-sanitizer-authenticity.md)
 - [ADR-006 — eval bars, manual capture, and deterministic grading](decisions/006-eval-bars-and-manual-capture.md)
+- [ADR-007 — dashboard web stack: FastAPI + Jinja2 + HTMX](decisions/007-web-stack-choice.md)
 
 The ten locked design principles behind them are in [docs/design-principles.md](docs/design-principles.md).
 
@@ -184,7 +187,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 | **Phase B — ingestion + extraction** | Eval suite, extraction prompt validated against real model output (76%–82% band, see below), fetcher + Playwright fallback + DLQ, paste-only path, three-value exit contract, ruff lint/format gate. Phase B → C gate fully closed. | — |
 | **Phase C — fit scoring** | Eval suite (C1), prompt + client plumbing (C2a), and manual-capture validation (C2b — 84% on round 1, above the bar; one deferred finding, see CHANGELOG). Cost/latency reporting (C3): `jscc costs` prints per-feature cost, latency percentiles, and flags any call whose recorded cost no longer matches its model's published rate. | — |
 | **Phase D — follow-up drafter** | Routing: eval suite, prompt and `route` command, manual capture (26/26 on round 5, tuned on the same cases; see evals/README.md). Composition: eval suite (28 cases), prompt, a deterministic grader that does not judge tone, a `needs_input` escape so the composer can decline instead of inventing a fact, and one manual-capture round (24/28, all 3 decline cases correct). Briefing renderer and the `followup` command. Phase D gate, 2026-09-20, and its fixes. | — |
-| **Phase E — dashboard** | E1: web stack decided (FastAPI + Jinja2 + HTMX, ADR-007), app scaffold, `jscc serve` command, SYNTHETIC MODE banner. E2a: funnel table, pipeline table grouped by stage, and the stale-alert list on the index route — all three built on the same `report.py` pure functions `jscc report` already uses (plus a new `group_by_stage`), so the dashboard and the CLI cannot disagree on what's stale. A `?now=` query param mirrors `--now` for reproducible views. | E2b: application detail + DLQ resolve. |
+| **Phase E — dashboard** | E1: web stack decided (FastAPI + Jinja2 + HTMX, ADR-007), app scaffold, `jscc serve` command, SYNTHETIC MODE banner. E2a: funnel table, pipeline table grouped by stage, and the stale-alert list on the index route — all three built on the same `report.py` pure functions `jscc report` already uses (plus a new `group_by_stage`), so the dashboard and the CLI cannot disagree on what's stale. A `?now=` query param mirrors `--now` for reproducible views. E2b: application detail page (extracted JD, fit score/rationale, contacts, interaction timeline), a DLQ list, and a DLQ resolve form that calls the same `resolve_dlq_entry_via_paste` function `resolve-dlq` calls (`jscc/dlq.py`, factored out of `jscc/cli/ingest.py` so the two surfaces share one resolution path) — the one write path in Phase E. Pipeline and stale-alert rows link through to application detail. | Phase F: narrative (README refresh, video, blog post). A phase-boundary review gate is due before Phase F starts. |
 
 **Built and shipped.** Phase A foundations: config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs — closed after three rounds of adversarial and reviewer-walkthrough gates with structural fixes for every critical and high finding. Phase B: B1 (eval suite), B2 (extraction prompt + client plumbing, validated against real model output — see below), B3a (baseline fetcher + DLQ core), B3b (Playwright fallback + real-URL smoke test), B4 (JD paste-only path), and B5–B9, a second two-lens gate and its closure — package-anchored safety paths, extraction failures routed to the DLQ instead of crashing, full extracted records stored rather than one field, correct response decoding, a three-value exit contract, and the eval pass-rate threshold with record/replay. Phase C: C1 (fit-scoring eval suite), C2a (real prompt + call path), C2b (manual-capture validation, 84% on round 1), and C3 (cost/latency reporting) — all shipped, then a Phase C → D gate that fixed a DNS-rebinding SSRF gap an earlier pass had rated low-risk, a missing score-range check, and a billed-but-unlogged call path. Phase D: routing end to end (eval suite, prompt and `route` command, manual capture), composition (eval suite, prompt, deterministic grader, `needs_input` escape, one manual-capture round), the non-routine briefing renderer and the `followup` command, then the Phase D gate.
 
@@ -209,7 +212,7 @@ Also fixed:
 
 **Cost envelope.** No real dollar figures exist yet — every call through Phase D ran against stub clients or hand-captured through Claude.ai chat, never a live billed `AnthropicClient` request, since this project isn't using the Anthropic Console (see B2b/C2b above). What does exist: every call path is instrumented from Phase A onward (D5), the ledger schema and `jscc costs` reporting are built and tested against synthetic call records (percentile latency, per-feature grouping, stale-rate regression detection), and — as of the Phase C → D gate — a call that fails mid-request now leaves a marked row instead of vanishing from the ledger entirely. The honest claim today is "the cost-transparency machinery is built and correct," not "here is what this costs to run" — that second claim waits on a live key, which may not happen under the current no-Console-account decision.
 
-629 pytest cases. Lint and format enforced via ruff (see Development, above).
+643 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

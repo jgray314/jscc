@@ -1,10 +1,13 @@
-"""Record-producing commands: ingest, dlq list, resolve-dlq."""
+"""Record-producing commands: ingest, dlq list, resolve-dlq.
+
+`resolve-dlq`'s actual resolution logic lives in `jscc/dlq.py` (Slice E2b) --
+this module is the click translation of that shared result, not the logic
+itself, so the dashboard's resolve form can call the same function."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 import anthropic
 import click
@@ -12,8 +15,14 @@ import click
 from ..config import (
     load_pipeline,
 )
-from ..extraction import ExtractionParseError, extract_jd
+from ..dlq import DLQResolveOutcome, resolve_dlq_entry_via_paste
+from ..extraction import ExtractionParseError
 from ..fetcher import fetch_jd
+from ..ingest_logic import (
+    PASTED_SOURCE,
+    company_from_url,
+    extract_and_create_application,
+)
 from ..llm_client import (
     UnknownModelPricingError,
 )
@@ -23,57 +32,21 @@ from ..models import (
     DLQEntry,
     FailureMode,
     FetchStatus,
-    Resolution,
 )
 from ..storage import (
-    create_application,
     create_dlq_entry,
-    get_application,
     list_applications,
     list_dlq_entries,
-    resolve_dlq_entry,
-    update_application,
 )
 from ._app import cli
 from ._common import (
     DEFAULT_CONFIG_DIR,
     EXIT_QUEUED,
     EXIT_USAGE,
-    FIRST_STAGE,
     _open_or_exit,
     _resolve_mode_or_exit,
     echo,
 )
-
-
-def _company_from_url(url: str) -> str:
-    """Fallback company name for when extraction doesn't find one -- an
-    ATS page whose JD text never names the employer, or the stub client.
-    `_extract_and_create_application` prefers `ExtractedJD.company` over
-    this whenever extraction returns one."""
-    netloc = urlparse(url).netloc
-    return netloc.removeprefix("www.") or url
-
-
-# A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
-# sentinel keeps the paste path's failures visible in `dlq list` rather than
-# silently unrecoverable; `resolve-dlq` recognises it and skips URL-derived
-# company inference. Same "(pasted)" spelling the company default already uses.
-PASTED_SOURCE = "(pasted)"
-
-# `Application.fetch_status` defaulted to `ok` for every
-# creation path, including paste and DLQ resolution -- so the DB claimed
-# "fetched cleanly" about records that were never fetched. This is the one
-# `FailureMode` case with no corresponding `dlq_*` status: it is defined but
-# never actually produced by `fetcher.py` today (see FailureMode.other), so
-# there is nothing live to map it to. `.get(..., FetchStatus.manual)` covers
-# it defensively without inventing a status for a code path that doesn't run.
-_DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
-    FailureMode.paywall: FetchStatus.dlq_paywall,
-    FailureMode.blocked: FetchStatus.dlq_blocked,
-    FailureMode.timeout: FetchStatus.dlq_timeout,
-    FailureMode.extraction_failed: FetchStatus.dlq_extraction_failed,
-}
 
 
 def _find_duplicate_application(
@@ -92,55 +65,6 @@ def _find_duplicate_application(
     if source_url is not None:
         return next((a for a in apps if a.source_url == source_url), None)
     return next((a for a in apps if a.source_url is None and a.source_raw == raw_text), None)
-
-
-def _extract_and_create_application(
-    conn,
-    *,
-    raw_text: str,
-    source_url: str | None,
-    company_override: str | None,
-    fallback_company: str,
-    fallback_title: str | None,
-    fetch_status: FetchStatus = FetchStatus.ok,
-    update_id: str | None = None,
-) -> tuple[str, Application]:
-    """Shared extract-then-store path for both `ingest` (URL and --paste) and
-    `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
-    same Application shape as the URL path, so both funnel through here.
-
-    Company precedence, highest first: `company_override` (the user typed
-    `--company` explicitly -- that's a deliberate correction and wins over
-    anything inferred), then `ExtractedJD.company` (extraction found a name
-    in the JD text itself), then `fallback_company` (a URL-domain guess or
-    "(pasted)", used only when extraction comes back null).
-
-    `fetch_status` defaults to `ok` for the URL path, which really did fetch
-    cleanly; callers on the paste and DLQ-resolution paths pass the status
-    that actually describes how the raw text arrived.
-
-    `update_id`, when given (the confirmed-reprocess path),
-    overwrites that existing Application's fields instead of creating a new
-    one -- `stage` is deliberately left untouched, since a reprocess is a
-    correction to the extracted record, not a reset of pipeline progress."""
-    extracted = extract_jd(raw_text, conn=conn)
-    fields = dict(
-        source_url=source_url,
-        source_raw=raw_text,
-        fetch_status=fetch_status,
-        title=extracted.title or fallback_title or "(untitled)",
-        company=company_override or extracted.company or fallback_company,
-        # The whole extraction, not just the field the title comes from: D9
-        # splits extract from score because the intermediate output has
-        # independent product value, and caching it needs it stored.
-        extracted_jd=extracted.model_dump(),
-    )
-    if update_id is not None:
-        update_application(conn, update_id, **fields)
-        return update_id, get_application(conn, update_id)
-    app = Application(**fields, stage=FIRST_STAGE)
-    app_id = create_application(conn, app)
-    return app_id, app
 
 
 @cli.command("ingest")
@@ -234,7 +158,7 @@ def ingest(
                 sys.exit(EXIT_QUEUED)
             raw_text = result.raw_text
             source_url: str | None = url
-            fallback_company_val = _company_from_url(url)
+            fallback_company_val = company_from_url(url)
             fallback_title = result.title
             fetch_status_val = FetchStatus.ok
         else:
@@ -269,7 +193,7 @@ def ingest(
                 return
 
         try:
-            app_id, app = _extract_and_create_application(
+            app_id, app = extract_and_create_application(
                 conn,
                 raw_text=raw_text,
                 source_url=source_url,
@@ -383,17 +307,21 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
     """Resolve a DLQ entry by pasting the JD text manually (D6 escape hatch).
 
     Creates the Application the original fetch couldn't, then marks the
-    entry resolved. Same code path Slice B4's `ingest --paste` reuses.
+    entry resolved. Same resolution function (`jscc/dlq.py`) the dashboard's
+    resolve form (Slice E2b) calls -- this command only translates its typed
+    result into click's exit-code contract.
     """
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
-        entries = list_dlq_entries(conn, unresolved_only=False)
-        entry = next((e for e in entries if e.id == entry_id), None)
-        if entry is None:
-            echo(f"no DLQ entry with id {entry_id}", err=True)
-            sys.exit(EXIT_USAGE)
+        result = resolve_dlq_entry_via_paste(conn, entry_id, paste_text, company=company)
+    finally:
+        conn.close()
 
+    if result.outcome is DLQResolveOutcome.not_found:
+        echo(f"no DLQ entry with id {entry_id}", err=True)
+        sys.exit(EXIT_USAGE)
+    if result.outcome is DLQResolveOutcome.already_resolved:
         # This used to skip the entry's current resolution
         # entirely, so re-running the same command against an already-resolved
         # entry created a second Application each time and re-stamped
@@ -402,52 +330,34 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
         # `entry.resolution` also means a `wont_fix` entry can no longer be
         # converted to `manual_paste` from here; there is no "reopen" path,
         # which is a real, undecided gap rather than an oversight in this fix.
-        if entry.resolution is not Resolution.unresolved:
-            echo(
-                f"DLQ entry {entry_id} is already resolved ({entry.resolution.value}); "
-                "not creating another application"
-            )
-            # Exits 0, deliberately -- see EXIT_OK's
-            # comment above. The entry *is* resolved, which is the state
-            # this command exists to bring about; that this particular
-            # invocation didn't do the resolving is what the message above
-            # says, not what the exit code says.
-            return
-
-        fallback_company_val = (
-            "(pasted)" if entry.source_url == PASTED_SOURCE else _company_from_url(entry.source_url)
+        echo(
+            f"DLQ entry {entry_id} is already resolved "
+            f"({result.prior_resolution.value}); not creating another application"
         )
-        try:
-            app_id, _app = _extract_and_create_application(
-                conn,
-                raw_text=paste_text,
-                source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
-                company_override=company,
-                fallback_company=fallback_company_val,
-                fallback_title=None,
-                fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(entry.failure_mode, FetchStatus.manual),
-            )
-        except ExtractionParseError as e:
-            # No new DLQ entry here -- one already exists and stays unresolved,
-            # which is the correct record. Creating a second would duplicate the
-            # queue on every retry.
-            echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
-            echo(f"  {e}", err=True)
-            sys.exit(EXIT_QUEUED)
-        except anthropic.APIError as e:
-            # Same class of failure as ingest's -- see the comment
-            # there. No new DLQ entry: the one being resolved stays
-            # unresolved, which is already the correct record.
-            echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
-            echo(f"  {e}", err=True)
-            sys.exit(EXIT_QUEUED)
-        except UnknownModelPricingError as e:
-            # `ingest` already turns this into a clean
-            # exit-2 configuration message; this path funnels through the
-            # same helper and used to let it out as a raw traceback instead.
-            echo(f"configuration error: {e}", err=True)
-            sys.exit(EXIT_USAGE)
-        resolve_dlq_entry(conn, entry_id, Resolution.manual_paste, application_id=app_id)
-        echo(f"created application {app_id} from DLQ entry {entry_id}")
-    finally:
-        conn.close()
+        # Exits 0, deliberately -- see EXIT_OK's
+        # comment above. The entry *is* resolved, which is the state
+        # this command exists to bring about; that this particular
+        # invocation didn't do the resolving is what the message above
+        # says, not what the exit code says.
+        return
+    if result.outcome is DLQResolveOutcome.extraction_failed:
+        # No new DLQ entry here -- one already exists and stays unresolved,
+        # which is the correct record. Creating a second would duplicate the
+        # queue on every retry.
+        echo(f"extraction failed; DLQ entry {entry_id} left unresolved", err=True)
+        echo(f"  {result.detail}", err=True)
+        sys.exit(EXIT_QUEUED)
+    if result.outcome is DLQResolveOutcome.llm_api_error:
+        # Same class of failure as ingest's -- see the comment there. No new
+        # DLQ entry: the one being resolved stays unresolved, which is
+        # already the correct record.
+        echo(f"LLM API error; DLQ entry {entry_id} left unresolved", err=True)
+        echo(f"  {result.detail}", err=True)
+        sys.exit(EXIT_QUEUED)
+    if result.outcome is DLQResolveOutcome.config_error:
+        # `ingest` already turns this into a clean exit-2 configuration
+        # message; this path funnels through the same helper and used to
+        # let it out as a raw traceback instead.
+        echo(f"configuration error: {result.detail}", err=True)
+        sys.exit(EXIT_USAGE)
+    echo(f"created application {result.application_id} from DLQ entry {entry_id}")

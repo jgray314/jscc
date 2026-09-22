@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ app.company }} — {{ app.title }}{% endblock %}
+{% block content %}
+  <p><a href="/">&larr; Back to dashboard</a></p>
+  <h1>{{ app.title }}</h1>
+  <h2 style="margin-top: 0; border: none; font-size: 1.2rem; color: #444;">{{ app.company }}</h2>
+
+  <dl>
+    <dt>Stage</dt><dd>{{ app.stage }}</dd>
+    <dt>Fetch status</dt><dd>{{ app.fetch_status }}</dd>
+    <dt>Fit score</dt><dd>{{ app.fit_score if app.fit_score is not none else "(not scored)" }}</dd>
+    <dt>Applied</dt><dd>{{ app.applied_at if app.applied_at else "(not applied)" }}</dd>
+    <dt>Created</dt><dd>{{ app.created_at }}</dd>
+    <dt>Last interaction</dt><dd>{{ app.last_interaction_at if app.last_interaction_at else "(none)" }}</dd>
+    {% if app.source_url %}
+    <dt>Source</dt><dd><a href="{{ app.source_url }}">{{ app.source_url }}</a></dd>
+    {% endif %}
+  </dl>
+
+  {% if app.fit_rationale %}
+  <h2>Fit rationale</h2>
+  <p>{{ app.fit_rationale }}</p>
+  {% endif %}
+
+  <h2>Extracted JD</h2>
+  {% if app.extracted_jd %}
+  <dl>
+    {% for key, value in app.extracted_jd.items() %}
+    <dt>{{ key }}</dt><dd>{{ value if value else "(none)" }}</dd>
+    {% endfor %}
+  </dl>
+  {% else %}
+  <p><em>(not extracted)</em></p>
+  {% endif %}
+
+  <h2>Contacts</h2>
+  {% if contacts %}
+  <ul>
+    {% for c in contacts %}
+    <li>{{ c.name }} ({{ c.role }}){% if c.notes %} — {{ c.notes }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>(none)</em></p>
+  {% endif %}
+
+  <h2>Interactions</h2>
+  {% if interactions %}
+  <ul>
+    {% for i in interactions %}
+    <li>{{ i.occurred_at }} — {{ i.type }}{% if i.notes %} — {{ i.notes }}{% endif %}
+        {% if i.next_action %}<br><em>Next: {{ i.next_action }}{% if i.next_action_due %} (due {{ i.next_action_due }}){% endif %}</em>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>(none)</em></p>
+  {% endif %}
+{% endblock %}

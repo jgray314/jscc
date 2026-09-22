@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}JSCC — DLQ{% endblock %}
+{% block content %}
+  <h1>Dead-letter queue</h1>
+  <p>JDs that failed to fetch or extract cleanly (per D6). Nothing here is lost — each entry can be resolved by pasting the JD text manually.</p>
+  <p>
+    {% if show_all %}
+    <a href="/dlq">Show unresolved only</a>
+    {% else %}
+    <a href="/dlq?all=1">Show all (including resolved)</a>
+    {% endif %}
+  </p>
+
+  {% if entries %}
+  <table>
+    <thead><tr><th>Failure mode</th><th>Source</th><th>Attempted</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>{{ e.failure_mode }}</td>
+        <td>{{ e.source_url }}</td>
+        <td>{{ e.attempted_at }}</td>
+        <td>{{ e.resolution }}</td>
+        <td>
+          {% if e.resolution == "unresolved" %}
+          <a href="/dlq/{{ e.id }}/resolve">Resolve</a>
+          {% elif e.application_id %}
+          <a href="/applications/{{ e.application_id }}">View application</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p><em>(no {{ "" if show_all else "unresolved " }}entries)</em></p>
+  {% endif %}
+{% endblock %}
