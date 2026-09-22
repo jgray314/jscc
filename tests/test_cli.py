@@ -1164,7 +1164,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
 
     result = runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
     assert result.exit_code == 1, result.output  # stub fails every case, as expected
-    assert "0/33 passed" in result.output
+    assert "0/36 passed" in result.output
 
     from jscc.mode import Mode
     from jscc.storage import list_llm_calls, open_for_mode
@@ -1173,7 +1173,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 33, "one ledger row per eval case"
+    assert len(calls) == 36, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"extraction_eval"}
 
 
@@ -1204,7 +1204,7 @@ def test_ingest_and_eval_traffic_stay_separable_in_the_ledger(
     conn.close()
 
     assert features.count("extraction") == 1
-    assert features.count("extraction_eval") == 33
+    assert features.count("extraction_eval") == 36
 
 
 def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
@@ -1713,7 +1713,7 @@ def test_record_then_replay_round_trips(
     )
     assert rec.exit_code == 0, rec.output
     assert recording.exists()
-    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 33
+    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 36
 
     play = runner.invoke(
         cli,
@@ -1761,7 +1761,7 @@ def test_record_preserves_an_unrelated_stale_recording_instead_of_clobbering_it(
     assert result.exit_code == 0, result.output
     saved = json.loads(recording.read_text(encoding="utf-8"))
     assert saved["stale-key-from-a-prior-run"] == "some response"
-    assert len(saved) == 34  # the stale key plus this run's 33
+    assert len(saved) == 37  # the stale key plus this run's 36
 
 
 def test_replay_without_a_recording_is_a_usage_error(
@@ -1814,7 +1814,7 @@ def test_eval_fit_scoring_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 25, "one ledger row per eval case"
+    assert len(calls) == 28, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"scoring_eval"}
 
 
@@ -1834,7 +1834,7 @@ def test_eval_fit_scoring_manual_prompts_for_each_case_and_records_the_pasted_re
     result = runner.invoke(
         cli,
         ["eval", "fit_scoring", "--manual", "--data-dir", str(tmp_path)],
-        input=canned_response * 25,
+        input=canned_response * 28,
     )
     assert result.exit_code in (0, 1), result.output  # the pasted score may or may not clear bands
     assert "MODEL:" in result.output
@@ -1843,7 +1843,7 @@ def test_eval_fit_scoring_manual_prompts_for_each_case_and_records_the_pasted_re
     import json
 
     saved = json.loads(recording_path.read_text(encoding="utf-8"))
-    assert len(saved) == 25  # one prompt hash per case's distinct payload
+    assert len(saved) == 28  # one prompt hash per case's distinct payload
 
 
 def test_eval_fit_scoring_fails_below_the_threshold_and_says_the_number(

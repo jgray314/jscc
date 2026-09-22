@@ -134,7 +134,7 @@ def test_recapture_cost_lists_every_case_a_system_prompt_edit_invalidates(
     )
     missing, orphaned = capture_tools.recapture_cost("fit_scoring")
     assert missing == capture_tools._case_ids("fit_scoring")
-    assert orphaned == len(missing)
+    assert orphaned == len(evals.load_recording(evals.FIT_SCORING_RECORDING_PATH))
 
 
 def test_recapture_cost_counts_only_the_cases_a_fixture_edit_touches(tmp_path: Path) -> None:

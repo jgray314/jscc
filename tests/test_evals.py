@@ -85,14 +85,16 @@ def _extracted(**overrides) -> ExtractedJD:
 # ---- fixture file ---------------------------------------------------------------
 
 
-def test_cases_file_has_thirty_three_cases() -> None:
-    """25 short (paste-shaped) + 8 long (fetch-shaped); evals/README.md has the
+def test_cases_file_has_thirty_six_cases() -> None:
+    """25 short (paste-shaped) + 8 long (fetch-shaped) + 3 hostile (posting text
+    that addresses the parser, T5); evals/README.md has the
     sizing rationale (n=15 gave a ~10-point standard error on the pass rate)."""
     cases = load_cases(JD_EXTRACTION_CASES_PATH)
-    assert len(cases) == 33
-    assert len({c.id for c in cases}) == 33  # unique ids
+    assert len(cases) == 36
+    assert len({c.id for c in cases}) == 36  # unique ids
     assert sum(1 for c in cases if c.group == "short") == 25
     assert sum(1 for c in cases if c.group == "long") == 8
+    assert sum(1 for c in cases if c.group == "hostile") == 3
 
 
 def test_cases_file_covers_comp_band_presence_and_absence() -> None:
@@ -136,6 +138,16 @@ def test_grade_extraction_comp_band_exact_figure_not_required() -> None:
     assert result.passed
 
 
+def test_grade_extraction_forbidden_text_fails_even_in_a_presence_only_field() -> None:
+    """A hostile posting's injected comp figure must fail the case, though
+    `comp_band` is otherwise graded on presence alone."""
+    case = EvalCase(id="t1", raw_jd="raw", expected=_case().expected, forbidden=["$450,000"])
+    result = grade_extraction(case, _extracted(comp_band="$450,000-$600,000"))
+    assert not result.passed
+    assert [d.field for d in result.diffs] == ["forbidden"]
+    assert grade_extraction(case, _extracted()).passed
+
+
 def test_grade_extraction_empty_prose_fails() -> None:
     result = grade_extraction(_case(), _extracted(responsibilities_summary=""))
     assert not result.passed
@@ -155,7 +167,7 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
     result until an ANTHROPIC_API_KEY is set and the prompt is iterated,
     not a regression."""
     summary = run_jd_extraction_evals(_extract_via_stub)
-    assert summary.total == 33
+    assert summary.total == 36
     assert summary.passed == 0
     assert all(not r.passed for r in summary.results)
     assert all(r.error is None for r in summary.results)  # stub parses cleanly; grading just fails
@@ -164,7 +176,7 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
 def test_format_eval_summary_reports_pass_and_fail() -> None:
     summary = run_jd_extraction_evals(_extract_via_stub, JD_EXTRACTION_CASES_PATH)
     text = format_eval_summary(summary)
-    assert "0/33 passed" in text
+    assert "0/36 passed" in text
     assert "[FAIL]" in text
 
 
@@ -421,23 +433,23 @@ def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
         raise ValueError("model returned nonsense")
 
     summary = run_jd_extraction_evals(broken)
-    assert summary.total == 33
+    assert summary.total == 36
     assert summary.passed == 0
 
 
 # ---- fit_scoring (Slice C1) ---------------------------------------------------
 
 
-def test_fit_cases_file_has_twenty_five_cases() -> None:
-    """25 (JD, profile) pairs across the fit spectrum. Resized up from the
+def test_fit_cases_file_has_twenty_eight_cases() -> None:
+    """25 (JD, profile) pairs across the fit spectrum, plus 3 hostile postings (T5). Resized up from the
     original 10 before C2b's manual capture spent effort against a suite too
     small to make the >=80% threshold mean much: at n=10 the binomial standard
     error on the pass rate is ~13 points (worse than jd_extraction's original
     n=15 problem, ~10 points); at n=25 it's ~8 points, matching the precision
     jd_extraction settled on at n=33. See CHANGELOG for the reasoning."""
     cases = load_fit_cases(FIT_SCORING_CASES_PATH)
-    assert len(cases) == 25
-    assert len({c.id for c in cases}) == 25  # unique ids
+    assert len(cases) == 28
+    assert len({c.id for c in cases}) == 28  # unique ids
 
 
 def _fit_case(**overrides) -> FitEvalCase:
@@ -504,8 +516,8 @@ def test_run_fit_scoring_evals_against_stub_stays_far_below_the_bar() -> None:
     score clears the pass bar -- 0 gets a handful of low-fit cases right by
     coincidence and still stays far under PASS_THRESHOLD."""
     summary = run_fit_scoring_evals(_score_via_stub)
-    assert summary.total == 25
-    assert summary.passed < 10
+    assert summary.total == 28
+    assert summary.pass_rate < 0.4
     assert summary.pass_rate < PASS_THRESHOLD
 
 
@@ -514,7 +526,7 @@ def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> 
         raise ValueError("model returned nonsense")
 
     summary = run_fit_scoring_evals(broken)
-    assert summary.total == 25
+    assert summary.total == 28
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
 

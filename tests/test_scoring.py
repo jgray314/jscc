@@ -95,7 +95,10 @@ def test_score_fit_sends_extracted_raw_and_profile_in_user_prompt() -> None:
     sent = json.loads(fake.calls[0]["user"])
     assert sent["raw_jd_text"] == "this is the raw JD"
     assert sent["extracted_jd"]["title"] == "Senior Engineering Manager"
-    assert sent["profile"]["display_name"] == "Sample Candidate"
+    assert sent["profile"]["role_focus"]
+    # Unused by every scoring factor, so never sent (gate finding G4).
+    assert "display_name" not in sent["profile"]
+    assert "style_samples" not in sent["profile"]
     assert fake.calls[0]["model"] == SCORING_MODEL
     assert "JSON" in fake.calls[0]["system"]
 
