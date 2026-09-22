@@ -29,6 +29,23 @@ uses, shows the application count, and renders the SYNTHETIC MODE banner (D7 M6)
 slice early, since it was cheap to add once the template existed. +3 tests (622 total).
 Pipeline/funnel/stale views (E2a) and application detail + DLQ resolve (E2b) are next.
 
+### E2a: pipeline, funnel, and stale-alert views
+
+The index route now renders what `jscc report` already prints as text: a funnel
+table (every configured stage, including zero-count ones), a pipeline table
+grouping applications under their stage, and the stale-alert list. All three read
+`report.py`'s pure functions — `funnel_counts`, `detect_stale`, and a new
+`group_by_stage` added alongside them — so the CLI and the dashboard render the
+same underlying computation and cannot silently disagree on what counts as stale.
+
+A `?now=` query parameter mirrors the CLI's `--now`: same ISO-8601-with-timezone
+format, same 400-on-bad-input framing as `report`'s UsageError, so a pinned seed's
+stale block is reproducible from a browser the same way it already was from a
+shell. Manually verified against the seeded synthetic fixture and `--now
+2026-08-28T12:00:00+00:00`: funnel counts, pipeline listing, and all 13 stale
+alerts matched `jscc report`'s output line for line. +7 tests (629 total).
+Application detail + DLQ resolve (E2b) are next.
+
 ## Phase D — follow-up drafter (D1–D5, Phase D gate 2026-09-20)
 
 Routing first, then composition for routine situations only, and a briefing card

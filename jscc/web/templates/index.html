@@ -2,7 +2,54 @@
 {% block title %}JSCC — Dashboard{% endblock %}
 {% block content %}
   <h1>Job Search Command Center</h1>
-  <p>Mode: <strong>{{ mode }}</strong></p>
-  <p>{{ application_count }} application{{ "" if application_count == 1 else "s" }} in this instance.</p>
-  <p><em>Pipeline, funnel and stale-alert views land in E2a; application detail and DLQ views in E2b.</em></p>
+  <p>Mode: <strong>{{ mode }}</strong> · {{ application_count }} application{{ "" if application_count == 1 else "s" }}</p>
+
+  <h2>Funnel</h2>
+  <table>
+    <thead><tr><th>Stage</th><th>Count</th></tr></thead>
+    <tbody>
+      {% for stage in stages %}
+      <tr><td>{{ stage }}</td><td>{{ counts.get(stage, 0) }}</td></tr>
+      {% endfor %}
+      {% if "__unknown__" in counts %}
+      <tr><td><em>(unknown stage)</em></td><td>{{ counts["__unknown__"] }}</td></tr>
+      {% endif %}
+      <tr><td><strong>Total</strong></td><td><strong>{{ total_count }}</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Pipeline</h2>
+  {% for stage in stages %}
+  <h3>{{ stage }} ({{ pipeline.get(stage, []) | length }})</h3>
+  {% if pipeline.get(stage) %}
+  <ul>
+    {% for app in pipeline[stage] %}
+    <li>{{ app.company }} — {{ app.title }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>(none)</em></p>
+  {% endif %}
+  {% endfor %}
+  {% if "__unknown__" in pipeline %}
+  <h3>(unknown stage) ({{ pipeline["__unknown__"] | length }})</h3>
+  <ul>
+    {% for app in pipeline["__unknown__"] %}
+    <li>{{ app.company }} — {{ app.title }} <em>[stage: {{ app.stage }}]</em></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2>Stale alerts ({{ alerts | length }})</h2>
+  {% if alerts %}
+  <ul>
+    {% for alert in alerts %}
+    <li>{{ alert.stage }} — {{ alert.company }} — {{ alert.title }} —
+        overdue by {{ alert.overdue_by_days }}d
+        (last interaction {{ alert.days_since_last_interaction }}d ago, threshold {{ alert.threshold_days }}d)</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>(none)</em></p>
+  {% endif %}
 {% endblock %}

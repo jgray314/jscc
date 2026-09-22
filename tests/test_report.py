@@ -12,6 +12,7 @@ from jscc.report import (
     detect_stale,
     format_report,
     funnel_counts,
+    group_by_stage,
 )
 from jscc.seed import seed_synthetic
 from jscc.storage import _connect, _init_db, list_applications
@@ -56,6 +57,26 @@ def test_funnel_counts_flags_unknown_stage(stages_cfg: StagesConfig) -> None:
     counts = funnel_counts(apps, stages_cfg)
     assert counts["applied"] == 1
     assert counts["__unknown__"] == 1
+
+
+def test_group_by_stage_includes_empty_stages(stages_cfg: StagesConfig) -> None:
+    apps = [
+        _app(stage="applied", days_ago=1, title="A"),
+        _app(stage="applied", days_ago=2, title="B"),
+    ]
+    groups = group_by_stage(apps, stages_cfg)
+    assert [a.title for a in groups["applied"]] == ["A", "B"]
+    assert groups["identified"] == []
+    assert groups["onsite"] == []
+    assert groups["closed"] == []
+
+
+def test_group_by_stage_flags_unknown_stage(stages_cfg: StagesConfig) -> None:
+    apps = [_app(stage="applied", days_ago=1), _app(stage="mystery", days_ago=1, title="M")]
+    groups = group_by_stage(apps, stages_cfg)
+    assert len(groups["applied"]) == 1
+    assert [a.title for a in groups["__unknown__"]] == ["M"]
+    assert "mystery" not in groups
 
 
 def test_detect_stale_flags_over_threshold(stages_cfg: StagesConfig) -> None:

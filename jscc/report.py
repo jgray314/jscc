@@ -28,6 +28,28 @@ class StaleAlert(BaseModel):
         return self.days_since_last_interaction - self.threshold_days
 
 
+def group_by_stage(
+    apps: list[Application], stages_config: StagesConfig
+) -> dict[str, list[Application]]:
+    """Bucket apps by stage, in stages.yaml order, including stages with no apps.
+
+    Mirrors `funnel_counts`' unknown-stage handling: apps whose `stage` isn't in
+    the configured pipeline are omitted from the named buckets and returned
+    under `"__unknown__"` only if present. The E2a dashboard's pipeline table
+    is this function rendered; `funnel_counts` is its per-stage size.
+    """
+    groups: dict[str, list[Application]] = {s: [] for s in stages_config.stages}
+    unknown: list[Application] = []
+    for app in apps:
+        if app.stage in groups:
+            groups[app.stage].append(app)
+        else:
+            unknown.append(app)
+    if unknown:
+        groups["__unknown__"] = unknown
+    return groups
+
+
 def funnel_counts(apps: list[Application], stages_config: StagesConfig) -> dict[str, int]:
     """Return per-stage counts in stages.yaml order, including zero-count stages.
 
