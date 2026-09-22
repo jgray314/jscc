@@ -288,6 +288,7 @@ manual-capture validation against real model output.
 - +22 tests, and two D5 tests removed with the error path they exercised
   (493 total). Grading is still presence-only: the quality rubric is the open
   D4b decision.
+
 ### D5: briefing renderer + `followup` orchestrator
 
 `jscc followup <application-id>` routes, then either drafts (routine) or
