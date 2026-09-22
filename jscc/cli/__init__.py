@@ -4,7 +4,7 @@
 commands onto it.
 """
 
-from . import admin, agents, eval_cmds, ingest  # noqa: F401  (registration)
+from . import admin, agents, eval_cmds, ingest, web  # noqa: F401  (registration)
 from ._app import cli
 from ._common import EXIT_OK, EXIT_QUEUED, EXIT_UNEXPECTED, EXIT_USAGE
 

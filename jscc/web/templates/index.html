@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}JSCC — Dashboard{% endblock %}
+{% block content %}
+  <h1>Job Search Command Center</h1>
+  <p>Mode: <strong>{{ mode }}</strong></p>
+  <p>{{ application_count }} application{{ "" if application_count == 1 else "s" }} in this instance.</p>
+  <p><em>Pipeline, funnel and stale-alert views land in E2a; application detail and DLQ views in E2b.</em></p>
+{% endblock %}

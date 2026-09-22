@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}JSCC{% endblock %}</title>
+  <!-- CDN, not a bundled dependency: ADR-007 keeps the dashboard out of a
+       JS build step entirely. -->
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem; }
+    .banner { background: #fef3c7; border: 1px solid #d97706; padding: 0.5rem 1rem;
+               border-radius: 4px; margin-bottom: 1.5rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  {% if is_synthetic %}
+  <div class="banner">SYNTHETIC MODE — no real personal data in this instance</div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</body>
+</html>

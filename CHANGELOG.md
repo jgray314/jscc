@@ -12,6 +12,23 @@ folded at the Phase E gate.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## Phase E — dashboard (in progress)
+
+### E1: web scaffold (ADR-007)
+
+Resolved the deferred web-stack discussion (parent-plan queue #4): FastAPI + Jinja2 +
+HTMX, no SPA, no separate JS build step — the dashboard stays in JSCC's existing
+Python toolchain, matching the "earn its slot over the fancier default" judgment
+already applied to the LLM-stage splits (D9/D10). ADR-007 records the alternatives
+(React/Vite, plain server-rendered HTML, Streamlit/Gradio) and why they lost.
+
+`jscc/web/` holds a `create_app(data_dir, config_dir)` factory and Jinja2 templates;
+`jscc serve` boots it (127.0.0.1 by default, local-only per D4 — no BYOK). The index
+route opens the active mode's DB through the same `open_for_mode` contract the CLI
+uses, shows the application count, and renders the SYNTHETIC MODE banner (D7 M6) a
+slice early, since it was cheap to add once the template existed. +3 tests (622 total).
+Pipeline/funnel/stale views (E2a) and application detail + DLQ resolve (E2b) are next.
+
 ## Phase D — follow-up drafter (D1–D5, Phase D gate 2026-09-20)
 
 Routing first, then composition for routine situations only, and a briefing card
