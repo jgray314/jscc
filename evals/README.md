@@ -41,6 +41,8 @@ starting one:
 
 1. **Freeze the prompt.** Make every prompt-affecting change and decision first, including anything
    the batched cleanup items would change. Fixture edits count too.
+   `python scripts/capture_tools.py recapture-cost` lists every case the working tree's edits
+   invalidate, so the cost of an edit is known before it is committed to.
 2. **Run the full suite through proxies on the final wording,** with the target model, not a
    targeted subset. A proxy is a lower bound on failures, not a prediction: routing round 4 was
    proxy-clean and still failed on a real chat.

@@ -114,3 +114,42 @@ def test_proxy_grade_reports_failures_and_writes_no_recording(tmp_path: Path) ->
     assert "sample 0:" in report
     assert "false-routine: none" in report  # everything answered non_routine
     assert "ADVISORY ONLY" in report
+
+
+@pytest.mark.parametrize("suite", capture_tools.SUITES)
+def test_recapture_cost_is_zero_for_the_committed_recordings(suite: str) -> None:
+    """Every committed suite replays in CI, so on a clean tree nothing needs capture."""
+    missing, orphaned = capture_tools.recapture_cost(suite)
+    assert missing == []
+    assert orphaned == 0
+
+
+def test_recapture_cost_lists_every_case_a_system_prompt_edit_invalidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import jscc.scoring
+
+    monkeypatch.setattr(
+        jscc.scoring, "SCORING_SYSTEM_PROMPT", jscc.scoring.SCORING_SYSTEM_PROMPT + " "
+    )
+    missing, orphaned = capture_tools.recapture_cost("fit_scoring")
+    assert missing == capture_tools._case_ids("fit_scoring")
+    assert orphaned == len(missing)
+
+
+def test_recapture_cost_counts_only_the_cases_a_fixture_edit_touches(tmp_path: Path) -> None:
+    prompts = capture_tools.build_prompts("routing")
+    rec = tmp_path / "recorded.json"
+    ids = list(prompts)
+    for case_id in ids[1:]:
+        p = prompts[case_id]
+        evals.save_recording({evals._prompt_key(p["model"], p["system"], p["user"]): "x"}, rec)
+    evals.save_recording({"sha256:" + "0" * 64: "x"}, rec)
+    missing, orphaned = capture_tools.recapture_cost("routing", rec)
+    assert missing == [ids[0]]
+    assert orphaned == 1
+    out = capture_tools.format_recapture_cost("routing", missing, orphaned, len(ids))
+    assert (
+        out.splitlines()[0]
+        == f"routing: 1/{len(ids)} cases need a new capture; 1 recorded keys match no current case"
+    )

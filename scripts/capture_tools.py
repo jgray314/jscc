@@ -10,8 +10,14 @@ script builds them the same way the eval command does, then serves each step:
     python scripts/capture_tools.py record <suite> <case_id> <completion_file>
     python scripts/capture_tools.py proxy-prep <suite> <tag> [--samples N]
     python scripts/capture_tools.py proxy-grade <suite> <tag>
+    python scripts/capture_tools.py recapture-cost [<suite>...]
 
 Suites: jd_extraction, fit_scoring, routing, composition.
+
+`recapture-cost` answers "what would this edit cost?" before a capture round is
+committed to: run it with a prompt, fixture or redaction change in the working tree and
+it lists every case whose recording no longer matches. Recordings are keyed by a hash of
+the exact prompt, so one word in a system prompt invalidates the whole suite.
 
 `prompts` must be re-run after any prompt, fixture or redaction change, because the
 recording key hashes the exact prompt text. `show` and `record` refuse to run against
@@ -242,6 +248,27 @@ def grade_proxy(suite: str, tag: str, work_dir: Path) -> str:
     return "\n".join(lines)
 
 
+def recapture_cost(suite: str, path: Path | None = None) -> tuple[list[str], int]:
+    """Cases with no recording under the prompts the current code builds, and how many
+    recorded keys no current case maps to (dead weight a recapture would replace)."""
+    prompts = build_prompts(suite)
+    recorded = evals.load_recording(path or recording_path(suite))
+    keys = {
+        case_id: evals._prompt_key(p["model"], p["system"], p["user"])
+        for case_id, p in prompts.items()
+    }
+    missing = [case_id for case_id, key in keys.items() if key not in recorded]
+    orphaned = len(set(recorded) - set(keys.values()))
+    return missing, orphaned
+
+
+def format_recapture_cost(suite: str, missing: list[str], orphaned: int, total: int) -> str:
+    head = f"{suite}: {len(missing)}/{total} cases need a new capture"
+    if orphaned:
+        head += f"; {orphaned} recorded keys match no current case"
+    return "\n".join([head, *(f"   {case_id}" for case_id in missing)])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--work-dir", type=Path, default=DEFAULT_WORK_DIR)
@@ -268,6 +295,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("suite", choices=SUITES)
     p.add_argument("tag")
 
+    p = sub.add_parser(
+        "recapture-cost", help="list cases whose recording the current code would not replay"
+    )
+    p.add_argument("suites", nargs="*", choices=SUITES, metavar="suite")
+
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -292,6 +324,10 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "proxy-prep":
         base = prep_proxy(args.suite, args.tag, args.samples, args.work_dir)
         print(f"inputs in {base / 'in'}; write each answer to {base / 'out'}/<case>__<k>.json")
+    elif args.cmd == "recapture-cost":
+        for suite in args.suites or SUITES:
+            missing, orphaned = recapture_cost(suite)
+            print(format_recapture_cost(suite, missing, orphaned, len(_case_ids(suite))))
     else:
         print(grade_proxy(args.suite, args.tag, args.work_dir))
     return 0
