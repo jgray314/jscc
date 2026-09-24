@@ -152,8 +152,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 35,
-    "max_score": 65
+    "min_score": 70,
+    "max_score": 95
   },
   {
     "id": "case-07-excellent-match-comp-above-range",
@@ -178,8 +178,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 75,
-    "max_score": 100
+    "min_score": 65,
+    "max_score": 85
   },
   {
     "id": "case-08-ambiguous-minimal-detail",
@@ -204,7 +204,7 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 15,
+    "min_score": 5,
     "max_score": 55
   },
   {
@@ -360,8 +360,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 70,
-    "max_score": 95
+    "min_score": 65,
+    "max_score": 85
   },
   {
     "id": "case-15-role-focus-matches-second-entry",
@@ -387,7 +387,7 @@
       "style_samples": []
     },
     "min_score": 65,
-    "max_score": 90
+    "max_score": 100
   },
   {
     "id": "case-16-role-focus-matches-neither",
@@ -438,8 +438,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 55,
-    "max_score": 85
+    "min_score": 70,
+    "max_score": 95
   },
   {
     "id": "case-18-thin-skills-list-still-scores-well",
@@ -542,7 +542,7 @@
       "deal_breakers": ["required people management duties"],
       "style_samples": []
     },
-    "min_score": 15,
+    "min_score": 5,
     "max_score": 55
   },
   {
@@ -594,8 +594,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 50,
-    "max_score": 80
+    "min_score": 70,
+    "max_score": 95
   },
   {
     "id": "case-24-ambiguous-tech-lead-title",
@@ -620,8 +620,8 @@
       "deal_breakers": ["on-call rotations >1 week/month"],
       "style_samples": []
     },
-    "min_score": 20,
-    "max_score": 60
+    "min_score": 55,
+    "max_score": 85
   },
   {
     "id": "case-25-hybrid-clean-match",

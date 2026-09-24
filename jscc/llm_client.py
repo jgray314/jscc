@@ -39,10 +39,12 @@ from pydantic import BaseModel
 EXTRACTION_MODEL = "claude-haiku-4-5-" + "20251001"
 
 # Per D9: extraction is structured (Haiku territory), scoring is judgment
-# (Sonnet territory). Same split-literal reasoning as EXTRACTION_MODEL above
-# -- the contiguous 8-digit date suffix trips the pre-commit scanner's
-# phone-pattern digit-count window.
-SCORING_MODEL = "claude-sonnet-4-5-" + "20250929"
+# (Sonnet territory). Moved from the dated Sonnet 4.5 id to Sonnet 5 on
+# 2026-09-24: the manual capture rounds run in Claude.ai chat, whose default
+# Sonnet has been Sonnet 5 since its 2026-06-30 launch, so the recordings were
+# never Sonnet 4.5 and the id has to match what produced them. Sonnet 5 has no
+# date suffix, so no split literal is needed here.
+SCORING_MODEL = "claude-sonnet-5"
 
 # Per D10: routing is a classification, not a draft -- same "structured,
 # cheap" shape as extraction, so it reuses EXTRACTION_MODEL rather than
@@ -59,7 +61,7 @@ ROUTING_MODEL = EXTRACTION_MODEL
 # one model id and one rate entry to keep in sync, not two hand-copied ones.
 COMPOSITION_MODEL = SCORING_MODEL
 
-# Published rates, verified 2026-09-05 against
+# Published rates, verified 2026-09-05 (Sonnet 5 entry: 2026-09-24) against
 # https://platform.claude.com/docs/en/about-claude/pricing
 #
 # These are a hand-copied constant, not a runtime lookup, so they go stale
@@ -71,7 +73,10 @@ COMPOSITION_MODEL = SCORING_MODEL
 # against the link above whenever the model changes or a bill looks off.
 _MODEL_RATES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
     EXTRACTION_MODEL: (1.00, 5.00),  # (input, output) USD per million tokens
-    SCORING_MODEL: (3.00, 15.00),
+    # Sonnet 5's launch pricing ($2/$10) became the standard price; the
+    # scheduled 2026-09-01 increase to $3/$15 was cancelled (pricing page,
+    # footnote 3, checked 2026-09-24).
+    SCORING_MODEL: (2.00, 10.00),
 }
 
 

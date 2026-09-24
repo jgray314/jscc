@@ -9,7 +9,7 @@ What each committed `recorded.json` replays to. `tests/test_published_results.py
 | Suite | Result | Bar | Evidence |
 |---|---|---|---|
 | jd_extraction | 32/36 (89%) | 80% | Third capture round, on a prompt changed after rounds 1 and 2 (56%, then 75%). The prompt was debugged against these same fixtures, so 89% is not a held-out rate; earlier rounds on earlier wording were 76%-82% (33 cases), 56% and 75%. Misses: 06, 26, 27, 31. |
-| fit_scoring | 21/25 (84%) | 80% | One capture round. |
+| fit_scoring | 27/28 (96%) | 80% | Round 1 on the revised prompt (Claude.ai default Sonnet 5, 2026-09-24), after 64% on the first prompt. The prompt and nine ranges were changed after that first round, so this is not a held-out rate. A second round is pending. |
 | routing | 26/26 (100%) | 85%, and zero false-routine | Round 5 of 5, on the cases the prompt was tuned against; see the round history below. |
 | composition | 24/28 (86%) | 75%, and every must-ask case asks | One capture round. |
 
@@ -92,6 +92,19 @@ Run: `python -m jscc eval fit_scoring`. C2a landed the real prompt (Sonnet, per 
 
 **Round 1 (2026-09-12): 21/25 (84%)**, above the 80% bar. Three misses (case-02, case-06, case-08) landed just outside a band on comp/level boundary judgment calls — expected instability, not a wording gap. The fourth (case-14, a director/VP posting one level above the profile's target with comp above range) is a real prompt-language finding, confirmed with a second independent capture (38, then 22, both against a 70-95 band, both citing "far outside role_focus"): the prompt's role/level factor treats an adjacent higher title as categorically outside `role_focus` rather than as one step up that above-range comp should help offset. Deferred rather than fixed against round-1 data alone, since 84% already clears the bar; it will be fixed with the next change to the scoring prompt, so one re-capture round covers it.
 
+**Ranges corrected after round 1 (2026-09-23, before the recapture).** Round 1 on the unchanged prompt scored 18/28 (64%). Nine `min_score`/`max_score` pairs were changed because they contradicted the prompt's own rules, not to match the returned scores; the prompt also gained numeric bands and an adjacent-title anchor (see the CHANGELOG entry). Round 1 informed the choice, so the corrected suite is not a blind test and the recapture must be reported as a fresh round, not as round 1 re-graded.
+
+| Case | Old | New | Why |
+|---|---|---|---|
+| 06 hybrid, comp unstated | 35-65 | 70-95 | Comp unstated is neutral and a silent must-have is unknown; nothing deducts. Same shape as case-18. |
+| 07 director, comp above range | 75-100 | 65-85 | Adjacent title: the prompt now anchors the low 70s. Floors of 07 and 14 disagreed. |
+| 08, 21 minimal mid-level posting | 15-55 | 5-55 | A mid-level IC against an L6-L7 target is far outside; 15 was a floor the prompt does not support. Not 0, so a constant-zero stub still fails those cases. |
+| 14 VP, executive scope | 70-95 | 65-85 | Same anchor as case-07. |
+| 15 senior staff IC | 65-90 | 65-100 | A direct match on every factor; nothing justifies a cap below case-01's. |
+| 17 must-have met via raw text | 55-85 | 70-95 | "Remote-friendly" meets the must-have; same shape as case-18. |
+| 23 hybrid, legacy monolith | 50-80 | 70-95 | The posting states modern CI/CD; the prompt counts a must-have as missing only when the posting contradicts it. The case id keeps its old "partial miss" name. |
+| 24 tech lead, band straddles the floor | 20-60 | 55-85 | The prompt had no rule for a band straddling the target minimum. It now counts the band as within range when its midpoint is above the minimum ($290,000-$360,000 against $300,000), so no comp cap applies; case-13 ($260,000-$340,000, midpoint exactly $300,000) stays capped. The title is not a listed target, so the range stays wide. |
+
 ## routing
 
 `evals/routing/cases.json` — 26 hand-authored (application, history) fixtures, 12 routine and 14 non-routine. The first 12 split evenly across the surface D10 names: routine (post-interview thank-you, cadence nudge on a stale screen, onsite-logistics confirmation, a cold recruiter outreach needing acknowledgment, thank-you after a phone screen, thank-you to a referrer) and non-routine (a feedback-seeking rejection reply, a compensation negotiation, first outreach to a warm personal contact, two threads giving conflicting instructions, an interaction note carrying a contact's personal/medical disclosure per D8, and a genuinely ambiguous recruiter check-in with no clear ask). How it grew to 26 is below.
@@ -147,4 +160,4 @@ Run: `python -m jscc eval composition`, with `--record`/`--replay`/`--manual`/`-
 
 **Why 75%, the lowest bar.** Per case, this grader is the strictest and the least forgiving of a good answer. It has no judge of tone, and a draft fails for missing a synonym group, running outside the word range, or reusing six words of a style sample, all of which a good email can do. What matters for safety does not ride on the 75%. The router keeps non-routine situations out, and the second gate fails the run on any case where the composer should have asked and drafted instead.
 
-**Round 1 (2026-09-20): 24/28 (86%), passes the 0.75 bar.** Captured through Jess's own Claude.ai chats (Sonnet 4.5, one fresh chat per case). All 3 escalation cases correct. The 4 misses are all `style_reuse`. Not caught by any check and logged as a fast-follow: one invented weekday ("Tuesday, September 23", a Wednesday) and two invented relative dates ("yesterday", "last week").
+**Round 1 (2026-09-20): 24/28 (86%), passes the 0.75 bar.** Captured through Jess's own Claude.ai chats (the Claude.ai default Sonnet, which was Sonnet 5, one fresh chat per case; first written up as Sonnet 4.5 and corrected 2026-09-24). All 3 escalation cases correct. The 4 misses are all `style_reuse`. Not caught by any check and logged as a fast-follow: one invented weekday ("Tuesday, September 23", a Wednesday) and two invented relative dates ("yesterday", "last week").
