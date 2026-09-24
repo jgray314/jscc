@@ -202,7 +202,10 @@ def _init_db(conn: sqlite3.Connection) -> None:
     """
     conn.executescript(SCHEMA_DDL)
     _migrate(conn)
-    conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
+    # Stamp upward only: a database written by a newer schema keeps its own
+    # number instead of being lowered to this code's.
+    if schema_version(conn) < DB_SCHEMA_VERSION:
+        conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
     conn.commit()
 
 
@@ -312,9 +315,16 @@ def open_for_mode(
                     f"database at {path} was stamped as {stamped.value!r}; "
                     f"refusing to open under mode {mode.value!r} (JSCC_DATA)."
                 )
-            # Populated + matches: bring schema up to date (idempotent DDL is
-            # safe now that we know the mode agrees).
-            _init_db(conn)
+            # Populated + matches: bring the schema up to date only if it is
+            # behind. A database already at this version takes no write on open
+            # (the dashboard opens one per request); missing columns are still
+            # repaired by presence, which covers a file stamped ahead of its
+            # shape.
+            if schema_version(conn) < DB_SCHEMA_VERSION:
+                _init_db(conn)
+            else:
+                _migrate(conn)
+                conn.commit()
             return conn
 
         # Fresh DB path: run full init, stamp the marker.

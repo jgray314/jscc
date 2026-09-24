@@ -453,3 +453,27 @@ def test_a_staged_file_holding_an_api_key_is_blocked(tmp_path: Path) -> None:
     target = _write(tmp_path / "notes.md", f"my key is {key}\n")
     danger = _write(tmp_path / "danger.txt", "# empty\n")
     assert precommit_scan.main([str(target), "--danger-list", str(danger)]) == 1
+
+
+def test_utf16_file_is_scanned_not_skipped(tmp_path: Path) -> None:
+    """Windows PowerShell 5.1's `>` writes UTF-16. Such a file used to fail the
+    UTF-8 decode and be skipped as binary, so a redirected text dump committed
+    unscanned."""
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = tmp_path / "dump.txt"
+    f.write_text("contact: alice@example.com\n", encoding="utf-16")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_legacy_single_byte_text_is_scanned(tmp_path: Path) -> None:
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = tmp_path / "old.txt"
+    f.write_bytes("caf\xe9 note: alice@example.com\n".encode("cp1252"))
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 1
+
+
+def test_clean_utf16_file_passes(tmp_path: Path) -> None:
+    danger = _write(tmp_path / "danger.txt", "# empty\n")
+    f = tmp_path / "dump.txt"
+    f.write_text("nothing personal here\n", encoding="utf-16")
+    assert precommit_scan.main([str(f), "--danger-list", str(danger)]) == 0

@@ -6,7 +6,7 @@ Testable in isolation; the CLI is a thin wrapper.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 
@@ -74,6 +74,10 @@ def _reference_time(app: Application) -> datetime | None:
     return app.last_interaction_at or app.created_at
 
 
+# How far ahead of `now` a reference timestamp may sit and still count as age zero.
+_CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
+
+
 def detect_stale(
     apps: list[Application],
     stages_config: StagesConfig,
@@ -97,7 +101,11 @@ def detect_stale(
         if ref.tzinfo is None:
             ref = ref.replace(tzinfo=UTC)
         days = (now - ref).days
-        # A future reference timestamp means bad data (clock skew, corrupt
+        if days < 0 and ref - now <= _CLOCK_SKEW_TOLERANCE:
+            # A row stamped a moment ahead of the reading clock (two clocks, or a
+            # write racing the read) is not bad data; it is age zero.
+            days = 0
+        # A future reference timestamp beyond that means bad data (a corrupt
         # row, or a caller passing a --now in the past). Silent drop would
         # hide it — every alert path assumes the timestamp is in the past.
         if days < 0:

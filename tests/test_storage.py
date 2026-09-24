@@ -534,3 +534,60 @@ def test_delete_application_removes_it_and_its_children(conn: sqlite3.Connection
     create_application(conn, app)
     delete_application(conn, app.id)
     assert get_application(conn, app.id) is None
+
+
+def test_opening_a_current_database_takes_no_schema_write(tmp_path: Path, monkeypatch) -> None:
+    """The dashboard opens a connection per request. A database already at this
+    version must not re-run the DDL or re-stamp the version on every open."""
+    import sqlite3
+
+    from jscc.mode import Mode
+    from jscc.storage import open_for_mode
+
+    open_for_mode(Mode.synthetic, tmp_path).close()
+
+    executed: list[str] = []
+
+    class Spy(sqlite3.Connection):
+        def executescript(self, sql_script):
+            executed.append("executescript")
+            return super().executescript(sql_script)
+
+        def execute(self, sql, *args):
+            if "user_version =" in sql:
+                executed.append(sql)
+            return super().execute(sql, *args)
+
+    real_connect = sqlite3.connect
+    monkeypatch.setattr(
+        "jscc.storage.sqlite3.connect", lambda *a, **k: real_connect(*a, factory=Spy, **k)
+    )
+    open_for_mode(Mode.synthetic, tmp_path).close()
+
+    assert executed == []
+
+
+def test_opening_a_newer_database_does_not_lower_its_version(tmp_path: Path) -> None:
+    from jscc.mode import Mode
+    from jscc.storage import DB_SCHEMA_VERSION, open_for_mode, schema_version
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION + 3}")
+    conn.commit()
+    conn.close()
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    try:
+        assert schema_version(conn) == DB_SCHEMA_VERSION + 3
+    finally:
+        conn.close()
+
+
+def test_init_db_stamps_upward_only(conn: sqlite3.Connection) -> None:
+    """`_init_db` runs when a database is behind; it must never lower a version."""
+    from jscc.storage import DB_SCHEMA_VERSION, _init_db, schema_version
+
+    conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION + 2}")
+    conn.commit()
+    _init_db(conn)
+    assert schema_version(conn) == DB_SCHEMA_VERSION + 2

@@ -69,7 +69,7 @@ These are the reason "verify by deletion" is a standing rule. AI-written checks 
 
 Eval recordings were keyed on the user prompt only. The docstring said the key covered changes to the prompt; it did not. I replaced the entire system prompt with an instruction to return the word "banana" and re-ran the suite: 27 of 33 before, 27 of 33 after, no error. The replay reported the published pass rate for a prompt that did nothing. The key now hashes model, system prompt and user prompt, and the same experiment fails every case loudly.
 
-This is why the eval suite is not wired into CI as a gate. Replay pins the harness, the parser and the output contract. It does not measure model judgment, and until this fix it did not even pin the prompt.
+This is why the CI check on the recordings is a replay pin, not a measurement. Replay pins the harness, the parser, the output contract and the published numbers. It does not measure model judgment on new input, and until this fix it did not even pin the prompt.
 
 ### 5. A rating that was wrong
 
@@ -95,4 +95,4 @@ An earlier fix had made the seeded fixture reproducible by threading a seeded ra
 
 ## Open items
 
-None of the findings above remain open. The current backlog lives in the CHANGELOG. Items deferred with a stated revisit trigger, rather than closed, include one minimization finding for the scoring payload and a second validation round for fit scoring; both are named in the Phase C to D gate entry of the CHANGELOG. The Phase D gate added one more: routing's 26/26 comes from the cases its prompt was tuned against, so the next routing capture adds fresh held-out cases and reports them separately ([evals README](../evals/README.md)).
+None of the findings above remain open. The current backlog lives in the CHANGELOG. Items deferred with a stated revisit trigger, rather than closed, include a second validation round for composition (before the narrative cites its number), the invented-weekday check in the composition grader (after the planned phases), and routing's held-out set: 26/26 comes from the cases its prompt was tuned against, so a routing recapture adds fresh cases and reports them separately ([evals README](../evals/README.md)). The scoring-payload minimization and fit scoring's second round were closed at the Phase E gate.
