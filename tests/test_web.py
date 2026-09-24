@@ -191,9 +191,11 @@ def test_stale_alerts_flags_only_the_overdue_app(two_app_data_dir: Path) -> None
     response = _get(_client(app))
 
     assert "Stale alerts (1)" in response.text
-    assert "Zeta" in response.text
-    assert "overdue by 15d" in response.text  # 25 days - 10-day onsite threshold
-    assert "Fresh Role" not in response.text.split("Stale alerts")[1]
+    alerts_section = response.text.split("Stale alerts")[1]
+    # "Zeta" also appears in the pipeline table above, so check the alerts section itself.
+    assert "Zeta" in alerts_section
+    assert "overdue by 15d" in alerts_section  # 25 days - 10-day onsite threshold
+    assert "Fresh Role" not in alerts_section
 
 
 def test_now_query_param_rejects_naive_timestamp(two_app_data_dir: Path) -> None:
@@ -704,3 +706,20 @@ def test_real_mode_resolve_without_a_key_refuses_instead_of_saving_a_placeholder
         assert list_applications(conn) == []
     finally:
         conn.close()
+
+
+def test_a_future_timestamp_is_a_named_error_not_a_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    conn.close()
+    _insert_app(tmp_path, title="Odd", company="Acme", stage="applied", days_ago=-4000)
+    client = _client(
+        create_app(data_dir=tmp_path, config_dir=CONFIG_DIR), raise_server_exceptions=False
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 500
+    assert "future reference timestamp" in response.text

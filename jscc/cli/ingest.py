@@ -203,17 +203,14 @@ def ingest(
             echo(f"  {e}", err=True)
             sys.exit(EXIT_QUEUED)
         except anthropic.APIError as e:
-            # A transient API error (rate limit, overload,
-            # timeout, connection reset) propagated straight out of
-            # `_raw_extraction_call` uncaught -- crashing `ingest` with a raw
-            # traceback and, on `--paste`, losing the pasted text for good,
-            # since nothing durable exists yet at the point of failure. D6's
-            # contract is "produces an Application or a DLQEntry, never
-            # crashes"; this did neither, for the single most likely failure
-            # a live key introduces. Routed to `FailureMode.other`, which
-            # the fetch-status comment above notes is defined and never produced by
-            # `fetcher.py` -- there was already a slot waiting for exactly
-            # this. Retry is `resolve-dlq`, same as any other DLQ entry.
+            # A transient API error (rate limit, overload, timeout, connection
+            # reset) used to propagate out uncaught and crash `ingest` with a
+            # traceback. D6's contract is "produces an Application or a DLQEntry,
+            # never crashes", so it is routed to `FailureMode.other` (the slot
+            # for a failure that is not a fetch failure). Retry is `resolve-dlq`,
+            # same as any other DLQ entry. Known limit: the entry stores the
+            # source URL, not the text, so on `--paste` the pasted text is still
+            # lost and `resolve-dlq` needs it pasted again (threat model T10).
             entry = DLQEntry(
                 source_url=source_url or PASTED_SOURCE,
                 failure_mode=FailureMode.other,

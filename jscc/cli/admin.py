@@ -27,6 +27,7 @@ from ..storage import (
 from ._app import cli, db
 from ._common import (
     DEFAULT_CONFIG_DIR,
+    EXIT_UNEXPECTED,
     EXIT_USAGE,
     _open_or_exit,
     _parse_now,
@@ -237,7 +238,10 @@ def report(data_dir: Path, config_dir: Path, now_str: str | None) -> None:
         # with it, so treat that case as a usage error rather than a crash.
         if now_str is not None:
             raise click.UsageError(str(e)) from e
-        raise
+        # Stored data the report cannot interpret: say so and exit 1 rather than
+        # print a traceback, which reads as a crash in the tool.
+        echo(f"error: {e}", err=True)
+        sys.exit(EXIT_UNEXPECTED)
     echo(f"[mode: {mode.value}]")
     echo(format_report(counts, alerts, stages_cfg))
 

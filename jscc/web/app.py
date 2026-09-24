@@ -181,7 +181,8 @@ def create_app(
             # in stored data and should 500 like anything else unexpected.
             if now is not None:
                 raise HTTPException(status_code=400, detail=str(e)) from e
-            raise
+            # Stored data the page cannot interpret: name it, do not crash.
+            raise HTTPException(status_code=500, detail=str(e)) from e
         return templates.TemplateResponse(
             request,
             "index.html",

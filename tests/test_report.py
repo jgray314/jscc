@@ -266,3 +266,23 @@ def test_detect_stale_raises_on_future_reference_timestamp(
     apps = [_app(stage="applied", days_ago=-5, company="TimeTraveler")]
     with _pytest.raises(ValueError, match="future reference timestamp"):
         detect_stale(apps, stages_cfg, now=FIXED_NOW)
+
+
+def test_detect_stale_treats_a_moment_of_clock_skew_as_age_zero(
+    stages_cfg: StagesConfig,
+) -> None:
+    """A row stamped a second ahead of the reading clock used to raise, and one
+    such row 500'd the whole dashboard index and crashed `jscc report`. Skew of
+    minutes is not bad data; a day ahead still is."""
+    from datetime import timedelta
+
+    skewed = _app(stage="applied", days_ago=0, company="Skewed")
+    skewed.last_interaction_at = FIXED_NOW + timedelta(seconds=1)
+    assert detect_stale([skewed], stages_cfg, now=FIXED_NOW) == []
+
+    far = _app(stage="applied", days_ago=0, company="Far")
+    far.last_interaction_at = FIXED_NOW + timedelta(hours=1)
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError, match="future reference timestamp"):
+        detect_stale([far], stages_cfg, now=FIXED_NOW)

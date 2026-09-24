@@ -159,7 +159,7 @@ jscc/           library code
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
   web/          FastAPI + Jinja2 dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (718 tests)
+tests/          pytest suite (733 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
@@ -224,7 +224,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet: every model call so far ran against a stub client or was captured by hand through Claude.ai chat, never a billed `AnthropicClient` request, since this project is not using the Anthropic Console. What does exist: every call path is instrumented (D5), the ledger and `jscc costs` are built and tested against synthetic call records, and a call that fails mid-request leaves a marked row instead of vanishing. The honest claim today is "the cost-transparency machinery is built and correct", not "here is what this costs to run"; that waits on a live key.
 
-718 pytest cases. Lint and format enforced via ruff (see Development, above).
+733 pytest cases. Lint and format enforced via ruff (see Development, above).
 
 ## License
 

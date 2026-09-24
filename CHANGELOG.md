@@ -27,6 +27,16 @@ The walkthrough found that the extracted title and company, text a model pulled 
 - **What it does not show.** 10/10 on the held-out set is n=10. The core 25/26 was tuned on. The hostile group is two fictional cases, and the model passed one of them only with the check's help. Held-out status held because no prompt edit responded to a held-out result.
 - **Left alone.** `routine-recruiter-ack` is sent to a person, the safe direction, in both rounds.
 
+### Phase E gate, fixes B: the lightweight findings
+
+- **Published results pin which cases miss (L1-12).** The pinning test compared pass counts, so one pass and one fail swapping places stayed green, and nothing tied the hostile-posting cases T5 rests on. It now pins the exact set of misses per suite and requires every hostile case to pass in the suites that have them.
+- **A moment of clock skew is not bad data (L1-14).** A reference timestamp a second ahead of the reading clock raised, and one such row returned a 500 for the whole dashboard index and a traceback from `jscc report`. Skew up to five minutes counts as age zero; anything further ahead still raises, now as a named error (a 500 page that says which row on the dashboard, exit 1 with a message on the CLI).
+- **Opening a current database takes no write (L1-13).** Every dashboard request re-ran the schema DDL and re-stamped the version, and would have lowered a newer database's stamp. A database already at this version is only checked for missing columns, and the stamp only moves upward.
+- **The pre-commit scanner reads UTF-16 and legacy-encoded text (L1-16).** Windows PowerShell 5.1's `>` writes UTF-16, which failed the UTF-8 decode and was skipped as binary, so a redirected text dump committed unscanned. A UTF-16 file (by byte-order mark) and a single-byte-encoded text file are now scanned; a file with NUL bytes that is not UTF-16 is still treated as binary.
+- **Smaller.** The comment on the extraction API-error path now states that a pasted text is still lost (L1-11), the dashboard test that flagged only the overdue application checks the alerts section instead of the whole page, and `docs/gate-reviews.md` no longer says the recordings are not a CI gate or lists a closed item as open (W7).
+
+Tests: 704 to 718. Each fix was checked by removing it and confirming a test failed.
+
 ### Phase E gate, fixes A: walkthrough highs and the findings that share their files
 
 The gate's outside-reviewer lens found the README, the ADRs and this file describing a slightly better system than the one that exists, and three earlier "fixed" items had regressed.

@@ -137,12 +137,38 @@ def scan_line(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str]]:
     return find_personal(_SHA256_KEY_RE.sub("sha256:<key>", line), danger_terms)
 
 
-def scan_file(path: Path, danger_terms: Iterable[str]) -> list[Hit]:
+def read_scannable_text(path: Path) -> str | None:
+    """The file's text, or None if it is unreadable or binary.
+
+    UTF-8 first. Then UTF-16 when the file carries a byte-order mark: Windows
+    PowerShell 5.1's `>` writes UTF-16, and skipping such a file let a redirected
+    text dump commit unscanned. Then, for a file with no NUL bytes, a legacy
+    single-byte decode (Latin-1 maps every byte), because personal data in a
+    cp1252 text file is still personal data and the patterns are ASCII. A file
+    with NUL bytes that is not UTF-16 is binary and is skipped: binary blobs are
+    the domain of git-lfs / .gitattributes filters, not this scanner.
+    """
     try:
-        text = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
-        # Binary or unreadable — skip, do not fail. Binary blobs are the
-        # domain of git-lfs / .gitattributes filters, not this scanner.
+        data = path.read_bytes()
+    except OSError:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        try:
+            return data.decode("utf-16")
+        except UnicodeDecodeError:
+            return None
+    if b"\x00" in data:
+        return None
+    return data.decode("latin-1")
+
+
+def scan_file(path: Path, danger_terms: Iterable[str]) -> list[Hit]:
+    text = read_scannable_text(path)
+    if text is None:
         return []
     out: list[Hit] = []
     for i, line in enumerate(text.splitlines(), start=1):
