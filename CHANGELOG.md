@@ -14,6 +14,19 @@ design principles D1 to D10 in `docs/design-principles.md`.
 
 ## Phase E — dashboard (shipped)
 
+### Phase E gate, hardening slice 1: dashboard and fetcher (adversarial findings L1-1, L1-2, L1-3, L1-6, L1-7, L1-9)
+
+Both cold lenses ran at the Phase E gate. This slice fixes the adversarial lens's High findings and the dashboard and fetcher findings that share their files; the rest of the gate's findings are tracked in the gate doc.
+
+- **Dashboard request guards (L1-1).** Binding to 127.0.0.1 keeps other machines out, not a web page in the user's own browser: DNS rebinding points an attacker's domain at the loopback address, and the browser then treats the dashboard as that page's own site. A probe read `/dlq` with a foreign `Host` and created an Application with a foreign `Origin`. Now every request's `Host` must be on an allowlist (loopback names plus the address `serve` binds), and a state-changing request with a foreign or `null` `Origin`, or a cross-site `Sec-Fetch-Site`, is refused. Threat model T13.
+- **DLQ resolve race (L1-2, contradicts the earlier idempotency fix).** The guard checked "still unresolved" before a seconds-long model call and wrote unconditionally after it, so a double-click made two Applications. Resolves are now serialized per entry, and the final write is a compare-and-set that a second process can lose, in which case its Application is deleted. The form's button disables on submit.
+- **IDN hosts and the DNS pin (L1-3, contradicts the DNS-rebinding fix).** `urllib3` resolves an internationalized host in punycode, so a pin keyed on the URL's spelling never matched and the connection was resolved unpinned. The URL check and the pin now compare through one normalization (lowercase, no trailing dot, IDNA), and a host that cannot be encoded is rejected. Overlapping pins are serialized, since the patched resolver is process-global (L1-15).
+- **Concurrent page loads (L1-6).** The per-request connection was pinned to its creating thread while the framework runs setup and teardown on other workers; 150 of 200 concurrent GETs returned 500. The dashboard connection now opts out of the same-thread check.
+- **No script, no third-party origin (L1-7).** The base template loaded HTMX from a CDN with no integrity hash, and nothing used it. Removed; ADR-007 has an addendum, and a test fails if a template gains a `<script>` or an absolute URL.
+- **Non-http source URLs are not linked (L1-9).** A stored `javascript:` URL was rendered as a link.
+
+Tests: 654 to 689. Each fix was checked by removing it and confirming a test failed.
+
 ### Phase E gate, extraction prompt: skills rule tightened after a failed 36-case capture (recaptured: 32/36, 89%)
 
 The first capture of the 36-case jd_extraction suite scored 20/36 (56%) against the 80% bar; the last round on 33 cases was 27/33 (82%) and the proxy had predicted 30/36. Three diagnostic chats (Haiku 4.5, fresh incognito chat each, single paste) cleared the model choice, chat memory, and the one new prompt paragraph: the failure was Haiku over-including skills the rules exclude ("SRE" from "5+ years SRE/infra", "full-stack development", "CI/CD pipelines", a tech stack copied from a stack paragraph) and paraphrasing requirement wording. The 82% band was optimistic for this class of case. The chatty prose-plus-fence reply on the hostile case-34 did not reproduce.

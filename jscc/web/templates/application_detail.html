@@ -13,7 +13,7 @@
     <dt>Created</dt><dd>{{ app.created_at }}</dd>
     <dt>Last interaction</dt><dd>{{ app.last_interaction_at if app.last_interaction_at else "(none)" }}</dd>
     {% if app.source_url %}
-    <dt>Source</dt><dd><a href="{{ app.source_url }}">{{ app.source_url }}</a></dd>
+    <dt>Source</dt><dd>{% if app.source_url is http_url %}<a href="{{ app.source_url }}" rel="noopener noreferrer">{{ app.source_url }}</a>{% else %}{{ app.source_url }}{% endif %}</dd>
     {% endif %}
   </dl>
 

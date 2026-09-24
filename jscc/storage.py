@@ -51,6 +51,7 @@ __all__ = [
     "create_dlq_entry",
     "update_application",
     "resolve_dlq_entry",
+    "delete_application",
     "list_applications",
     "list_contacts",
     "list_interactions",
@@ -153,7 +154,7 @@ CREATE INDEX IF NOT EXISTS ix_llm_calls_ts ON llm_calls(ts);
 _MODE_META_KEY = "mode"
 
 
-def _connect(db_path: Path) -> sqlite3.Connection:
+def _connect(db_path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
     """Low-level DB open. **Private on purpose.**
 
     Everything that opens a DB in production must go through `open_for_mode` so
@@ -163,7 +164,7 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     outside the jscc package or its tests.
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     # Keep concurrent CLI invocations (seed + report, or Phase B agent
@@ -265,8 +266,15 @@ def _ensure_meta_table(conn: sqlite3.Connection) -> None:
 def open_for_mode(
     mode: Mode,
     data_dir: Path | None = None,
+    *,
+    check_same_thread: bool = True,
 ) -> sqlite3.Connection:
     """Open (and initialize on first use) the DB corresponding to `mode`.
+
+    `check_same_thread=False` is for a caller that hands one connection to
+    successive worker threads but never uses it from two at once (the
+    dashboard's per-request connection, whose setup, handler and teardown the
+    framework may run on different threads).
 
     Two paths, chosen by whether the DB is a fresh file or a populated one:
 
@@ -287,7 +295,7 @@ def open_for_mode(
     on a bare read connection).
     """
     path = resolve_db_path(mode, data_dir)
-    conn = _connect(path)
+    conn = _connect(path, check_same_thread=check_same_thread)
     try:
         _ensure_meta_table(conn)
         populated = _db_has_user_tables(conn)
@@ -487,6 +495,13 @@ def update_application(conn: sqlite3.Connection, app_id: str, **fields: Any) -> 
 # ---- Contact ------------------------------------------------------------------
 
 
+def delete_application(conn: sqlite3.Connection, app_id: str) -> None:
+    """Remove an application (its contacts and interactions cascade). Used to
+    undo an Application created by a DLQ resolve that lost a race."""
+    conn.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+    conn.commit()
+
+
 def create_contact(conn: sqlite3.Connection, contact: Contact) -> str:
     conn.execute(
         """
@@ -631,7 +646,15 @@ def resolve_dlq_entry(
     resolution: Resolution,
     now: datetime | None = None,
     application_id: str | None = None,
-) -> None:
+    *,
+    only_if_unresolved: bool = False,
+) -> bool:
+    """Mark a DLQ entry resolved. Returns whether a row was changed.
+
+    `only_if_unresolved=True` makes the write a compare-and-set: it changes the
+    row only while the entry is still unresolved, so of two racing resolvers
+    exactly one wins and the other learns it lost (returns False).
+    """
     if resolution is Resolution.unresolved:
         raise ValueError("cannot resolve to 'unresolved'; use one of manual_paste, wont_fix")
     stamped_at = now if now is not None else _now()
@@ -640,12 +663,21 @@ def resolve_dlq_entry(
     # call had set. COALESCE makes "argument omitted" mean "leave it alone"
     # rather than "clear it" -- a caller that actually wants to clear the
     # link has no way to ask for that today, which is fine: nothing needs to.
-    conn.execute(
+    cursor = conn.execute(
         "UPDATE dlq_entries SET resolution = ?, resolved_at = ?, "
-        "application_id = COALESCE(?, application_id) WHERE id = ?",
-        (resolution.value, _iso(stamped_at), application_id, entry_id),
+        "application_id = COALESCE(?, application_id) WHERE id = ?"
+        + (" AND resolution = ?" if only_if_unresolved else ""),
+        (
+            resolution.value,
+            _iso(stamped_at),
+            application_id,
+            entry_id,
+            *((Resolution.unresolved.value,) if only_if_unresolved else ()),
+        ),
     )
+    changed = cursor.rowcount > 0
     conn.commit()
+    return changed
 
 
 # ---- LLM call ledger (D5) ------------------------------------------------------

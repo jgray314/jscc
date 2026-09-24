@@ -24,7 +24,8 @@
   {% endif %}
 
   {% if not result or result.outcome != outcome.created %}
-  <form method="post" action="/dlq/{{ entry.id }}/resolve">
+  <form method="post" action="/dlq/{{ entry.id }}/resolve"
+        onsubmit="this.querySelector('button').disabled = true">
     <p>
       <label for="paste_text">Pasted JD text</label><br>
       <textarea id="paste_text" name="paste_text" rows="12" required>{{ submitted_paste_text or "" }}</textarea>

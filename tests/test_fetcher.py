@@ -4,6 +4,7 @@ import contextlib
 import io
 import socket
 from unittest.mock import Mock, patch
+from urllib.parse import urlsplit
 
 import pytest
 import requests
@@ -645,3 +646,94 @@ def test_decoding_never_raises_for_any_of_these():
     for body in (b"", b"\xff\xfe\x00", "\u00e9".encode("utf-8"), b"plain"):
         for ct in ("", "text/html", "text/html; charset=utf-8", "text/html; charset=bogus"):
             assert isinstance(_decode_body(body, ct), str)
+
+
+# ---- IDN hosts and the pin (Phase E gate L1-3) --------------------------------
+#
+# `requests`/`urllib3` convert a non-ASCII host to punycode before they resolve
+# it. A pin keyed on the URL's own spelling never matched that lookup, so an
+# internationalized hostname was resolved a second time, unpinned.
+
+
+def _connection_lookup_name(url: str) -> str:
+    """The hostname `requests` will hand to the resolver for `url`, taken from
+    the library's own request preparation rather than assumed."""
+    prepared = requests.Request("GET", url).prepare()
+    return urlsplit(prepared.url).hostname
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://bücher.example/",
+        "http://BÜCHER.example/",
+        "http://EXAMPLE.com./",
+        "http://xn--bcher-kva.example/",
+    ],
+)
+def test_pin_covers_the_name_requests_actually_resolves(monkeypatch: pytest.MonkeyPatch, url: str):
+    from jscc.fetcher import _check_url, _pinned_resolution
+
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: [_PUBLIC_IP])
+    rebinding_address = "198.51.100.9"
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **kw: [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (rebinding_address, port))
+        ],
+    )
+    host, addresses = _check_url(url)
+    with _pinned_resolution(host, addresses):
+        looked_up = socket.getaddrinfo(_connection_lookup_name(url), 443)
+    assert looked_up[0][4][0] == _PUBLIC_IP
+
+
+def test_check_url_resolves_the_punycode_form(monkeypatch: pytest.MonkeyPatch):
+    """The address check and the connection must look up the same name."""
+    from jscc.fetcher import _check_url
+
+    seen: list[str] = []
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda h: seen.append(h) or [_PUBLIC_IP])
+    _check_url("http://bücher.example/")
+    assert seen == ["xn--bcher-kva.example"]
+
+
+def test_check_url_rejects_an_unencodable_host():
+    from jscc.fetcher import _check_url, _UrlRejected
+
+    with pytest.raises(_UrlRejected, match="not a valid domain"):
+        _check_url("http://" + "a" * 70 + ".example/")
+
+
+def test_overlapping_pins_are_serialized(monkeypatch: pytest.MonkeyPatch):
+    """`socket.getaddrinfo` is process-global. Two pins active at once would
+    save each other's patch as the 'real' resolver, and one restore would
+    leave the process permanently pinned. The second pin must wait."""
+    import threading
+
+    from jscc.fetcher import _pinned_resolution
+
+    original = socket.getaddrinfo
+    a_inside, release_a, b_entered = threading.Event(), threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with _pinned_resolution("a.example", [_PUBLIC_IP]):
+            a_inside.set()
+            release_a.wait(timeout=5)
+
+    def second() -> None:
+        with _pinned_resolution("b.example", [_PUBLIC_IP]):
+            b_entered.set()
+
+    ta = threading.Thread(target=hold)
+    ta.start()
+    assert a_inside.wait(timeout=5)
+    tb = threading.Thread(target=second)
+    tb.start()
+    assert not b_entered.wait(timeout=0.2), "second pin entered while the first was held"
+    release_a.set()
+    ta.join()
+    tb.join()
+    assert b_entered.is_set()
+    assert socket.getaddrinfo is original

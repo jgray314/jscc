@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <title>{% block title %}JSCC{% endblock %}</title>
-  <!-- CDN, not a bundled dependency: ADR-007 keeps the dashboard out of a
-       JS build step entirely. -->
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <!-- No script and no third-party origin: the pages are plain server-rendered
+       HTML (ADR-007 addendum). A script here would run with read/write access
+       to every real-mode page. -->
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem; }
     .banner { background: #fef3c7; border: 1px solid #d97706; padding: 0.5rem 1rem;

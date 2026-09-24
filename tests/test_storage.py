@@ -28,6 +28,7 @@ from jscc.storage import (
     create_contact,
     create_dlq_entry,
     create_interaction,
+    delete_application,
     get_application,
     get_contact,
     list_applications,
@@ -516,3 +517,20 @@ def test_opening_a_current_database_twice_is_a_no_op(tmp_path: Path) -> None:
 
     open_for_mode(Mode.synthetic, tmp_path).close()
     open_for_mode(Mode.synthetic, tmp_path).close()
+
+
+def test_resolve_only_if_unresolved_is_a_compare_and_set(conn: sqlite3.Connection) -> None:
+    """Of two racing resolvers exactly one changes the row, and the loser is told."""
+    entry = DLQEntry(source_url="https://x", failure_mode=FailureMode.blocked)
+    create_dlq_entry(conn, entry)
+
+    assert resolve_dlq_entry(conn, entry.id, Resolution.manual_paste, only_if_unresolved=True)
+    assert not resolve_dlq_entry(conn, entry.id, Resolution.wont_fix, only_if_unresolved=True)
+    assert list_dlq_entries(conn, unresolved_only=False)[0].resolution is Resolution.manual_paste
+
+
+def test_delete_application_removes_it_and_its_children(conn: sqlite3.Connection) -> None:
+    app = _sample_app()
+    create_application(conn, app)
+    delete_application(conn, app.id)
+    assert get_application(conn, app.id) is None

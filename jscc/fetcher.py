@@ -26,6 +26,7 @@ import contextlib
 import ipaddress
 import re
 import socket
+import threading
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -71,6 +72,19 @@ def _resolve_host(host: str) -> list[str]:
     return [info[4][0] for info in socket.getaddrinfo(host, None)]
 
 
+def _normalize_host(name: str | bytes) -> str:
+    """The form of a hostname the connection layer will look up: lowercase, no
+    trailing dot, IDNA (punycode) for a non-ASCII name. `requests`/`urllib3`
+    convert an internationalized host to punycode before they resolve it, so a
+    pin keyed on the URL's own spelling never matches their lookup. Both the
+    URL check and the pin compare through this one function.
+    """
+    if isinstance(name, bytes):
+        name = name.decode("ascii", "replace")
+    name = name.rstrip(".").lower()
+    return name.encode("idna").decode("ascii")
+
+
 def _check_url(url: str) -> tuple[str, list[str]]:
     """Raise `_UrlRejected` unless `url` is a public http(s) destination.
 
@@ -98,6 +112,10 @@ def _check_url(url: str) -> tuple[str, list[str]]:
     if not host:
         raise _UrlRejected("URL has no host")
     try:
+        host = _normalize_host(host)
+    except UnicodeError as e:
+        raise _UrlRejected(f"host {host!r} is not a valid domain name: {e}") from e
+    try:
         addresses = _resolve_host(host)
     except OSError as e:
         raise _UrlRejected(f"could not resolve {host}: {e}") from e
@@ -106,6 +124,9 @@ def _check_url(url: str) -> tuple[str, list[str]]:
         if not ip.is_global or ip.is_multicast:
             raise _UrlRejected(f"{host} resolves to non-public address {address}")
     return host, addresses
+
+
+_PIN_LOCK = threading.Lock()
 
 
 @contextlib.contextmanager
@@ -122,10 +143,16 @@ def _pinned_resolution(host: str, addresses: list[str]):
     works regardless of urllib3's internal connection-pooling API and is
     restored in `finally` even if the request raises.
     """
-    real_getaddrinfo = socket.getaddrinfo
+    host = _normalize_host(host)
+
+    def _is_pinned_host(node) -> bool:
+        try:
+            return _normalize_host(node) == host
+        except (UnicodeError, AttributeError):
+            return node == host
 
     def _pinned(node, port, family=0, type=0, proto=0, flags=0):
-        if node != host:
+        if not _is_pinned_host(node):
             return real_getaddrinfo(node, port, family, type, proto, flags)
         results = []
         for address in addresses:
@@ -135,11 +162,17 @@ def _pinned_resolution(host: str, addresses: list[str]):
             results.append((fam, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", sockaddr))
         return results
 
-    socket.getaddrinfo = _pinned
-    try:
-        yield
-    finally:
-        socket.getaddrinfo = real_getaddrinfo
+    # `socket.getaddrinfo` is process-global, so two overlapping pins would
+    # each save the other's patched function as "real" and one restore would
+    # leave the process permanently pinned. Serialize the block; a fetch is
+    # seconds, and the CLI fetches one posting at a time.
+    with _PIN_LOCK:
+        real_getaddrinfo = socket.getaddrinfo
+        socket.getaddrinfo = _pinned
+        try:
+            yield
+        finally:
+            socket.getaddrinfo = real_getaddrinfo
 
 
 def _http_get(url: str, **kwargs) -> requests.Response:

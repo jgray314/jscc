@@ -14,7 +14,13 @@ import pytest
 from jscc.dlq import DLQResolveOutcome, resolve_dlq_entry_via_paste
 from jscc.mode import ENV_VAR, Mode
 from jscc.models import DLQEntry, FailureMode, FetchStatus, Resolution
-from jscc.storage import create_dlq_entry, list_applications, list_dlq_entries, open_for_mode
+from jscc.storage import (
+    create_application,
+    create_dlq_entry,
+    list_applications,
+    list_dlq_entries,
+    open_for_mode,
+)
 
 
 @pytest.fixture
@@ -109,3 +115,40 @@ def test_pasted_source_sentinel_is_not_treated_as_a_real_url(conn) -> None:
 
     assert result.outcome is DLQResolveOutcome.created
     assert list_applications(conn)[0].source_url is None
+
+
+def test_a_lost_race_undoes_its_application_and_reports_already_resolved(
+    conn, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second process resolves the entry while this one is inside its model
+    call (the per-entry lock only covers this process). The compare-and-set on
+    the final write loses, and the Application this call created is removed, so
+    the funnel counts the posting once, under the winner's Application."""
+    from jscc import dlq
+    from jscc.models import Application
+    from jscc.storage import resolve_dlq_entry
+
+    entry_id = create_dlq_entry(
+        conn, DLQEntry(source_url="https://example.com/jobs/7", failure_mode=FailureMode.blocked)
+    )
+    real = dlq.extract_and_create_application
+
+    def raced(*args, **kwargs):
+        result = real(*args, **kwargs)
+        other = open_for_mode(Mode.synthetic, tmp_path)
+        try:
+            winner = Application(company="Winner", title="Engineer", stage="lead")
+            create_application(other, winner)
+            resolve_dlq_entry(other, entry_id, Resolution.manual_paste, application_id=winner.id)
+        finally:
+            other.close()
+        return result
+
+    monkeypatch.setattr(dlq, "extract_and_create_application", raced)
+
+    result = resolve_dlq_entry_via_paste(conn, entry_id, "Senior Engineer at Rift Cloud. " * 20)
+
+    assert result.outcome is DLQResolveOutcome.already_resolved
+    assert [a.company for a in list_applications(conn)] == ["Winner"]
+    entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
+    assert entry.application_id == list_applications(conn)[0].id

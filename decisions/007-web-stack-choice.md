@@ -1,6 +1,6 @@
-# ADR 007: dashboard web stack — FastAPI + Jinja2 + HTMX
+# ADR 007: dashboard web stack — FastAPI + Jinja2 (HTMX not adopted)
 
-**Status:** Accepted (2026-09-21, ahead of Slice E1)
+**Status:** Accepted (2026-09-21, ahead of Slice E1). Amended 2026-09-24: HTMX was never used and is removed; see the addendum at the end.
 
 ## Context
 
@@ -58,3 +58,29 @@ JSCC's existing Python toolchain.
 - D9/D10 (LLM-vs-code and routing-vs-composition splits) establish the same
   "earn its slot, don't default to the fancier option" judgment pattern this
   ADR applies to the frontend.
+
+## Addendum, 2026-09-24 (Phase E gate): HTMX removed, plain HTML kept
+
+The decision above named HTMX for the DLQ resolve and any list filtering. As
+shipped, neither needed it: the resolve action is an ordinary form post that
+renders a result page, and no view filters or sorts in place. No template ever
+carried an `hx-` attribute. The base template did load the library from a CDN
+(`unpkg.com`, no integrity hash) on every page, which made unpinned third-party
+code a dependency of a page that shows contacts and interaction notes, for no
+behavior the pages used.
+
+**Now:** the dashboard is FastAPI + Jinja2 server-rendered HTML with no script
+and no third-party origin, which is the "no HTMX" alternative listed above. A
+test fails if any template gains a `<script>` or an absolute URL.
+
+**Why not keep it "for later":** a dependency loaded from a third party is a
+standing cost (any compromise of it reads and writes real-mode pages); an unused
+one has no offsetting benefit. If a view later needs partial updates, vendor a
+pinned copy into the repo or load it with a subresource-integrity hash, and
+record that here.
+
+**Reasoning above that was about presentation, not engineering** (the "modern
+stack" and video-walkthrough framing in the alternatives and consequences) is
+superseded by this: the stack is chosen because it is the smallest one that
+serves a local, single-user, mostly read-only tool, and that is the only reason
+it needs.

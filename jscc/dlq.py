@@ -15,6 +15,7 @@ the LLM itself, only to the surrounding bookkeeping.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -24,7 +25,7 @@ from .extraction import ExtractionParseError
 from .ingest_logic import PASTED_SOURCE, company_from_url, extract_and_create_application
 from .llm_client import UnknownModelPricingError
 from .models import FailureMode, FetchStatus, Resolution
-from .storage import list_dlq_entries
+from .storage import delete_application, list_dlq_entries
 from .storage import resolve_dlq_entry as _store_resolution
 
 # Every newly-created dlq_* status names the failure the original fetch hit
@@ -59,6 +60,20 @@ class DLQResolveResult:
     prior_resolution: Resolution | None = None
 
 
+# One lock per entry, held from the "still unresolved?" read to the write that
+# marks it resolved. The LLM call in between takes seconds, so without it a
+# double-click (or two tabs) has both requests pass the read and each create an
+# Application. It covers every caller in this process (the dashboard's request
+# threads, the CLI); a second *process* is caught by the compare-and-set below.
+_ENTRY_LOCKS: dict[str, threading.Lock] = {}
+_ENTRY_LOCKS_GUARD = threading.Lock()
+
+
+def _entry_lock(entry_id: str) -> threading.Lock:
+    with _ENTRY_LOCKS_GUARD:
+        return _ENTRY_LOCKS.setdefault(entry_id, threading.Lock())
+
+
 def resolve_dlq_entry_via_paste(
     conn: sqlite3.Connection,
     entry_id: str,
@@ -70,8 +85,21 @@ def resolve_dlq_entry_via_paste(
     Application the original fetch couldn't, then marks the entry resolved.
     Idempotent: an already-resolved entry is reported, not re-processed --
     re-running this against the same entry must never create a second
-    Application (gate finding M-1).
+    Application (gate finding M-1). Concurrent callers are serialized per
+    entry, and the final write is a compare-and-set, so the guarantee holds
+    while the model call is in flight, not only between sequential runs.
     """
+    with _entry_lock(entry_id):
+        return _resolve_locked(conn, entry_id, paste_text, company=company)
+
+
+def _resolve_locked(
+    conn: sqlite3.Connection,
+    entry_id: str,
+    paste_text: str,
+    *,
+    company: str | None,
+) -> DLQResolveResult:
     entries = list_dlq_entries(conn, unresolved_only=False)
     entry = next((e for e in entries if e.id == entry_id), None)
     if entry is None:
@@ -113,7 +141,21 @@ def resolve_dlq_entry_via_paste(
             outcome=DLQResolveOutcome.config_error, entry_id=entry_id, detail=str(e)
         )
 
-    _store_resolution(conn, entry_id, Resolution.manual_paste, application_id=app_id)
+    if not _store_resolution(
+        conn, entry_id, Resolution.manual_paste, application_id=app_id, only_if_unresolved=True
+    ):
+        # Another process resolved the entry while the model call ran. Its
+        # Application is the one the entry links to; undo ours so the funnel
+        # does not count the posting twice.
+        delete_application(conn, app_id)
+        current = next(
+            (e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id), None
+        )
+        return DLQResolveResult(
+            outcome=DLQResolveOutcome.already_resolved,
+            entry_id=entry_id,
+            prior_resolution=current.resolution if current else None,
+        )
     return DLQResolveResult(
         outcome=DLQResolveOutcome.created, entry_id=entry_id, application_id=app_id
     )
