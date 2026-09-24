@@ -14,8 +14,15 @@ import sqlite3
 from urllib.parse import urlparse
 
 from .extraction import extract_jd
+from .llm_client import StubExtractionClient, default_client
+from .mode import Mode
 from .models import Application, FetchStatus
-from .storage import create_application, get_application, update_application
+from .storage import (
+    create_application,
+    get_application,
+    list_applications,
+    update_application,
+)
 
 # A DLQ entry needs a source_url (NOT NULL), and a pasted JD has none. The
 # sentinel keeps the paste path's failures visible in `dlq list` rather than
@@ -29,6 +36,23 @@ PASTED_SOURCE = "(pasted)"
 FIRST_STAGE = "identified"
 
 
+STUB_IN_REAL_MODE_MESSAGE = (
+    "no ANTHROPIC_API_KEY is configured, so extraction would use the placeholder "
+    "client and save a placeholder application into the real database. Set the key, "
+    "or switch to synthetic mode (unset JSCC_DATA)."
+)
+
+
+def stub_extractor_in_real_mode(mode: Mode) -> bool:
+    """Whether extracting now would write placeholder output into real data.
+
+    Without a key, extraction falls back to a stub that returns fixed text. In
+    synthetic mode that is what the demo and the tests want; in real mode it
+    would store a made-up application beside real ones, silently.
+    """
+    return mode is Mode.real and isinstance(default_client(), StubExtractionClient)
+
+
 def company_from_url(url: str) -> str:
     """Fallback company name for when extraction doesn't find one -- an
     ATS page whose JD text never names the employer, or the stub client.
@@ -36,6 +60,24 @@ def company_from_url(url: str) -> str:
     this whenever extraction returns one."""
     netloc = urlparse(url).netloc
     return netloc.removeprefix("www.") or url
+
+
+def find_duplicate_application(
+    conn, *, source_url: str | None, raw_text: str
+) -> Application | None:
+    """`ingest` had no duplicate detection of any kind --
+    the same JD file, or the same URL, ingested three times produced three
+    Applications, feeding straight into `funnel_counts`/`detect_stale` just
+    like duplicate DLQ resolutions did one command over. A URL is matched by exact
+    equality; pasted text has no URL to key on, so it's matched by exact
+    `source_raw` equality among the other paste-sourced applications.
+    Decided: refuse re-ingesting silently. `ingest` notifies the caller and
+    either confirms interactively or requires `--update`, then reprocesses
+    into the *existing* row rather than creating a second one."""
+    apps = list_applications(conn)
+    if source_url is not None:
+        return next((a for a in apps if a.source_url == source_url), None)
+    return next((a for a in apps if a.source_url is None and a.source_raw == raw_text), None)
 
 
 def extract_and_create_application(

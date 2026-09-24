@@ -6,7 +6,10 @@ directly and skipping the sanitizer. The four LLM stages share one call path,
 `stage_call.call_stage`, and this file holds the line around it:
 
 - every `.py` file under `jscc/`, subpackages included, is scanned, and the only module
-  that calls `.complete(` is `stage_call`;
+  that reaches the client's `complete` method, by any spelling (a call, an alias such as
+  `send = client.complete`, `getattr(client, "complete")`), is `stage_call`;
+- no module outside `stage_call` touches its private call helpers (`_raw_call`,
+  `_instrumented_call`), which reach the client without sanitizing;
 - inside `stage_call`, `call_stage` sanitizes, then verifies, and hands the client only
   values derived from the verified payload, and only `call_stage` and the billed
   `_raw_call` touch the client;
@@ -41,6 +44,10 @@ STAGES = {
 # The one module allowed to call the model client.
 CHOKE_POINT = "stage_call.py"
 
+# Names inside `stage_call` that reach the client without sanitizing first. Nothing else
+# may import or reference them.
+UNSANITIZED_HELPERS = {"_raw_call", "_instrumented_call"}
+
 # Files that mention `.complete(` without sending anything: `llm_client` defines the
 # clients, and `evals` wraps a client to record or replay a call `call_stage` already made.
 NOT_SENDERS = {"llm_client.py", "evals.py"}
@@ -72,15 +79,58 @@ def _module_tree(module: str) -> ast.Module:
     return _parse(PACKAGE / f"{module}.py")
 
 
+def _reaches_client(node: ast.AST) -> str | None:
+    """How `node` reaches the client's `complete`, or None if it does not.
+
+    Any attribute access named `complete` counts, not only a call: an alias
+    (`send = client.complete`) sends text just as a call does. A `getattr` or
+    `__getattribute__` with the string "complete" counts too. This is a guard
+    against new code reaching the client by accident, in whatever shape; it
+    cannot stop deliberately obfuscated code, and does not claim to.
+    """
+    if isinstance(node, ast.Attribute) and node.attr == "complete":
+        return "attribute access"
+    if isinstance(node, ast.Call):
+        name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
+        if name in {"getattr", "__getattribute__"} and any(
+            isinstance(a, ast.Constant) and a.value == "complete" for a in node.args
+        ):
+            return "getattr"
+    return None
+
+
+def _touches_helper(node: ast.AST) -> str | None:
+    """A reference to one of `stage_call`'s unsanitized helpers, however imported."""
+    if isinstance(node, ast.ImportFrom):
+        names = {a.name for a in node.names}
+        if (
+            node.module
+            and node.module.split(".")[-1] == "stage_call"
+            and (names & UNSANITIZED_HELPERS)
+        ):
+            return "import"
+    if isinstance(node, ast.Attribute) and node.attr in UNSANITIZED_HELPERS:
+        return "attribute access"
+    if isinstance(node, ast.Name) and node.id in UNSANITIZED_HELPERS:
+        return "name"
+    return None
+
+
 def model_callers(root: Path) -> tuple[list[Path], set[str]]:
-    """Every `.py` file under `root`, recursively, and the ones that call `.complete(`."""
+    """Every `.py` file under `root`, recursively, and the ones that reach the
+    model client (`complete`) or `stage_call`'s unsanitized helpers, in any shape.
+    `stage_call` itself is included: it is the one allowed to."""
     scanned = sorted(root.rglob("*.py"))
-    callers = {
-        path.relative_to(root).as_posix()
-        for path in scanned
-        if path.name not in NOT_SENDERS
-        and any(_is_complete_call(n) for n in ast.walk(_parse(path)))
-    }
+    callers = set()
+    for path in scanned:
+        if path.name in NOT_SENDERS:
+            continue
+        rel = path.relative_to(root).as_posix()
+        nodes = list(ast.walk(_parse(path)))
+        if any(_reaches_client(n) for n in nodes):
+            callers.add(rel)
+        if rel != CHOKE_POINT and any(_touches_helper(n) for n in nodes):
+            callers.add(rel)
     return scanned, callers
 
 
@@ -101,6 +151,33 @@ def test_the_scan_catches_a_caller_in_a_subpackage(tmp_path: Path) -> None:
     )
     _, callers = model_callers(tmp_path)
     assert callers == {"sub/leak.py"}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def go(client, text):\n    return client.complete(model='m', system='s', user=text)\n",
+        "def go(client, text):\n    send = client.complete\n    return send(model='m', system='s', user=text)\n",
+        "def go(client, text):\n    return getattr(client, 'complete')(model='m', system='s', user=text)\n",
+        "from jscc.stage_call import _raw_call\n",
+        "from .stage_call import _instrumented_call\n",
+        "import jscc.stage_call as sc\n\ndef go(*a, **k):\n    return sc._raw_call(*a, **k)\n",
+    ],
+    ids=["call", "alias", "getattr", "import-raw", "import-instrumented", "module-attribute"],
+)
+def test_the_scan_catches_every_way_of_bypassing_the_sanitizer(tmp_path: Path, source: str) -> None:
+    """Each of these skipped the sanitizer and left the old literal-`.complete(` scan green."""
+    (tmp_path / "leak.py").write_text(source, encoding="utf-8")
+    _, callers = model_callers(tmp_path)
+    assert callers == {"leak.py"}
+
+
+def test_the_scan_leaves_ordinary_code_alone(tmp_path: Path) -> None:
+    (tmp_path / "fine.py").write_text(
+        "from jscc.stage_call import call_stage\n\ndef go():\n    return call_stage\n",
+        encoding="utf-8",
+    )
+    assert model_callers(tmp_path)[1] == set()
 
 
 def test_only_the_choke_point_calls_the_model_client() -> None:

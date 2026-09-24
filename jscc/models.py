@@ -115,7 +115,7 @@ class ExtractedJD(BaseModel):
     grades both as exact matches on that assumption -- but the type here is
     bare `str`, so nothing stops an out-of-vocabulary value from parsing and
     getting stored. Decided: leave it a `str`. The eval suite is what
-    actually enforces the vocabulary today, at the 33-case sample it covers;
+    actually enforces the vocabulary today, at the sample the suite covers (36 cases);
     a `Literal` would extend that enforcement to every live `ingest` call
     (turning a bad value into a DLQ entry instead of a silently wrong stored
     field), but that's more machinery than the disclosed residual
@@ -223,7 +223,7 @@ class Briefing(BaseModel):
     Assembled deterministically from a `non_routine` `RoutingDecision` plus the
     application it was routed for -- no LLM call, so nothing here goes through
     the sanitizer. `handle_manually` is always true; it exists so a consumer
-    (the CLI today, the Phase E dashboard later) can key on the field instead
+    (the CLI today; the dashboard does not render drafts) can key on the field instead
     of inferring "no draft" from the type.
     """
 

@@ -20,22 +20,23 @@ from ..extraction import ExtractionParseError
 from ..fetcher import fetch_jd
 from ..ingest_logic import (
     PASTED_SOURCE,
+    STUB_IN_REAL_MODE_MESSAGE,
     company_from_url,
     extract_and_create_application,
+    find_duplicate_application,
+    stub_extractor_in_real_mode,
 )
 from ..llm_client import (
     UnknownModelPricingError,
 )
-from ..mode import DEFAULT_DATA_DIR
+from ..mode import DEFAULT_DATA_DIR, Mode
 from ..models import (
-    Application,
     DLQEntry,
     FailureMode,
     FetchStatus,
 )
 from ..storage import (
     create_dlq_entry,
-    list_applications,
     list_dlq_entries,
 )
 from ._app import cli
@@ -47,24 +48,6 @@ from ._common import (
     _resolve_mode_or_exit,
     echo,
 )
-
-
-def _find_duplicate_application(
-    conn, *, source_url: str | None, raw_text: str
-) -> Application | None:
-    """`ingest` had no duplicate detection of any kind --
-    the same JD file, or the same URL, ingested three times produced three
-    Applications, feeding straight into `funnel_counts`/`detect_stale` just
-    like duplicate DLQ resolutions did one command over. A URL is matched by exact
-    equality; pasted text has no URL to key on, so it's matched by exact
-    `source_raw` equality among the other paste-sourced applications.
-    Decided: refuse re-ingesting silently. `ingest` notifies the caller and
-    either confirms interactively or requires `--update`, then reprocesses
-    into the *existing* row rather than creating a second one."""
-    apps = list_applications(conn)
-    if source_url is not None:
-        return next((a for a in apps if a.source_url == source_url), None)
-    return next((a for a in apps if a.source_url is None and a.source_raw == raw_text), None)
 
 
 @cli.command("ingest")
@@ -142,6 +125,9 @@ def ingest(
         raise click.UsageError("provide --url or --paste (optionally with --file)")
 
     mode = _resolve_mode_or_exit()
+    if stub_extractor_in_real_mode(mode):
+        echo(STUB_IN_REAL_MODE_MESSAGE, err=True)
+        sys.exit(EXIT_USAGE)
     conn = _open_or_exit(mode, data_dir)
     try:
         if url:
@@ -177,7 +163,7 @@ def ingest(
         # row. Reading pasted text from stdin (no --file) already consumed
         # stdin for the JD itself, so there is nothing left to confirm with
         # -- --update is required there instead of prompted.
-        existing = _find_duplicate_application(conn, source_url=source_url, raw_text=raw_text)
+        existing = find_duplicate_application(conn, source_url=source_url, raw_text=raw_text)
         if existing is not None and not update:
             echo(
                 f"an application already exists for this "
@@ -314,7 +300,9 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
-        result = resolve_dlq_entry_via_paste(conn, entry_id, paste_text, company=company)
+        result = resolve_dlq_entry_via_paste(
+            conn, entry_id, paste_text, company=company, refuse_stub=mode is Mode.real
+        )
     finally:
         conn.close()
 
@@ -339,6 +327,13 @@ def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: P
         # this command exists to bring about; that this particular
         # invocation didn't do the resolving is what the message above
         # says, not what the exit code says.
+        return
+    if result.outcome is DLQResolveOutcome.duplicate:
+        echo(
+            f"an application already exists for this posting ({result.application_id}); "
+            f"DLQ entry {entry_id} marked resolved (wont_fix) and linked to it, "
+            "nothing created"
+        )
         return
     if result.outcome is DLQResolveOutcome.extraction_failed:
         # No new DLQ entry here -- one already exists and stays unresolved,

@@ -1,18 +1,34 @@
 # Changelog
 
-Slice-by-slice arc, newest first. Phase D, the phase that just closed, keeps its
-reasoning in full. Phases A to C are summarized: the shape of the build and the
+Slice-by-slice arc, newest first. Phase E, the phase now closing, keeps its
+reasoning in full. Phases A to D are summarized: the shape of the build and the
 lessons worth keeping, with per-slice detail in git history. Review findings are
 recorded here rather than in code comments.
 
 Standing practice: at each phase gate, the phase before the one that just closed
-is folded into a summary. Phase C was folded at the Phase D gate; Phase D will be
-folded at the Phase E gate.
+is folded into a summary. Phase D was folded at the Phase E gate; Phase E will be
+folded at the Phase F gate.
 
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
-## Phase E — dashboard (shipped)
+## Phase E — dashboard (E1–E2b shipped 2026-09-21; gate in progress)
+
+The dashboard is a local FastAPI + Jinja2 app over the same storage layer as the CLI. The Phase E gate ran a backlog sweep, a recapture of the extraction and scoring prompts, two cold lenses, and a hardening slice; its entries come first, newest first, followed by the three build slices. The gate is not closed: the remaining fixes are tracked in the gate notes and will be summarized here when they land.
+
+### Phase E gate, fixes A: walkthrough highs and the findings that share their files
+
+The gate's outside-reviewer lens found the README, the ADRs and this file describing a slightly better system than the one that exists, and three earlier "fixed" items had regressed.
+
+- **Egress test made structural (L1-5).** The scan matched only a literal `.complete(` call. An alias (`send = client.complete`), `getattr(client, "complete")` and an import of `stage_call._raw_call` all skipped the sanitizer and left it green, confirmed on a scratch copy. It now flags any reference to the client's `complete` or to the unsanitized helpers outside `stage_call`; six bypass shapes have tests. It cannot stop deliberately obfuscated code, and T8 says so.
+- **DLQ resolve (L1-17, L1-10).** A posting that is already an Application, whether ingested later or created by a resolve that crashed before marking the entry, is reported as a duplicate and linked instead of created twice. The comment claiming `FailureMode.other` is never produced was wrong: `ingest` writes it for an extraction API error, and `manual` is the correct fetch status when the text arrives by paste.
+- **Real mode refuses the placeholder extractor.** With no key, extraction falls back to a stub. `ingest` and the resolve paths in real mode saved a made-up application beside real ones; they now stop first.
+- **Public docs (W1, W15).** The private-workspace path and references to plans the repo does not contain are gone from this file, the evals README and ADR-007, and first person replaces third person. `tests/test_public_docs.py` fails if any return; the Phase D scrub had no check and did not last.
+- **Eval claims (W4, W5, W6, W8, W13).** The README's opening paragraph still cited fit scoring as 84% (21/25); it now gives the path (84%, 64%, then 27/28 twice, tuned). "Validated" now follows ADR-006's two-round rule, so extraction's current prompt is one round and not validated, and "band" means rounds with the prompt held fixed. The evals README gained a threats-to-validity section (chat, not API; provenance from my account; no live path has run; tuned, not held out) and lost its errors. The README test now rejects a superseded figure that is not beside its replacement, and requires the extraction figure to say it is not held out.
+- **ADR-007 (W3).** Reworded in engineering terms; the addendum records that HTMX was never used.
+- **README and this file (W9, W10, W11).** Status is now one table plus one section per topic instead of four overlapping ones; ADR, threat and test counts corrected. This file went from 696 to about 350 lines: Phase D is folded into a summary, and the Phase E entries are newest first.
+
+Tests: 689 to 704.
 
 ### Phase E gate, hardening slice 1: dashboard and fetcher (adversarial findings L1-1, L1-2, L1-3, L1-6, L1-7, L1-9)
 
@@ -29,61 +45,23 @@ Tests: 654 to 689. Each fix was checked by removing it and confirming a test fai
 
 ### Phase E gate, extraction prompt: skills rule tightened after a failed 36-case capture (recaptured: 32/36, 89%)
 
-The first capture of the 36-case jd_extraction suite scored 20/36 (56%) against the 80% bar; the last round on 33 cases was 27/33 (82%) and the proxy had predicted 30/36. Three diagnostic chats (Haiku 4.5, fresh incognito chat each, single paste) cleared the model choice, chat memory, and the one new prompt paragraph: the failure was Haiku over-including skills the rules exclude ("SRE" from "5+ years SRE/infra", "full-stack development", "CI/CD pipelines", a tech stack copied from a stack paragraph) and paraphrasing requirement wording. The 82% band was optimistic for this class of case. The chatty prose-plus-fence reply on the hostile case-34 did not reproduce.
+The first capture of the 36-case jd_extraction suite scored 20/36 (56%) against the 80% bar, where the last 33-case round had scored 27/33 (82%). Diagnostic chats cleared the model choice, chat memory and the one new prompt paragraph: Haiku was over-including skills the rules exclude (a title's restated experience such as "SRE", a tech stack copied from a stack paragraph) and paraphrasing requirement wording. `EXTRACTION_SYSTEM_PROMPT` now takes every skill from the requirement's own words, never from responsibilities, title or stack, lets a trailing "preferred" cover its whole sentence, excludes track-record statements and context-only domains (with carve-outs so "managing managers" and "production deployment" still extract), and makes a figureless "competitive compensation" a null comp band. After round 2 (27/36, 75%) the misses were debugged in real chats, and the prompt gained title-only titles, years of experience never raising the level, and six worked examples on invented postings.
 
-`EXTRACTION_SYSTEM_PROMPT` changes: the years-of-experience title-restatement rule now covers abbreviations and slash forms and an Engineering Manager title's everyday duties; every skill must come from the requirement's own words and never from the responsibilities, title or stack; a trailing "preferred" or "a plus" covers its whole sentence; track-record statements and a domain named only as context are excluded, with carve-outs so "prior experience managing managers" and "production deployment" still extract; a `comp_band` phrase with no figure ("competitive compensation") is null. Two rounds of proxy tuning caught two overcorrections in these edits (a dropped "production deployment", a dropped "managing managers") before any real capture. Full-suite proxy: 26/36, then 28/36, then 30/36 on the final wording and widened fixtures (case-13, 19, 21, 26, 27 and 35 still miss; 13, 21 and 35 also missed under the old prompt); advisory only, since a proxy is a lower bound on failures and routing round 4 was proxy-clean and failed on a real chat. Cases 26 and 33 stay flaky across samples and are deliberately not tuned further. One bullet (track-record and context-domain exclusions) was split into two sentences after a read-through found it ambiguous, before any real capture; six affected cases (06, 13, 14, 26, 31, 33) were re-proxied twice each on the corrected text with the same results as before, including case-31, which depends on that reading.
-
-Three fixture expectations were widened before the recapture; see "Expected skills accept the posting's own wording" in `evals/README.md`. A smarter grader (abbreviation and synonym handling) was considered and deferred to the JSCC plan's Expansion backlog.
-
-Round history on the 36-case suite (real Haiku 4.5 chats, fresh incognito chat per case, single paste): round 1 20/36 (56%); round 2, on the tightened prompt, 27/36 (75%), with the proxy having predicted 30/36 and passed four cases (11, 12, 14, 21) that failed in real chats; round 3, 32/36 (89%), on the final prompt. Round 2's nine misses were then debugged in real incognito chats, not proxies. Prompt changes after round 2: the title is the job title only (no company or team suffix); years of experience alone never raise the level; technologies listed in parentheses are separate entries and the posting's own words are kept; and six worked examples of the skills rules, written on invented postings rather than the eval fixtures. The manager example was edited twice inside the debug loop (an over-exclusion dropped case-14's "backend systems"; a distinct-background clause fixed it), and the prompt was frozen before the round-3 recapture. Cases 14 and 26 were recorded from their first draw on the frozen prompt, as-is.
-
-Round 3 misses (4): 06 dropped "managing managers" on a Director role; 26 copied both the management duties and the tech-stack paragraph into skills (it passed once and failed twice across prompt versions, so it is noisy, not fixed); 27 split "firmware/BMC" into two entries and added "GPU clusters"; 31 dropped "production deployment" again (it passed in the debug chat). Caveats: the prompt was debugged against these same 36 fixtures, so 32/36 is not a held-out rate; it is a single round; earlier rounds landed at 56% and 75% on earlier wording, and 76%-82% on the older 33-case suite. Findings and hypothesis table: `context-directory/projects/ai-portfolio/jscc-capture-postmortem-2026-09-23.md`.
+Round 3 scored 32/36 (89%) on the frozen prompt; misses 06, 26, 27, 31. Three fixture expectations were widened before the recapture (see "Expected skills accept the posting's own wording" in `evals/README.md`); a smarter synonym grader stays deferred until the planned phases are complete. Not a held-out rate: the prompt was debugged against these same 36 fixtures, and round 3 is one round of its final prompt. Proxy runs (26/36 up to 30/36) were advisory only. Round-by-round detail is in `evals/README.md`.
 
 ### Phase E gate, model provenance: scoring and composition recordings were Sonnet 5, not 4.5
 
-The manual capture rounds run in Claude.ai chat, and the chat's default Sonnet has been Sonnet 5 since its launch on 2026-06-30. Jess used that default for every Sonnet capture (composition 2026-09-20, both scoring rounds), while the prompts printed `claude-sonnet-4-5-20250929` and the recordings were keyed to it, so the docs named a model that did not produce them. This is stated from her account and the launch date; the chats themselves cannot be re-inspected. `SCORING_MODEL` is now `claude-sonnet-5` (`COMPOSITION_MODEL` aliases it), with a rate entry of $2 / $10 per million tokens (the launch pricing became the standard price; the announced September increase was cancelled, per the pricing page, checked 2026-09-24). The 28 scoring and 28 composition recordings were re-keyed to the new id by recomputing each key from the same prompt with the new model; the replies are untouched, and the replayed results are identical to before (composition 24/28, scoring 27/28 on the revised prompt). Extraction is Haiku 4.5 and unaffected. Any future recapture should confirm the model in the chat's picker.
+My manual captures run in Claude.ai chat, whose default Sonnet has been Sonnet 5 since 2026-06-30. I used that default for every Sonnet capture (composition 2026-09-20, both scoring rounds), while the prompts printed `claude-sonnet-4-5-20250929` and the recordings were keyed to it, so the docs named a model that did not produce them. This rests on my account and the launch date; the chats cannot be re-inspected. `SCORING_MODEL` is now `claude-sonnet-5` (`COMPOSITION_MODEL` aliases it), priced at $2 / $10 per million tokens (the announced September increase was cancelled, per the pricing page, checked 2026-09-24). The 56 scoring and composition recordings were re-keyed by recomputing each key with the new model; replies are untouched and replays are identical (composition 24/28, scoring 27/28). Extraction is Haiku 4.5 and unaffected. Any future recapture should confirm the model in the chat's picker.
 
 ### Phase E gate, scoring prompt: numeric bands and an adjacent-title anchor after a failed 28-case capture (recaptured, 27/28 in two rounds)
 
-The first real capture of the 28-case fit_scoring suite (the Claude.ai default Sonnet, most likely Sonnet 5, 2026-09-23) scored 18/28 (64%) against the 80% bar; the hostile cases passed 3/3 and every deal-breaker and role-mismatch case passed. Of the ten misses, four were rubric gaps and six were fixture ranges that contradicted the current prompt. `SCORING_SYSTEM_PROMPT` now states the bands it had left implicit (a comp shortfall caps at about 45-70, a missing must-have at about 15-50 and below a comp shortfall alone), says an adjacent title with comp at or above range, every must-have met and no other detail scores in the low 70s, counts a band whose midpoint is above the range minimum as within range (case-24's $290,000-$360,000 against $300,000), and says a title that uses the profile's own target words is on target, not adjacent (case-25 read "Senior Engineering Manager" as adjacent and scored 68 while the same title scored 85-92 elsewhere).
+The first capture of the 28-case fit_scoring suite scored 18/28 (64%) against the 80% bar; the hostile cases passed 3/3. Of ten misses, four were rubric gaps and six were fixture ranges that contradicted the prompt. `SCORING_SYSTEM_PROMPT` now states the bands it had left implicit (a comp shortfall caps at about 45 to 70, a missing must-have at about 15 to 50), anchors an adjacent title with everything else met in the low 70s, counts a comp band whose midpoint clears the minimum as within range, and treats a title using the profile's own target words as on target. Nine fixture ranges were corrected before the recapture, justified by consistency with the prompt rather than by what the model returned (table in `evals/README.md`). The same change dropped `display_name` and `style_samples` from the scoring payload (gate finding G4).
 
-Nine fixture ranges were corrected before the recapture, informed by round 1 but justified by consistency with the prompt, not by what the model returned; see "Ranges corrected after round 1" in `evals/README.md`. Recapture: two rounds of 28 (fresh chat per case, Claude.ai default Sonnet 5) replayed 27/28 (96%) and 27/28 (96%), the same case missing both times: case-24 (32 and 30 against 55-85; the straddling rule worked but the model reads "Tech Lead" as far below the target). Scores moved 2.1 points per case on average between rounds. Hostile cases 3/3 both rounds. The recording holds round 2 (round 1 is in commit `734ba48`). Not a held-out rate: the prompt and nine ranges were tuned after the first 64% capture. Details in `evals/README.md`.
+Two rounds of 28 on the revised prompt replayed 27/28 (96%) and 27/28, the same case (24, a Tech Lead) missing both times. Not a held-out rate: the prompt and nine ranges were tuned after the 64% capture. The recording holds round 2; round 1 is in commit `734ba48`.
 
 ### Phase E gate, backlog sweep: fetcher ignores proxy environment variables
 
 The Phase D gate recorded a new residual on the DNS-rebinding fix and never dispositioned it: with `HTTPS_PROXY` or `ALL_PROXY` set, `requests` hands the target hostname to the proxy, and the proxy's own lookup is one the pin cannot see. A rebinding answer at that point reaches whatever the proxy can reach. Every fetch now goes through a session with `trust_env = False`, so the request always connects direct to the address that was checked. A machine that can only reach the web through a proxy now gets `blocked` fetches, which land in the DLQ with the usual manual-paste remedy. The new test fails with that line removed.
-
-### E1: web scaffold (ADR-007)
-
-Resolved the deferred web-stack discussion (parent-plan queue #4): FastAPI + Jinja2 +
-HTMX, no SPA, no separate JS build step — the dashboard stays in JSCC's existing
-Python toolchain, matching the "earn its slot over the fancier default" judgment
-already applied to the LLM-stage splits (D9/D10). ADR-007 records the alternatives
-(React/Vite, plain server-rendered HTML, Streamlit/Gradio) and why they lost.
-
-`jscc/web/` holds a `create_app(data_dir, config_dir)` factory and Jinja2 templates;
-`jscc serve` boots it (127.0.0.1 by default, local-only per D4 — no BYOK). The index
-route opens the active mode's DB through the same `open_for_mode` contract the CLI
-uses, shows the application count, and renders the SYNTHETIC MODE banner (D7 M6) a
-slice early, since it was cheap to add once the template existed. +3 tests (622 total).
-Pipeline/funnel/stale views (E2a) and application detail + DLQ resolve (E2b) are next.
-
-### E2a: pipeline, funnel, and stale-alert views
-
-The index route now renders what `jscc report` already prints as text: a funnel
-table (every configured stage, including zero-count ones), a pipeline table
-grouping applications under their stage, and the stale-alert list. All three read
-`report.py`'s pure functions — `funnel_counts`, `detect_stale`, and a new
-`group_by_stage` added alongside them — so the CLI and the dashboard render the
-same underlying computation and cannot silently disagree on what counts as stale.
-
-A `?now=` query parameter mirrors the CLI's `--now`: same ISO-8601-with-timezone
-format, same 400-on-bad-input framing as `report`'s UsageError, so a pinned seed's
-stale block is reproducible from a browser the same way it already was from a
-shell. Manually verified against the seeded synthetic fixture and `--now
-2026-08-28T12:00:00+00:00`: funnel counts, pipeline listing, and all 13 stale
-alerts matched `jscc report`'s output line for line. +7 tests (629 total).
-Application detail + DLQ resolve (E2b) are next.
 
 ### E2b: application detail, DLQ views, and the one write path in Phase E
 
@@ -113,377 +91,70 @@ the web session were reading the same state. +19 tests across `tests/test_dlq.py
 (new, direct coverage of `resolve_dlq_entry_via_paste`) and `tests/test_web.py`
 (643 total).
 
-**Phase E complete.** E1 (scaffold), E2a (funnel/pipeline/stale views), and E2b
-(application detail + DLQ resolve) all shipped 2026-09-21. A phase-boundary
-review gate (adversarial + walkthrough, per the parent plan's working practices)
-is due before Phase F starts.
+### E2a: pipeline, funnel, and stale-alert views
 
-## Phase D — follow-up drafter (D1–D5, Phase D gate 2026-09-20)
+The index route now renders what `jscc report` already prints as text: a funnel
+table (every configured stage, including zero-count ones), a pipeline table
+grouping applications under their stage, and the stale-alert list. All three read
+`report.py`'s pure functions — `funnel_counts`, `detect_stale`, and a new
+`group_by_stage` added alongside them — so the CLI and the dashboard render the
+same underlying computation and cannot silently disagree on what counts as stale.
 
-Routing first, then composition for routine situations only, and a briefing card
-for everything else (design principle D10). Both prompts were checked against real
-model output captured by hand. The phase closed with a cold two-lens gate whose
-fixes are the first entries below.
+A `?now=` query parameter mirrors the CLI's `--now`: same ISO-8601-with-timezone
+format, same 400-on-bad-input framing as `report`'s UsageError, so a pinned seed's
+stale block is reproducible from a browser the same way it already was from a
+shell. Manually verified against the seeded synthetic fixture and `--now
+2026-08-28T12:00:00+00:00`: funnel counts, pipeline listing, and all 13 stale
+alerts matched `jscc report`'s output line for line. +7 tests (629 total).
+Application detail + DLQ resolve (E2b) are next.
 
-### Capture tooling, and a checklist for the next round
+### E1: web scaffold (ADR-007)
 
-The scripts that ran the routing and composition capture rounds lived in a session scratchpad and were
-rebuilt between D2b and D4b. `scripts/capture_tools.py` now does it for all four suites: it builds each
-case's prompt from the current code, prints a case for the chat with the target model at the top and
-bottom (the routing round captured on the wrong model once), records a completion under the key replay
-looks up, and runs the proxy loop. It refuses stale prompts, and refuses to record any file under a
-`proxy` directory, so proxy output cannot reach a recording. +11 tests (619 total).
+Resolved the deferred web-stack discussion (the deferred web-stack question): FastAPI + Jinja2 +
+HTMX, no SPA, no separate JS build step — the dashboard stays in JSCC's existing
+Python toolchain, matching the "earn its slot over the fancier default" judgment
+already applied to the LLM-stage splits (D9/D10). ADR-007 records the alternatives
+(React/Vite, plain server-rendered HTML, Streamlit/Gradio) and why they lost.
 
-`evals/README.md` gained a "Before a capture round" checklist: freeze the prompt, run the full suite
-through proxies on the final wording, read some outputs for defects the grader does not check, date the
-fixtures whose answer depends on today, check the model. The parent plan now says to size a suite before
-authoring it: at least 25 cases, with n and its standard error stated in the slice's definition of done.
+`jscc/web/` holds a `create_app(data_dir, config_dir)` factory and Jinja2 templates;
+`jscc serve` boots it (127.0.0.1 by default, local-only per D4 — no BYOK). The index
+route opens the active mode's DB through the same `open_for_mode` contract the CLI
+uses, shows the application count, and renders the SYNTHETIC MODE banner (D7 M6) a
+slice early, since it was cheap to add once the template existed. +3 tests (622 total).
+Pipeline/funnel/stale views (E2a) and application detail + DLQ resolve (E2b) are next.
 
-### Phase D gate: prose and review hygiene
+HTMX, named here, was never used and was removed at the Phase E gate; see the addendum in ADR-007.
 
-The walkthrough lens's findings, most of them prose that described a slightly
-better system than the one that exists:
-- The README said composition was both "not yet validated" and 24/28.
-- The routing headline read as a measured rate. The prompt was tuned on the same 26 cases over five rounds, three of which failed the zero-false-routine gate. evals/README.md now has the round history, says there is no held-out set, and has a published-results table that a test keeps in sync with the recordings.
-- The 75% composition bar was justified by a tone judgment the deterministic grader does not make; the rationale is rewritten.
-- About sixty review-finding IDs had crept back into code comments and `--help` text; they are gone, and the explanations stay.
-- Phase D slice names in code (D2, D4, D5) collided with the design principles D1 to D10; code now names the stage instead.
-- Public docs linked into a private workspace. The Phase C entries are compacted, per this file's own standing practice, which had not been followed.
-- A "Sample drafter output" section shows a real draft and a real briefing card.
-- ADR-006 records the eval decisions that had no ADR: the per-stage bars, manual capture instead of live traffic, and deterministic grading without a judge.
-- `test_readme_claims.py` now also fails if the README stops citing a published eval result or calls a suite "not yet validated". This is the half of the README-status drift that can be checked mechanically.
+## Phase D — follow-up drafter (D1–D5, closed 2026-09-20; Phase D gate 2026-09-20)
 
-### Phase D gate: eval integrity
+Routing first, then composition for routine situations only, and a briefing card for everything else (design principle D10). Both prompts were checked against real model output captured by hand. Per-slice detail is in git history.
 
-- **The zero-tolerance gates are tested.** Routing fails its gate on any false-routine case, whatever the pass rate. Deleting that check left every test green. The decision now lives in `routing_gate`, and a CLI test fails if a fake router answering routine everywhere passes at `--min-pass-rate 0`.
-- **The composer's decline gets the same treatment.** The 3 cases that withhold a detail only the candidate has could all have come back as invented drafts and the suite would still have passed at 25/28. `composition_gate` now fails any run where one of them is drafted rather than asked. The committed recording asks in all 3.
-- **A hedged "routine" is malformed.** A routine answer that also gives a reason or considerations, or names no intent, used to parse, and `followup` drafted from it. `RoutingDecision` now rejects it, so it becomes a parse failure with no draft, and the grader checks the same shapes. None of the 26 recorded answers has this shape.
-- **Published numbers are pinned.** `tests/test_published_results.py` replays every committed recording and fails if a suite no longer lands on 27/33, 21/25, 26/26 or 24/28.
-- **`--record` with no key refuses.** It used to record the placeholder stub over the hand-captured responses, which only git could undo. It now exits 2, and `RecordingClient` refuses a stub on its own as well.
-- **`jscc costs` shows failed calls.** A call that raised mid-request (possibly billed) was dropped from the report. A ledger containing only failures printed "no LLM calls recorded yet". Failures now have their own column and a note under the table.
-- A missing recording's error message named `eval jd_extraction` for every suite. It now names the suite being replayed.
+**The build**
 
-+14 tests (607).
+| | |
+|---|---|
+| D1 | Routing eval suite, resized 12 → 20 → 26 cases: the first two passes for standard error before a capture, the third for the missing-information rule (a reply that must state an unrecorded detail goes to a person). |
+| D2 | Routing prompt (Haiku) and call path. A routine answer must carry an intent and no reason, enforced at parse time. Five manual-capture rounds; round 4 failed the zero-false-routine gate on a case the proxy runs had passed. Round 5 scored 26/26, on the same cases the prompt was tuned against, so it is not a measured rate. |
+| D3 | Composition eval suite, resized 8 → 25 cases before any capture, then 28 with three escalation cases. |
+| D4 | Composition prompt (Sonnet), a deterministic grader with no judge of tone (word range, invented numbers and names, verbatim style-sample reuse, a stock-phrase advisory), and a `needs_input` escape so the composer declines instead of inventing a fact. One manual round: 24/28 (86%), all three decline cases correct. Parsing became tolerant of a prose or code-fence wrapper across routing, extraction and scoring. |
+| D5 | Briefing renderer and the `followup` orchestrator: a draft for routine, a briefing card for everything else, and a card for any malformed or unknown router output. |
 
-### Phase D gate: safety hardening
+**What the Phase D gate changed**
 
-Two cold reviews ran at the end of Phase D, one adversarial and one reading the repo as an outside reviewer would. This slice closes their safety findings. Every replay (27/33, 21/25, 26/26, 24/28) is unchanged, so no recording was invalidated and no capture round was needed.
+- **One path to the model.** Extraction, scoring, routing and composition each carried a copy of sanitize, verify, meter, call. They now share `jscc/stage_call.py`, the only module that calls the client. The egress test had stopped scanning the CLI when it became a package that morning; it now walks subpackages.
+- **Redaction that matches its documentation.** Stored contact names were documented as redacted and no caller supplied them; routing and composition now load them. Prompts were serialized to ASCII escapes before redaction, so an accented danger-list name went out; string fields are now redacted first.
+- **The drafter no longer sees posting text**, the one input a stranger controls, aimed at the component with a zero-tolerance gate.
+- **Gates that can fail.** The false-routine gate had no test that failed when the gate was removed; it and the composer's must-ask gate now do. A hedged "routine" answer is malformed, published eval numbers are pinned to the recordings by a test, `--record` refuses to record a stub over hand-captured replies, and `jscc costs` shows failed calls.
+- **Older databases** are migrated by column presence before the version is stamped; the earlier schema bump had stamped them without migrating.
+- **Terminal output** strips control characters through one helper.
+- **Prose hygiene:** the README contradicted itself on composition's status, about sixty review-finding IDs had crept back into code, public docs linked into a private workspace, and ADR-006 records the eval decisions that had none. `cli.py` (1,422 lines) was split into a `jscc/cli/` package.
 
-- **One call path to the model.** Extraction, scoring, routing and composition each carried a copy of sanitize, verify, meter, call, check for truncation. They now call `jscc/stage_call.py`'s `call_stage`, the only module that calls the model client. The egress test had listed only the top level of `jscc/`. That missed nothing until this morning's CLI split moved every command into `jscc/cli/`, after which a direct model call there would have passed. The scan now walks subpackages, with a test that it finds a nested caller.
-- **Contact names are redacted.** The sanitizer could substitute a stored contact's name with a role token, and the README, D8, the threat model and two docstrings said it did. No caller ever passed it the names. Routing and composition now load the application's contacts themselves. Full names only: a bare first name would also rewrite ordinary words that contain it, so a contact mentioned by first name still goes out. T1 and D8 now say so.
-- **Redaction before serialization.** Each prompt was serialized to JSON before redaction. `json.dumps` escapes non-ASCII, so a danger-list name with an accent was compared against its escaped form and went out unredacted. A redaction could also consume a quote and hand the model invalid JSON. String fields are now redacted one by one, and the prompt is serialized from the verified payload, byte-identical to before for every recorded case. Record ids that look like digit runs are left alone, but only when UUID-shaped.
-- **The drafter no longer sees posting text.** Routing and composition sent the whole application, including the raw posting. The posting is irrelevant to whether a follow-up is routine, and it is the one input a stranger controls, aimed at the component with a zero-tolerance gate on answering "routine". `source_raw`, `source_url`, `extracted_jd` and `fit_rationale` are now sent as their empty defaults, which is exactly what every fixture already had.
-- **Older databases.** The schema bump that added `llm_calls.error` created the column only in new databases, then stamped every database as v4. On an older file, every metered command failed after the call was billed. Opening a database now adds missing columns before stamping the version, including on files that already carry the false stamp.
-- **Terminal output.** Only `report` stripped control characters. Everything a command prints now goes through one helper that removes C0 and C1 controls, and a test fails if a command calls `click.echo` directly.
-- **Smaller.** Synthetic mode always uses the example profile, even when a private one exists (`resolve_profile_path` now requires the mode). The example profile gained generic style samples, and `followup` refuses a profile without any before making a billed call. An empty draft body with no `needs_input` is a parse error rather than an empty email.
+**Lessons worth keeping**
 
-ADR-005 has a second addendum for the single call path. +21 tests (593).
-
-### Phase D gate, backlog sweep: `cli.py` split into a `jscc/cli/` package
-
-Walkthrough finding W-13 (Phase C -> D gate) had asked for a split "before Phase D adds a drafter command on top". Phase D added `route` and `followup` and the split didn't happen, so the file went from 1,068 to 1,422 lines. The backlog sweep that opens the Phase D gate caught it. The code moved without changes: `_app` (root group), `_common` (the exit-code contract, mode/DB open helpers, `--now` parsing), and one module per command family (`admin`, `ingest`, `agents`, `eval_cmds`). `jscc.cli` still exports `cli`, `main` and the exit codes. The only test changes are mock targets, which now name the module where each command looks the patched name up. 572 tests pass.
-
-### D4b: composition manual capture, 24/28 (86%)
-
-All 28 composition cases captured through my own Claude.ai chats (the Claude.ai default Sonnet, which was Sonnet 5; first written up as Sonnet 4.5, `claude-sonnet-4-5-20250929`, corrected 2026-09-24, see Phase E gate below; one fresh chat per case) and recorded to `evals/composition/recorded.json`; none of it is proxy output. Replay: **24/28 (86%)** against `COMPOSITION_PASS_THRESHOLD = 0.75`, which passes. All 3 escalation cases returned `needs_input` correctly. The 4 failures are all `style_reuse` (a verbatim style-sample phrase): `interview-availability-confirm`, `logistics-video-link`, `cadence-nudge-after-onsite`, `cadence-nudge-applied-quiet`. A full 28-case Sonnet proxy run beforehand (25/28, advisory only) had predicted 3 of the 4.
-
-Three defects the grader does not check, seen while reading the completions: `logistics-video-link` says "Tuesday, September 23" (it is a Wednesday, and the history names no weekday); `thank-you-hm-specific-topic` says "yesterday" and `thank-you-sparse-notes` says "last week", both invented relative dates. Logged as a fast-follow (a grader check for weekdays that do not match the date and for relative-date words), deliberately non-blocking: end-to-end delivery comes first. Not fixed here, so the 86% is unchanged by them. One capture round of a 28-case suite is a band, not a point.
-
-### Routing round 5: 26/26, zero false-routine
-
-Re-captured the whole routing suite through my own Claude.ai chats (Haiku, one fresh chat per case) against the tightened wording and the corrected `routine-recruiter-ack` fixture; `evals/routing/recorded.json` was reset first, so all 26 recordings are round-5 completions and none come from proxies. `eval routing --replay`: **26/26 (100%)** against the 0.85 bar, no false-routine. `non_routine-dietary-needs-unknown`, the round-4 false-routine, now goes to a human with the unrecorded dietary detail named. All 12 routine cases stayed routine. A few completions reasoned from the chat's real date; none changed a verdict, so no "as of" date was added to the fixtures.
-
-### Routing wording tightened after round 4
-
-A next action that only names a topic ("Confirm attendance and lunch needs") is now
-a task, not a recorded answer. Haiku proxy runs: dietary case 5/5 non_routine, both routine
-anchors held. `routine-recruiter-ack` then went non_routine 4/4 because its next action
-("Reply confirming interest and availability") named availability nobody had recorded, the
-same shape as `availability-unrecorded`; the fixture's next action is now "Reply confirming
-interest" (a labeling correction, decided after seeing the result). Proxy output is advisory;
-round 5 with real chats is the test.
-
-### Routing round 4: 23/26, automatic fail on one false-routine
-
-First real (Claude.ai chat, Haiku) round against the missing-information prompt.
-`non_routine-dietary-needs-unknown` was classified routine: the next action
-"Confirm attendance and lunch needs" was read as recording the answer. Two
-routine cases were called non_routine (safe direction; Haiku reasoned from the
-chat's real-world date). The proxy runs had passed the dietary case 3 of 3 and
-the whole suite 26/26 with zero false-routine, so a proxy-only sign-off would
-have shipped the false-routine: the real round is the only validation, and the
-proxies are a filter for whether it is worth running. Details in
-`evals/README.md`. Next: tighten the rule so a next action that merely names a
-topic is a task, not an answer (only an answer stated in the notes or next
-action counts), proxy-iterate, then a full round 5 (the prompt change
-invalidates all 26 recordings). `evals/routing/recorded.json` holds round 4 as
-evidence until round 5 replaces it.
-
-### D4c: composer `needs_input` safety net; composition suite 25 -> 28
-
-Defense in depth behind the router's missing-information rule: the composer must
-not fill a gap in the record with an invented fact either. It can now decline.
-
-- `DraftEmail` gained `needs_input: str | None` (`subject`/`body` default to
-  empty). The composition prompt offers `{"needs_input": "<missing detail>"}` in
-  place of a draft, for a reply that cannot honestly be written without a fact
-  the input lacks, and says not to escalate when the next action already records
-  the decision or a general reply would serve. If a response carries both a draft
-  and `needs_input`, `needs_input` wins (a draft beside "I don't know X" is built
-  on a guess).
-- `followup()` turns a `needs_input` draft into a `Briefing` naming the missing
-  detail (`briefing_for_missing_input`), and now forwards `conn` to the composer,
-  so production composition calls land in the `composition` ledger feature (before,
-  only routing did). The CLI reports a `CompositionParseError` as `drafting
-  failed` instead of a traceback.
-- Suite 25 -> 28: three `expect_needs_input` fixtures. The grader passes them only
-  on an escalation that names the detail, and fails a drafting case that escalates
-  (`unexpected_needs_input`).
-- Proxy calibration (advisory, Sonnet, not recorded): first wording escalated
-  correctly 3/3 but over-escalated 3 of 25 drafting cases (unrecorded slot, Zoom
-  answer, availability); after adding the "do not escalate just because" clause,
-  those drafted 9/9 and the 3 escalation cases escalated 9/9.
-- The composition prompt changed, so D4b's manual capture has not been run against
-  this prompt yet.
-
-### Router missing-information rule; routing suite 20 -> 26; composition fixture fixes
-
-Composition proxy runs had the drafter invent a personal fact (a dietary answer)
-in every round: it never says "I don't know", so the router has to keep a reply
-that needs an unrecorded detail away from it. Decided 2026-09-19: a
-**lenient** rule. Accepting or confirming a single proposal the candidate's own
-next action names stays routine; a reply that must state a detail the history
-and next action do not supply (dietary needs, availability, which of several
-proposed slots) is non_routine, with the missing detail named in `reason`.
-
-- `ROUTING_SYSTEM_PROMPT` gained the rule. It changes the hashed prompt, so the
-  20 recordings in `evals/routing/recorded.json` no longer replay; a new manual
-  round (D2b round 4) is required before the routing gate holds again.
-- Routing suite 20 -> 26: 4 non_routine cases (dietary needs unknown, slot pick
-  unrecorded, availability unrecorded, candidate withdrawing) and 2 routine
-  boundary anchors where the next action records the answer. SE at 85% is about
-  7pt. `routine-logistics-confirm` was first kept unchanged as a boundary probe; it flipped to non_routine on a proxy sample (its history asks about a video option and never answers it), so the unanswered question was removed and `routine-video-option-recorded` covers that shape.
-- Composition fixtures: `onsite-travel-logistics`, `interview-availability-confirm`
-  and `logistics-confirmation` now carry the answer in their notes, so they are
-  cases the router would route routine; style samples that contradicted the new
-  facts were replaced. Count stays 25.
-- Haiku proxy iteration (advisory): the first wording let the slot-pick case
-  through as routine, and one lucky pass hid that; two more wordings later it
-  held 3/3 with both routine anchors 3/3.
-
-### D4b calibration -- stock phrases and the form-letter advisory
-
-Proxy runs on Sonnet (25 cases, three rounds, advisory only) showed the 6-word
-verbatim-reuse check flagging good drafts: the fixtures' style samples are
-one-line answers to their own situation, so echoing a polite convention read as
-a defect. Decided 2026-09-19:
-
-- 21 stock phrases (her seven plus additions drawn from the proxy drafts) count
-  as one unit in the reuse check; the 6-unit limit is unchanged, so a whole
-  copied sentence still fails.
-- `EvalCaseResult.advisories` and a `form_letter` advisory for drafts with more
-  than 4 distinct stock phrases. Advisory only.
-- Replayed over the 75 proxy drafts: 23/25, 22/25, 22/25 (was 23, 20, 20). The
-  remaining failures are one borderline exact-6-unit reuse, a whole copied
-  sentence, a fact claim, and the dietary trap.
-- +8 tests (525 total).
-
-### D4b (grader) -- deterministic composition grading
-
-`grade_composition` is no longer presence-only. Decided
-2026-09-19: deterministic checks in code, tone not graded (a hand-graded tone
-pass stays a possible follow-up).
-
-- Generic checks: placeholders/redaction tokens, body 30-160 words, subject
-  at most 10 words (prompt now asks for 8 or fewer), invented numbers, copied
-  style-sample sentences, invented capitalized names.
-- `CompositionEvalCase` gained `must_include` (any-of groups) and
-  `must_not_include`; all 25 fixtures carry them. Style samples are excluded
-  from the facts corpus on purpose: two fixtures' samples contain facts the
-  candidate never stated (a time, a dietary answer) and are traps.
-- +24 tests (517 total) in `tests/test_composition_grading.py` and
-  `test_evals.py`.
-
-### D4a -- composition prompt + call path
-
-Mirrors D2a: the real prompt and the full D7/D8 call path, ahead of D4b's
-manual-capture validation against real model output.
-
-- `compose_followup(app, history, intent, style_samples)` is now a real
-  `@instrumented` Sonnet call (`COMPOSITION_MODEL` aliases `SCORING_MODEL`,
-  one rate entry to keep in sync) through sanitize -> verify -> client, with
-  a `composition` / `composition_eval` ledger split, a truncation check, and
-  fence-tolerant parsing into `DraftEmail`.
-- `COMPOSITION_SYSTEM_PROMPT`: facts only from the input (no invented names,
-  topics, times), one purpose per intent, voice matched to the style samples
-  without copying them, 50-130 words, no name signature or bracketed
-  placeholders, redaction tokens never echoed.
-- `StubCompositionClient` returns an empty subject on purpose so an
-  unconfigured run fails the presence grader instead of reading as 25 passes.
-- `eval composition` gained `--data-dir`/`--record`/`--replay`/`--manual`/
-  `--min-pass-rate`; bar is `COMPOSITION_PASS_THRESHOLD = 0.75`.
-- Removed `CompositionNotImplementedError` (the D3 stub's marker; nothing
-  raises it any more).
-- +22 tests, and two D5 tests removed with the error path they exercised
-  (493 total). Grading is still presence-only: the quality rubric is the open
-  D4b decision.
-
-### D5: briefing renderer + `followup` orchestrator
-
-`jscc followup <application-id>` routes, then either drafts (routine) or
-prints a briefing card (non-routine). Built ahead of D4, so its routine path
-initially raised `composition unavailable`; D4a has since landed the prompt and
-removed that error path.
-
-- `render_briefing` is deterministic: the card is the router's own
-  `reason`/`considerations` plus application fields. No second LLM call.
-- A routine decision with no `intent` degrades to a briefing instead of
-  composing against a guess, in line with D10's bias toward a human.
-
-### D3 resize -- composition suite 8 -> 25 cases, timestamps pinned
-
-Resized before D4b spends any capture effort. SE at D4's 75% bar was ~15pt
-at n=8; n=25 gives ~8.7pt. 17 routine cases added (sparse-history and
-specific-topic cases for the no-hallucination and prior-touchpoint rubric
-axes, repeat nudges, multi-panel and skip-level thank-yous, concrete
-logistics). Every fixture now pins `created_at`/`updated_at` so a prompt
-built from it hashes deterministically, the same latent bug routing hit in
-D2b. Tests: case-count test resized, new test that every case pins both
-timestamps (458 total). The `graceful-decline` fixture (candidate withdraws
-from a process) was replaced with a routine `prep-guide-acknowledgment` case:
-the router prompt treats reply-that-commits-to-an-outcome as non_routine, so
-that situation never reaches composition. Count stays 25.
-
-### Parser fence tolerance (routing, extraction, scoring)
-
-D2b's chat captures showed a completion can arrive wrapped in a ```json
-fence even though the prompts forbid it. The three `_parse_response`
-functions were plain `json.loads`, so a fenced but otherwise correct reply
-would have raised a parse error.
-
-- `json_utils.strip_code_fence` unwraps one fence that encloses the whole
-  response; all three parsers call it before `json.loads`.
-- Deliberately narrow: JSON is never fished out of surrounding prose, and an
-  unterminated fence is left alone, so a model that stops following the
-  format still fails loudly.
-- Recording keys hash the prompt, not the completion, so `recorded.json`
-  files are unaffected.
-- +23 tests (457 total) in `tests/test_fence_tolerance.py`.
-
-### D3 -- composition eval suite
-
-Per D10 step 2A, composition is reached only for a `routine` classification
--- this suite makes the composer's output gradeable ahead of any real
-prompt, the same shape B1/C1/D1 took ahead of their own B2/C2/D2 prompts.
-
-- `DraftEmail` model: the contract Slice D4's prompt is written against.
-  `subject`/`body` only -- meant to be pasteable straight into an email
-  client, not a structured object needing further assembly.
-- `composition.py`: `compose_followup(app, history, intent, style_samples)
-  -> DraftEmail` stub, raises `CompositionNotImplementedError` until D4.
-  Signature is final now, matching D4's "Sonnet prompt takes application +
-  history + intent + 1-3 in-prompt style samples" plan.
-- `evals/composition/cases.json`: 8 hand-authored (application, history,
-  intent, style_samples) fixtures, all routine -- post-interview thank-you,
-  cadence nudge, onsite-logistics confirmation, a cold recruiter-outreach
-  acknowledgment, thank-you after a phone screen, thank-you to a referrer, a
-  graceful decline (later replaced, see the resize entry), and confirming availability for a proposed interview
-  time. No non-routine case exists here by design: D10's routing step
-  (D1/D2) already refuses to route a non-routine situation to composition at
-  all.
-- `evals.py`: presence-only grading (non-empty `subject`/`body`) -- the same
-  deferral `responsibilities_summary` (B1), `rationale` (C1), and
-  `intent`/`reason`/`considerations` (D1) each got: real quality grading
-  (the LLM-judge rubric the original plan named -- tone match, reference to
-  the prior touchpoint, no hallucinated facts, appropriate to the declared
-  intent) waits on Slice D4's real prompt.
-- `python -m jscc eval composition` CLI command, no `--record`/`--replay`
-  yet -- that machinery lands with D4, same as the other three suites.
-- +7 tests (434 total). DoD met: runs, reports 0/8 passed (no prompt yet).
-
-### D2a -- routing prompt + call path
-
-Mirrors B2a's and C2a's shape: the real prompt, the full D7/D8 choke-point
-call path, and CLI wiring, ahead of D2b's manual-capture validation against
-real model output.
-
-- `llm_client.py`: `ROUTING_MODEL` (aliased to `EXTRACTION_MODEL` -- per
-  D10 routing is "Haiku, cheap," the same shape extraction already is, so
-  it reuses that model id and rate entry rather than hand-copying a second
-  one that could drift out of sync). `StubRoutingClient` +
-  `default_routing_client()`, same shape as the other two stubs with one
-  deliberate difference: its fixed answer is `non_routine`, not an
-  arbitrary placeholder -- per D10's bias, an unconfigured router that
-  never auto-drafts is the honestly correct "safe when uncertain" default,
-  not just a stand-in for one.
-- `routing.py`: real `ROUTING_SYSTEM_PROMPT` biased hard toward
-  `non_routine` on any genuine uncertainty, per D10's explicit instruction
-  that a false-routine auto-draft is a much larger failure than a
-  false-non-routine briefing card. `route_followup` wired through the same
-  sanitize → verify → instrumented-call path as `extract_jd`/`score_fit`,
-  given the application and its interaction history as one JSON payload.
-  `route <application-id>` CLI command reads the application + its
-  interactions and prints the decision -- no `Application` field persists
-  it yet, since nothing downstream (composition, the briefing renderer)
-  exists to consume it.
-- `eval routing` gained `--record`/`--replay`/`--manual`/`--min-pass-rate`
-  parity with `fit_scoring`, plus a second gate specific to routing: per
-  D10, `false_routine_cases` scans results for any genuinely `non_routine`
-  fixture classified `routine` and fails the run on that alone, regardless
-  of the combined pass rate (`ROUTING_PASS_THRESHOLD = 0.85`, stricter
-  than the other two suites' 80%). A prompt could clear 85% overall while
-  still auto-drafting something it shouldn't; this refuses to call that
-  passing.
-- **Grading nuance found while wiring the stub test, same shape C2a hit:**
-  `StubRoutingClient`'s fixed `non_routine` answer isn't a no-op against
-  this suite the way a fixed placeholder was for extraction -- it
-  trivially clears the false-routine gate (it never says "routine," so
-  there's nothing to be a false-routine case) while landing at 50% on the
-  combined bar (6/12 -- every non_routine-expected case passes, every
-  routine-expected case doesn't, since the stub can't tell them apart).
-  "Every case fails" isn't the invariant here any more than it was for
-  `fit_scoring`'s stub at C2a.
-- +14 tests (427 total, `tests/test_routing.py` new). Verified end-to-end
-  against the stub: `route <application-id>` reads an application + its
-  interactions and prints a decision; `eval routing` reports 6/12 (50%,
-  below the 85% bar) with zero false-routine cases; `jscc costs` shows the
-  call under its own `routing` ledger feature.
-
-### D1 -- routing eval suite
-
-Per D10, the drafter's first step is a Haiku classification call (routine /
-non_routine), not a draft -- this suite makes that judgment gradeable ahead
-of any real prompt, the same shape B1 took ahead of B2 and C1 took ahead of
-C2.
-
-- `RoutingDecision` model (plus `RoutingClassification`): the contract
-  Slice D2's prompt is written against. Two shapes on one model rather than
-  a tagged union, matching how `ExtractedJD`/`FitResult` already parse
-  straight out of a model's JSON response -- a `routine` decision carries
-  `intent` and leaves `reason`/`considerations` unset; a `non_routine`
-  decision carries `reason` + `considerations` and leaves `intent` unset.
-- `routing.py`: `route_followup(app, history) -> RoutingDecision` stub,
-  raises `RoutingNotImplementedError` until D2. Signature is final now.
-- `evals/routing/cases.json`: 12 hand-authored (application, history)
-  fixtures split evenly across the routine/non-routine surface D10 names --
-  routine (post-interview thank-you, cadence nudge on a stale screen,
-  onsite-logistics confirmation, a cold recruiter outreach, thank-you after
-  a phone screen, thank-you to a referrer) and non-routine (a
-  feedback-seeking rejection reply, a compensation negotiation, first
-  outreach to a warm personal contact, two threads giving conflicting
-  instructions, an interaction note carrying a contact's personal/medical
-  disclosure per D8, and a genuinely ambiguous recruiter check-in with no
-  clear ask).
-- `evals.py`: classification-exact grading as the case-defining check, plus
-  a shape-appropriate presence check (`intent` for routine, `reason` +
-  `considerations` for non_routine) -- the same presence-only treatment
-  `rationale` got at C1, deferring real wording-quality grading (is
-  `intent` the *right* bucket, are `considerations` actually useful) to D2
-  once there's a prompt worth judging.
-- `python -m jscc eval routing` CLI command, no `--record`/`--replay` yet --
-  that machinery lands with D2, same as extraction's did at B2a and
-  scoring's did at C2a.
-- +9 tests (413 total). DoD met: runs, reports 0/12 passed (no prompt yet).
+- A proxy run gates whether a manual capture is worth running. It never replaces one (routing round 4).
+- A test that cannot fail is not a gate. Each zero-tolerance gate now has a test that fails when the gate is removed.
+- A guarantee enforced by an inspection test needs the inspection to cover the structure it guards, which the egress scan did not when the package layout changed.
+- The capture scripts moved from a session scratchpad into `scripts/capture_tools.py`, and a checklist and a sizing rule (at least 25 cases, with n and its standard error stated) came out of the phase's three resizes.
 
 ## Phase C — fit scoring (C1–C3, closed 2026-09-12; Phase C → D gate 2026-09-12)
 

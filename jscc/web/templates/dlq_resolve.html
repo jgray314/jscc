@@ -14,6 +14,8 @@
     <p class="outcome-created">Created application <a href="/applications/{{ result.application_id }}">{{ result.application_id }}</a> from this entry.</p>
     {% elif result.outcome == outcome.already_resolved %}
     <p>This entry is already resolved ({{ result.prior_resolution }}); no application was created.</p>
+    {% elif result.outcome == outcome.duplicate %}
+    <p>An application already exists for this posting (<a href="/applications/{{ result.application_id }}">{{ result.application_id }}</a>); this entry is marked resolved and linked to it. Nothing was created.</p>
     {% elif result.outcome == outcome.extraction_failed %}
     <p class="outcome-error">Extraction failed; entry left unresolved. {{ result.detail }}</p>
     {% elif result.outcome == outcome.llm_api_error %}

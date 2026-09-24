@@ -652,3 +652,55 @@ def test_the_request_connection_may_cross_threads(
     monkeypatch.setattr(web_app, "open_for_mode", spy)
     _client(create_app(data_dir=synthetic_data_dir, config_dir=CONFIG_DIR)).get("/")
     assert seen == [False]
+
+
+def test_resolve_form_reports_a_duplicate_instead_of_creating_one(
+    dlq_data_dir: tuple[Path, str],
+) -> None:
+    data_dir, entry_id = dlq_data_dir
+    conn = open_for_mode(Mode.synthetic, data_dir)
+    try:
+        create_application(
+            conn,
+            Application(
+                company="Rift",
+                title="Engineer",
+                stage="identified",
+                source_url="https://example.com/jobs/5",
+            ),
+        )
+    finally:
+        conn.close()
+    client = _client(create_app(data_dir=data_dir, config_dir=CONFIG_DIR))
+
+    page = client.post(f"/dlq/{entry_id}/resolve", data=_PASTE).text
+
+    assert "already exists for this posting" in page
+    assert len(_apps(data_dir)) == 1
+
+
+def test_real_mode_resolve_without_a_key_refuses_instead_of_saving_a_placeholder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a key, extraction falls back to a stub that returns fixed text. In
+    synthetic mode that is the demo; in real mode it would store a made-up
+    application beside real ones."""
+    monkeypatch.setenv(ENV_VAR, "real")
+    conn = open_for_mode(Mode.real, tmp_path)
+    try:
+        entry_id = create_dlq_entry(
+            conn,
+            DLQEntry(source_url="https://example.com/jobs/5", failure_mode=FailureMode.blocked),
+        )
+    finally:
+        conn.close()
+    client = _client(create_app(data_dir=tmp_path, config_dir=CONFIG_DIR))
+
+    page = client.post(f"/dlq/{entry_id}/resolve", data=_PASTE).text
+
+    assert "ANTHROPIC_API_KEY" in page
+    conn = open_for_mode(Mode.real, tmp_path)
+    try:
+        assert list_applications(conn) == []
+    finally:
+        conn.close()

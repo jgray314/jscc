@@ -22,18 +22,25 @@ from enum import StrEnum
 import anthropic
 
 from .extraction import ExtractionParseError
-from .ingest_logic import PASTED_SOURCE, company_from_url, extract_and_create_application
-from .llm_client import UnknownModelPricingError
+from .ingest_logic import (
+    PASTED_SOURCE,
+    STUB_IN_REAL_MODE_MESSAGE,
+    company_from_url,
+    extract_and_create_application,
+    find_duplicate_application,
+)
+from .llm_client import StubExtractionClient, UnknownModelPricingError, default_client
 from .models import FailureMode, FetchStatus, Resolution
 from .storage import delete_application, list_dlq_entries
 from .storage import resolve_dlq_entry as _store_resolution
 
 # Every newly-created dlq_* status names the failure the original fetch hit
 # ("this record was recovered from a paywall", not "this record was fetched
-# cleanly"). FailureMode.other has no corresponding dlq_* status -- it's
-# defined but never actually produced by fetcher.py today, so there is
-# nothing live to map it to; `.get(..., FetchStatus.manual)` covers it
-# defensively without inventing a status for a code path that doesn't run.
+# cleanly"). FailureMode.other has no dlq_* status because it is not a fetch
+# failure: `ingest` records it when the *extraction* call hit an LLM API error
+# (rate limit, overload), so the text is being supplied by paste at resolve time
+# and `manual` describes it correctly. `.get(..., FetchStatus.manual)` is that
+# mapping, not a defensive default.
 _DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
     FailureMode.paywall: FetchStatus.dlq_paywall,
     FailureMode.blocked: FetchStatus.dlq_blocked,
@@ -45,6 +52,7 @@ _DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
 class DLQResolveOutcome(StrEnum):
     created = "created"
     already_resolved = "already_resolved"
+    duplicate = "duplicate"
     extraction_failed = "extraction_failed"
     llm_api_error = "llm_api_error"
     config_error = "config_error"
@@ -80,17 +88,19 @@ def resolve_dlq_entry_via_paste(
     paste_text: str,
     *,
     company: str | None = None,
+    refuse_stub: bool = False,
 ) -> DLQResolveResult:
     """Resolve one DLQ entry by pasting the JD text manually. Creates the
     Application the original fetch couldn't, then marks the entry resolved.
     Idempotent: an already-resolved entry is reported, not re-processed --
     re-running this against the same entry must never create a second
-    Application (gate finding M-1). Concurrent callers are serialized per
+    Application (gate finding M-1). With `refuse_stub`, a run that would use the
+    placeholder extractor is refused before anything is written (real mode). Concurrent callers are serialized per
     entry, and the final write is a compare-and-set, so the guarantee holds
     while the model call is in flight, not only between sequential runs.
     """
     with _entry_lock(entry_id):
-        return _resolve_locked(conn, entry_id, paste_text, company=company)
+        return _resolve_locked(conn, entry_id, paste_text, company=company, refuse_stub=refuse_stub)
 
 
 def _resolve_locked(
@@ -99,6 +109,7 @@ def _resolve_locked(
     paste_text: str,
     *,
     company: str | None,
+    refuse_stub: bool,
 ) -> DLQResolveResult:
     entries = list_dlq_entries(conn, unresolved_only=False)
     entry = next((e for e in entries if e.id == entry_id), None)
@@ -110,6 +121,33 @@ def _resolve_locked(
             outcome=DLQResolveOutcome.already_resolved,
             entry_id=entry_id,
             prior_resolution=entry.resolution,
+        )
+
+    if refuse_stub and isinstance(default_client(), StubExtractionClient):
+        return DLQResolveResult(
+            outcome=DLQResolveOutcome.config_error,
+            entry_id=entry_id,
+            detail=STUB_IN_REAL_MODE_MESSAGE,
+        )
+
+    # The same posting may already be an Application: ingested successfully
+    # after this entry was queued, or created by an earlier resolve that
+    # crashed before it marked the entry. Creating another would count it twice.
+    existing = find_duplicate_application(
+        conn,
+        source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
+        raw_text=paste_text,
+    )
+    if existing is not None:
+        _store_resolution(
+            conn,
+            entry_id,
+            Resolution.wont_fix,
+            application_id=existing.id,
+            only_if_unresolved=True,
+        )
+        return DLQResolveResult(
+            outcome=DLQResolveOutcome.duplicate, entry_id=entry_id, application_id=existing.id
         )
 
     fallback_company_val = (

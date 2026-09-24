@@ -61,10 +61,15 @@ cannot drift from the evidence.
 
 ## Consequences
 
-- Every headline number is a small hand-captured sample: 25–33 cases, standard
-  error roughly 7–9 points. A single round is reported as a first data point. The
-  project rule is two rounds in the same band before a suite is called validated;
-  only extraction has two.
+- Every headline number is a small hand-captured sample: 25–36 cases, standard
+  error roughly 6–9 points. A single round is reported as a first data point. The
+  project rule is two rounds on the same prompt in the same band before a suite is
+  called validated. As of 2026-09-24 only fit_scoring meets it (27/28 twice, on a
+  prompt tuned after a failed first capture). Extraction's current prompt has one
+  round (32/36, after 56% and 75% on earlier wording), so it is not validated by
+  this rule; composition and routing have one round each, and routing's was tuned
+  on its own cases. "Band" here means the spread of rounds with the prompt held
+  fixed, not the path a prompt took while it was being fixed.
 - Routing's 26/26 was reached by tuning on the same cases, with no held-out set.
   The next routing capture is where fresh cases get added.
 - Any change to a prompt, or to what the sanitizer redacts, changes the recording

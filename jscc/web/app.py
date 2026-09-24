@@ -277,7 +277,11 @@ def create_app(
         if not paste_text.strip():
             raise HTTPException(status_code=400, detail="paste_text must not be empty")
         result = resolve_dlq_entry_via_paste(
-            conn, entry_id, paste_text, company=company.strip() or None
+            conn,
+            entry_id,
+            paste_text,
+            company=company.strip() or None,
+            refuse_stub=mode is Mode.real,
         )
         return templates.TemplateResponse(
             request,

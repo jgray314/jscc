@@ -152,3 +152,46 @@ def test_a_lost_race_undoes_its_application_and_reports_already_resolved(
     assert [a.company for a in list_applications(conn)] == ["Winner"]
     entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
     assert entry.application_id == list_applications(conn)[0].id
+
+
+def test_a_posting_that_is_already_an_application_is_not_created_again(conn) -> None:
+    """The URL was ingested successfully after the entry was queued, or an earlier
+    resolve crashed after creating the Application but before marking the entry.
+    Either way a second Application would count the posting twice."""
+    from jscc.models import Application
+    from jscc.storage import create_application
+
+    existing = Application(
+        company="Rift Cloud",
+        title="Engineer",
+        stage="identified",
+        source_url="https://example.com/jobs/11",
+    )
+    create_application(conn, existing)
+    entry_id = create_dlq_entry(
+        conn, DLQEntry(source_url="https://example.com/jobs/11", failure_mode=FailureMode.blocked)
+    )
+
+    result = resolve_dlq_entry_via_paste(conn, entry_id, "Senior Engineer at Rift Cloud. " * 20)
+
+    assert result.outcome is DLQResolveOutcome.duplicate
+    assert result.application_id == existing.id
+    assert [a.id for a in list_applications(conn)] == [existing.id]
+    entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
+    assert entry.resolution is Resolution.wont_fix
+    assert entry.application_id == existing.id
+
+
+def test_a_repeated_paste_is_recognized_as_a_duplicate(conn) -> None:
+    from jscc.ingest_logic import PASTED_SOURCE
+
+    text = "Senior Engineer at Rift Cloud. " * 20
+    first = create_dlq_entry(
+        conn, DLQEntry(source_url=PASTED_SOURCE, failure_mode=FailureMode.extraction_failed)
+    )
+    second = create_dlq_entry(
+        conn, DLQEntry(source_url=PASTED_SOURCE, failure_mode=FailureMode.extraction_failed)
+    )
+    assert resolve_dlq_entry_via_paste(conn, first, text).outcome is DLQResolveOutcome.created
+    assert resolve_dlq_entry_via_paste(conn, second, text).outcome is DLQResolveOutcome.duplicate
+    assert len(list_applications(conn)) == 1

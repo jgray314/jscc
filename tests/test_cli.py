@@ -2069,3 +2069,20 @@ def test_eval_composition_replay_is_exclusive_with_record(
     monkeypatch.delenv(ENV_VAR, raising=False)
     result = runner.invoke(cli, ["eval", "composition", "--replay", "--record"])
     assert result.exit_code == 2
+
+
+def test_real_mode_ingest_without_a_key_refuses_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stub extractor is for synthetic mode. In real mode it would save a
+    placeholder application beside real ones, so the command stops first."""
+    from jscc.mode import ENV_VAR
+
+    monkeypatch.setenv(ENV_VAR, "real")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    result = CliRunner().invoke(
+        cli, ["ingest", "--paste", "--data-dir", str(tmp_path)], input="Senior Engineer. " * 20
+    )
+    assert result.exit_code == 2
+    assert "ANTHROPIC_API_KEY" in result.output
+    assert not (tmp_path / "real.db").exists()
