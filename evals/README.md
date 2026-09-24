@@ -66,12 +66,18 @@ starting one:
 2. **Run the full suite through proxies on the final wording,** with the target model, not a
    targeted subset. A proxy is a lower bound on failures, not a prediction: routing round 4 was
    proxy-clean and still failed on a real chat.
-3. **Read 5 to 10 proxy outputs yourself,** looking for defects the grader does not check. Composition
+3. **Screen the at-risk cases on real chats before a full recapture.** After an edit made in
+   response to a failed round, pick the 2 to 4 cases the edit is most likely to push the wrong way
+   (a false-routine for routing) and run each once in a fresh chat on the target model. Keep those
+   replies out of the recordings; the full recapture draws every case again. Routing round 6 needed
+   this: two prompt wordings each failed on the one case they were meant to fix, and each was
+   caught with a single chat instead of a 38-case round.
+4. **Read 5 to 10 proxy outputs yourself,** looking for defects the grader does not check. Composition
    drafts that invented a weekday or a relative date passed every check.
-4. **Give each fixture an as-of date if its answer depends on today's date.** A model in a real chat
+5. **Give each fixture an as-of date if its answer depends on today's date.** A model in a real chat
    sees the real date and can turn a routine cadence case into a judgment call.
-5. **Check the model.** `capture_tools.py show` prints the target model first and last on every case.
-6. **Prefer an incognito chat for composition and routing.** Their prompts can draw on real names and
+6. **Check the model.** `capture_tools.py show` prints the target model first and last on every case.
+7. **Prefer an incognito chat for composition and routing.** Their prompts can draw on real names and
    writing voice, and chat memory could carry that into a completion that lands in a tracked recording.
    It is optional for `jd_extraction` and `fit_scoring` (fictional inputs): a jd_extraction incognito
    control matched the normal chats. Incognito chats are not saved, so copy each reply as you go.
