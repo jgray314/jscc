@@ -29,7 +29,7 @@
       "remote_policy": "hybrid",
       "must_have_skills": [
         "PyTorch",
-        "model deployment"
+        ["model deployment", "shipping models to production"]
       ],
       "responsibilities_summary": "Leads perception model architecture, owns the training pipeline, partners with safety review on rollout criteria."
     }
@@ -63,7 +63,7 @@
       "remote_policy": "remote",
       "must_have_skills": [
         "Kubernetes",
-        "infrastructure as code"
+        ["infrastructure as code", "infra as code"]
       ],
       "responsibilities_summary": "Sets technical direction for the internal developer platform, drives the infra roadmap, arbitrates architecture disputes, represents platform in exec planning."
     }
@@ -451,8 +451,7 @@
         "GPU hardware",
         "InfiniBand",
         "NVLink",
-        "Firmware",
-        "BMC",
+        ["Firmware", "BMC"],
         "Linux",
         "networking fundamentals",
         "Kubernetes",

@@ -29,7 +29,7 @@ from jscc.scoring import score_fit
 
 # suite -> (passed, total). Change only together with evals/README.md.
 PUBLISHED = {
-    "jd_extraction": (27, 33),
+    "jd_extraction": (32, 36),
     "fit_scoring": (21, 25),
     "routing": (26, 26),
     "composition": (24, 28),

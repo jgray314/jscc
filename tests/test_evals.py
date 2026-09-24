@@ -290,6 +290,34 @@ def test_skills_alternatives_slot_satisfied_by_either_option() -> None:
     assert not named_neither.passed
 
 
+def test_skills_alternatives_accept_the_postings_own_wording() -> None:
+    """The extraction prompt says to use the requirement's own words, so a
+    fixture must accept the posting's phrasing, not only a canonical paraphrase
+    (case-02, case-04), and a slash compound the posting writes as one
+    requirement ("firmware/BMC", case-27) is one slot that either half, or both
+    entries, satisfies. Pins the fixture shapes and the grader behavior they rely on."""
+    deployment = [["model deployment", "shipping models to production"]]
+    for actual in (["shipping models to production"], ["production model deployment"]):
+        assert grade_extraction(
+            _case(must_have_skills=deployment), _extracted(must_have_skills=actual)
+        ).passed
+
+    iac = [["infrastructure as code", "infra as code"]]
+    for actual in (["infra-as-code"], ["Infrastructure as code"]):
+        assert grade_extraction(
+            _case(must_have_skills=iac), _extracted(must_have_skills=actual)
+        ).passed
+
+    firmware = [["Firmware", "BMC"], "Linux"]
+    for actual in (["Firmware/BMC", "Linux"], ["Firmware", "BMC", "Linux"]):
+        assert grade_extraction(
+            _case(must_have_skills=firmware), _extracted(must_have_skills=actual)
+        ).passed
+    assert not grade_extraction(
+        _case(must_have_skills=firmware), _extracted(must_have_skills=["Firmware/BMC"])
+    ).passed
+
+
 def test_every_extracted_jd_field_is_graded_or_explicitly_prose() -> None:
     """Guards the H2 class of bug generally: a field added to ExtractedJD
     later must be given a rule, not silently ignored."""

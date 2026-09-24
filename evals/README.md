@@ -8,7 +8,7 @@ What each committed `recorded.json` replays to. `tests/test_published_results.py
 
 | Suite | Result | Bar | Evidence |
 |---|---|---|---|
-| jd_extraction | 27/33 (82%) | 80% | Two capture rounds on the same prompt: 76% and 82%. The recording is the second. |
+| jd_extraction | 32/36 (89%) | 80% | Third capture round, on a prompt changed after rounds 1 and 2 (56%, then 75%). The prompt was debugged against these same fixtures, so 89% is not a held-out rate; earlier rounds on earlier wording were 76%-82% (33 cases), 56% and 75%. Misses: 06, 26, 27, 31. |
 | fit_scoring | 21/25 (84%) | 80% | One capture round. |
 | routing | 26/26 (100%) | 85%, and zero false-routine | Round 5 of 5, on the cases the prompt was tuned against; see the round history below. |
 | composition | 24/28 (86%) | 75%, and every must-ask case asks | One capture round. |
@@ -27,10 +27,20 @@ The `short`/`long` split exists because 15 cases gave the pass-rate threshold a 
 Grading (`grade_extraction` in `jscc/evals.py`):
 - **Exact match:** `level`, `remote_policy`.
 - **Normalized match (case/whitespace only):** `title`, `company` (nullable — some postings never name the employer; both-null passes like any other normalized-field match).
-- **Set equality (order-independent):** `must_have_skills`.
+- **Set equality (order-independent):** `must_have_skills`, by word-set containment (wording is forgiven, scope is not). An expected entry may be a list of alternatives; one slot is satisfied by naming any of them, or all of them. See "Expected skills accept the posting's own wording" below.
 - **Presence-only:** `comp_band` — both-None or both-not-None; exact dollar figures aren't graded because they're too brittle to pin a prompt to.
 - **Presence + containment:** `location` — both-None/both-not-None, and one must contain the other ("Denver" vs. "Denver, CO" passes; "Denver" vs. "Seattle" fails).
 - **Prose, not graded here:** `responsibilities_summary` — checked for non-empty only. No suite uses an LLM judge.
+
+### Expected skills accept the posting's own wording
+
+The extraction prompt tells the model to take each skill from the requirement's own words, so an expected entry must be satisfiable by the words the posting uses, not only by a canonical paraphrase. A mechanical check (2026-09-23) found exactly two expectations whose words the posting never uses, and one slash compound graded as two skills. All three were changed before the recapture, not after seeing its result:
+
+- **case-02:** `model deployment` became `["model deployment", "shipping models to production"]`. The posting says "shipping models to production".
+- **case-04:** `infrastructure as code` became `["infrastructure as code", "infra as code"]`. The posting says "infra-as-code". Containment cannot bridge `infra` and `infrastructure`, so the abbreviation is listed. The earlier docs called this gap deliberately unfixed; with the verbatim-words rule it is the correct behavior.
+- **case-27:** `Firmware` and `BMC` became one slot, `["Firmware", "BMC"]`. The posting writes "firmware/BMC layers" as one requirement. A model that returns `Firmware/BMC` as a single entry matched only one of the two separate slots and failed; a slot is satisfied by either half or both. The cost: a reply naming only one of the two now passes.
+
+`tests/test_evals.py::test_skills_alternatives_accept_the_postings_own_wording` pins all three shapes. A smarter grader (abbreviation and synonym handling) is a possible later improvement; it is a backlog item in the JSCC plan, not something to build before the plan's phases are complete.
 
 Run: `python -m jscc eval jd_extraction`. Exits non-zero if the combined pass rate falls below `PASS_THRESHOLD`; `format_eval_summary` also reports a `short`/`long` breakdown so a regression says which distribution broke, without a second gate.
 
@@ -52,6 +62,10 @@ starting one:
 4. **Give each fixture an as-of date if its answer depends on today's date.** A model in a real chat
    sees the real date and can turn a routine cadence case into a judgment call.
 5. **Check the model.** `capture_tools.py show` prints the target model first and last on every case.
+6. **Prefer an incognito chat for composition and routing.** Their prompts can draw on real names and
+   writing voice, and chat memory could carry that into a completion that lands in a tracked recording.
+   It is optional for `jd_extraction` and `fit_scoring` (fictional inputs): a jd_extraction incognito
+   control matched the normal chats. Incognito chats are not saved, so copy each reply as you go.
 
 `scripts/capture_tools.py` does the mechanics for all four suites: `prompts` builds each case's exact
 prompt from the current code, `show` prints one for the chat, `record` saves a completion under the key
