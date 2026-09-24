@@ -560,6 +560,12 @@ class RoutingEvalCase(BaseModel):
     application: dict[str, Any]
     history: list[dict[str, Any]]
     expected_classification: str  # "routine" | "non_routine"
+    # "core" (the cases the prompt was tuned against), "held_out" (written
+    # without seeing the prompt, reported as its own number), "hostile" (history
+    # notes carrying third-party text that tries to steer the classification).
+    # Reporting only, like extraction's short/long: the false-routine gate
+    # covers every group.
+    group: str = "core"
 
 
 def load_routing_cases(path: Path = ROUTING_CASES_PATH) -> list[RoutingEvalCase]:
@@ -600,7 +606,7 @@ def grade_routing_decision(case: RoutingEvalCase, decision: RoutingDecision) -> 
                     field="considerations", expected="<non-empty>", actual=decision.considerations
                 )
             )
-    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+    return EvalCaseResult(case_id=case.id, group=case.group, passed=not diffs, diffs=diffs)
 
 
 def run_routing_evals(
@@ -617,7 +623,9 @@ def run_routing_evals(
         except (SanitizerRefusal, LLMSendError):
             raise
         except Exception as e:  # router stub, prompt bugs, malformed fixtures, etc.
-            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            results.append(
+                EvalCaseResult(case_id=case.id, group=case.group, passed=False, error=str(e))
+            )
             continue
         results.append(grade_routing_decision(case, decision))
     passed = sum(1 for r in results if r.passed)

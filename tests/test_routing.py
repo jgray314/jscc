@@ -100,7 +100,10 @@ def test_route_followup_sends_application_and_history_in_user_prompt() -> None:
         _app(title="Staff Engineer"), _history(notes="Thanks for the onsite."), client=fake
     )
     sent = json.loads(fake.calls[0]["user"])
-    assert sent["application"]["title"] == "Staff Engineer"
+    # The extracted title is withheld from the router (see `application_for_routing`);
+    # the fields that do bear on the decision are sent.
+    assert sent["application"]["title"] == ""
+    assert sent["application"]["stage"] == _app().stage
     assert sent["history"][0]["notes"] == "Thanks for the onsite."
     assert fake.calls[0]["model"] == ROUTING_MODEL
     assert "JSON" in fake.calls[0]["system"]

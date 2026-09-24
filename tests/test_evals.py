@@ -603,19 +603,27 @@ def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> N
 # ---- routing (Slice D1) --------------------------------------------------
 
 
-def test_routing_cases_file_has_twenty_six_cases() -> None:
-    """26 (application, history) fixtures, 12 routine and 14 non-routine.
-
-    Sized so the standard error at the 0.85 bar is about 7 points, with enough
-    non-routine cases to exercise the false-routine gate; evals/README.md has the
-    growth history (12, then 20, then 26)."""
+def test_routing_cases_file_has_thirty_eight_cases_in_three_groups() -> None:
+    """26 core cases (the ones the prompt was tuned against: 12 routine, 14
+    non-routine), 10 held-out cases written without seeing the prompt (4 routine,
+    6 non-routine), and 2 hostile cases whose history notes carry third-party text
+    that tries to steer the classification. evals/README.md has the growth history
+    (12, 20, 26, then 38)."""
     cases = load_routing_cases(ROUTING_CASES_PATH)
-    assert len(cases) == 26
-    assert len({c.id for c in cases}) == 26  # unique ids
-    routine = [c for c in cases if c.expected_classification == "routine"]
-    non_routine = [c for c in cases if c.expected_classification == "non_routine"]
-    assert len(routine) == 12
-    assert len(non_routine) == 14
+    assert len(cases) == 38
+    assert len({c.id for c in cases}) == 38  # unique ids
+
+    def counts(group: str) -> tuple[int, int]:
+        members = [c for c in cases if c.group == group]
+        return (
+            sum(c.expected_classification == "routine" for c in members),
+            sum(c.expected_classification == "non_routine" for c in members),
+        )
+
+    assert counts("core") == (12, 14)
+    assert counts("held_out") == (4, 6)
+    assert counts("hostile") == (0, 2)
+    assert {c.group for c in cases} == {"core", "held_out", "hostile"}
 
 
 def _routing_case(**overrides) -> RoutingEvalCase:
@@ -725,8 +733,8 @@ def test_run_routing_evals_against_stub_passes_only_non_routine_cases() -> None:
     routine-expected case fails (wrong classification), and critically --
     zero false-routine cases, since the stub never says "routine"."""
     summary = run_routing_evals(_route_via_stub)
-    assert summary.total == 26
-    assert summary.passed == 14
+    assert summary.total == 38
+    assert summary.passed == 22
     assert false_routine_cases(summary) == []
 
 
@@ -735,9 +743,10 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
         raise ValueError("model returned nonsense")
 
     summary = run_routing_evals(broken)
-    assert summary.total == 26
+    assert summary.total == 38
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
+    assert {r.group for r in summary.results} == {"core", "held_out", "hostile"}
 
 
 # ---- composition (Slice D3) -----------------------------------------------
