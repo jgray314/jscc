@@ -17,6 +17,7 @@ validated against real model output captured by hand through Claude.ai chat
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any
 
@@ -24,7 +25,7 @@ from pydantic import ValidationError
 
 from .json_utils import strip_code_fence
 from .llm_client import ROUTING_MODEL, LLMClient, default_routing_client
-from .models import Application, Contact, Interaction, RoutingDecision
+from .models import Application, Contact, Interaction, RoutingClassification, RoutingDecision
 from .stage_call import call_stage
 from .storage import list_contacts
 
@@ -39,7 +40,7 @@ ROUTING_SYSTEM_PROMPT = """You are a follow-up routing classifier for a job sear
 
 ROUTINE means a low-stakes, well-understood situation where a templated response carries no real risk of saying the wrong thing. Concrete examples: a thank-you note after an interview, a gentle check-in on an application that has gone quiet past its expected cadence, confirming logistics (times, formats) that the other side has already proposed and that the candidate's own next action names (for example "Confirm the 4pm time works" — one proposal to accept, not a choice among several), or acknowledging a first cold outreach from a recruiter.
 
-NON_ROUTINE means the content of the reply carries real relationship, financial, or judgment risk, OR you are not confident which bucket this falls into. Concrete examples: replying to any rejection, including a warm one that invites the candidate to stay in touch or mentions a future opening (a rejection is never a routine acknowledgment — how the candidate responds shapes whether that door stays open, and a candidate who wants to ask for feedback needs even more care), anything touching compensation or negotiation, accepting or declining an offer (even a clean decline with no ask attached still commits the candidate to a specific outcome and affects the relationship going forward), a first outreach to a warm personal contact (the relationship history matters and a generic message could damage it), a reply that would have to state a specific detail about the candidate that neither the history nor their next action supplies (for example dietary needs, their availability, or which one of several proposed time slots or options they choose when the history does not say which; a next action like "Reply with preferred time" or "Reply with availability" names a task, not the answer; likewise a next action that only names a topic, such as "Confirm attendance and lunch needs", is a task, not the answer, because the candidate's actual needs are still unstated. An answer counts as recorded only when the notes or next action actually state it, for example "Reply confirming Tuesday at 10am". So picking a slot the history never records is non-routine even though it feels like scheduling — never guess it, and name the missing detail in `reason`), two threads (e.g. a recruiter and a hiring manager) giving conflicting or ambiguous instructions, and any interaction history that contains a personal or sensitive disclosure about a specific individual (health, family, or similarly private circumstances) — drafting around a disclosure like that needs a human's judgment about tone and whether to reference it at all.
+NON_ROUTINE means the content of the reply carries real relationship, financial, or judgment risk, OR you are not confident which bucket this falls into. Concrete examples: replying to any rejection, including a warm one that invites the candidate to stay in touch or mentions a future opening (a rejection is never a routine acknowledgment — how the candidate responds shapes whether that door stays open, and a candidate who wants to ask for feedback needs even more care), anything touching compensation or negotiation, accepting or declining an offer, or withdrawing from a process (even a clean decline or a gracious withdrawal with no ask attached still commits the candidate to a specific outcome, ends or changes their candidacy, and affects the relationship going forward), a first outreach to a warm personal contact (the relationship history matters and a generic message could damage it), a reply that would have to state a specific detail about the candidate that neither the history nor their next action supplies (for example dietary needs, their availability, or which one of several proposed time slots or options they choose when the history does not say which; a next action like "Reply with preferred time" or "Reply with availability" names a task, not the answer; likewise a next action that only names a topic, such as "Confirm attendance and lunch needs", is a task, not the answer, because the candidate's actual needs are still unstated. An answer counts as recorded only when the notes or next action actually state it, for example "Reply confirming Tuesday at 10am". So picking a slot the history never records is non-routine even though it feels like scheduling — never guess it, and name the missing detail in `reason`), two threads (e.g. a recruiter and a hiring manager) giving conflicting or ambiguous instructions, and any interaction history that contains a personal or sensitive disclosure about a specific individual (health, family, or similarly private circumstances) — drafting around a disclosure like that needs a human's judgment about tone and whether to reference it at all.
 
 Bias hard toward NON_ROUTINE. Auto-drafting a situation that actually needed a human is a much larger failure than surfacing a situation the person could have drafted themselves — if you are genuinely unsure which bucket a situation falls into, classify it NON_ROUTINE and say so honestly in `reason` (e.g. "ambiguous intent, no clear ask" is a valid reason). Judge ROUTINE vs. NON_ROUTINE on the actual stakes and clarity of the situation, not on how short the history is or how polite the language sounds.
 
@@ -95,6 +96,63 @@ def application_for_routing(app: Application) -> dict[str, Any]:
     for field in _ROUTER_WITHHELD_APPLICATION_FIELDS:
         data[field] = ""
     return data
+
+
+# Interaction notes and next actions can hold text a stranger wrote (a recruiter's
+# pasted email, a posting excerpt). The prompt tells the model to treat it as data,
+# but a small model can still be steered by it, and the only steer that matters is
+# toward "routine": that is the answer that leads to an automatic draft. So this
+# check is not left to the model. If a note is addressed to the classifier, a
+# "routine" answer is overturned to non-routine, after the call and in code. It
+# only ever moves an answer toward a person, never away, and it does not stop the
+# text from reaching the model; it stops the text from deciding the outcome. It
+# knows the shapes below, not every phrasing an attacker could write, so it is
+# defence in depth beside the prompt, not a replacement for it.
+_CLASSIFIER_DIRECTED_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\bsystem\s+(?:override|prompt|message|instruction)s?\b",
+        r"\b(?:disregard|ignore|forget|override)\b[^.\n]{0,40}\b(?:instructions?|rules?|prompt|guidelines?)\b",
+        r"\b(?:classify|classifying|label|mark|treat|return|answer|respond)\b[^.\n]{0,40}\broutine\b",
+        r"\bclassification\b[^.\n]{0,20}\b(?:routine|non[_ -]?routine)\b",
+        r"\byou\s+(?:are\s+now|must\s+now|should\s+now)\b",
+        r"\b(?:new|updated|revised)\s+instructions?\b",
+    )
+)
+
+_INTERACTION_TEXT_FIELDS = ("notes", "next_action")
+
+
+def classifier_directed_text(history: list[Interaction]) -> str | None:
+    """The first snippet in `history` that reads as an instruction to the classifier."""
+    for interaction in history:
+        for field in _INTERACTION_TEXT_FIELDS:
+            text = getattr(interaction, field, None) or ""
+            for pattern in _CLASSIFIER_DIRECTED_PATTERNS:
+                match = pattern.search(text)
+                if match:
+                    return match.group(0)
+    return None
+
+
+def _overturn_if_steered(decision: RoutingDecision, history: list[Interaction]) -> RoutingDecision:
+    if decision.classification != RoutingClassification.routine:
+        return decision
+    snippet = classifier_directed_text(history)
+    if snippet is None:
+        return decision
+    return RoutingDecision(
+        classification=RoutingClassification.non_routine,
+        intent=None,
+        reason=(
+            "A note in the history contains text addressed to the classifier "
+            f'("{snippet.strip()}"), so a person should read it before anything is drafted.'
+        ),
+        considerations=[
+            "The text may have come from a third party (a recruiter's email, a posting excerpt).",
+            "Check what the situation actually is; nothing was drafted.",
+        ],
+    )
 
 
 def name_roles_for(contacts: list[Contact]) -> dict[str, str]:
@@ -153,4 +211,4 @@ def route_followup(
         parse_error=RoutingParseError,
         name_roles=name_roles_for(contacts),
     )
-    return _parse_response(response.text)
+    return _overturn_if_steered(_parse_response(response.text), history)

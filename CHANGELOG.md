@@ -16,6 +16,17 @@ design principles D1 to D10 in `docs/design-principles.md`.
 
 The dashboard is a local FastAPI + Jinja2 app over the same storage layer as the CLI. The Phase E gate ran a backlog sweep, a recapture of the extraction and scoring prompts, two cold lenses, and a hardening slice; its entries come first, newest first, followed by the three build slices. The gate is not closed: the remaining fixes are tracked in the gate notes and will be summarized here when they land.
 
+### Phase E gate, routing bundle (L1-4): the router stops seeing title and company; held-out and hostile cases; a code check for injected notes
+
+The walkthrough found that the extracted title and company, text a model pulled from a posting, still reached the router while the docs said the router saw no posting text.
+
+- **Withheld from the router (L1-4).** `application_for_routing` blanks `title` and `company`; composition still gets them, since a draft needs them. Enforced by a production-shaped test.
+- **Suite widened 26 to 38.** Ten held-out cases, written by an agent that was not shown the prompt (4 routine, 6 non-routine), and two hostile cases with third-party text inside a history note. Results are reported per group. This is the held-out set the routing suite had lacked since round 5.
+- **Recapture, two rounds.** Every prompt or payload change invalidates all recordings, so round 6a was a full 38-case capture (35/38, one false-routine: a withdrawal called routine). The prompt then named withdrawing from a process as non-routine, and round 6b recaptured all 38 (36/38 from the model alone, one false-routine: the hostile posting excerpt). Two further prompt wordings were screened on that one case with a single fresh chat each and did not fix it; both were reverted and none of those replies is in the recordings.
+- **Code check for text addressed to the classifier.** `route_followup` overturns a routine answer to non-routine when a note or next action reads as an instruction to the classifier. It only moves answers toward a person. It knows a fixed list of shapes, not every phrasing, and a test requires it to fire on exactly the two hostile cases and none of the other 36. The published 37/38 is model plus check; the model alone replays to 36/38, and a test pins both.
+- **What it does not show.** 10/10 on the held-out set is n=10. The core 25/26 was tuned on. The hostile group is two fictional cases, and the model passed one of them only with the check's help. Held-out status held because no prompt edit responded to a held-out result.
+- **Left alone.** `routine-recruiter-ack` is sent to a person, the safe direction, in both rounds.
+
 ### Phase E gate, fixes A: walkthrough highs and the findings that share their files
 
 The gate's outside-reviewer lens found the README, the ADRs and this file describing a slightly better system than the one that exists, and three earlier "fixed" items had regressed.
