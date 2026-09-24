@@ -84,7 +84,9 @@ starting one:
 
 `scripts/capture_tools.py` does the mechanics for all four suites: `prompts` builds each case's exact
 prompt from the current code, `show` prints one for the chat, `record` saves a completion under the key
-replay looks up, and `proxy-prep` / `proxy-grade` run the proxy loop. It refuses stale prompts and
+replay looks up, `next` runs a whole round from the clipboard (call it, paste the case into a fresh
+chat, copy the reply, call it again: it records the reply, checks `--model`, loads the next case),
+and `proxy-prep` / `proxy-grade` run the proxy loop. It refuses stale prompts and
 refuses to record anything under a `proxy` directory, so proxy output cannot end up in a recording.
 
 ## Adding a case

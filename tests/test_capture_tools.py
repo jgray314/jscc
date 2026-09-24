@@ -153,3 +153,84 @@ def test_recapture_cost_counts_only_the_cases_a_fixture_edit_touches(tmp_path: P
         out.splitlines()[0]
         == f"routing: 1/{len(ids)} cases need a new capture; 1 recorded keys match no current case"
     )
+
+
+class _Clip:
+    """A fake clipboard: what the chat's reply would be, and what next_case loaded."""
+
+    def __init__(self) -> None:
+        self.text = ""
+
+    def read(self) -> str:
+        return self.text
+
+    def write(self, text: str) -> None:
+        self.text = text
+
+
+def _next(tmp_path, clip, model=None):
+    return capture_tools.next_case(
+        "routing",
+        tmp_path,
+        model,
+        read_clip=clip.read,
+        write_clip=clip.write,
+        path=tmp_path / "rec.json",
+    )
+
+
+def test_next_walks_the_round_recording_each_reply(tmp_path):
+    prompts = capture_tools.write_prompts("routing", tmp_path)
+    ids = list(prompts)
+    clip = _Clip()
+    assert "case 1/" in _next(tmp_path, clip, "haiku")
+    assert clip.text.startswith(f"CASE 1/{len(ids)}")
+    for i, cid in enumerate(ids[:3]):
+        clip.text = _ROUTING_OK + f" {i}"
+        status = _next(tmp_path, clip)
+        assert f"recorded {cid}" in status
+        assert clip.text.startswith(f"CASE {i + 2}/")
+    recorded = evals.load_recording(tmp_path / "rec.json")
+    assert len(recorded) == 3
+    p = prompts[ids[1]]
+    assert recorded[evals._prompt_key(p["model"], p["system"], p["user"])].endswith(" 1")
+
+
+def test_next_needs_the_model_to_start_and_refuses_the_wrong_one(tmp_path):
+    capture_tools.write_prompts("routing", tmp_path)
+    with pytest.raises(SystemExit, match="which model"):
+        _next(tmp_path, _Clip())
+    with pytest.raises(SystemExit, match="not the model"):
+        _next(tmp_path, _Clip(), "sonnet")
+
+
+def test_next_refuses_a_clipboard_that_is_empty_or_still_the_prompt(tmp_path):
+    capture_tools.write_prompts("routing", tmp_path)
+    clip = _Clip()
+    _next(tmp_path, clip, "haiku")
+    with pytest.raises(SystemExit, match="still holds the prompt"):
+        _next(tmp_path, clip)
+    clip.text = "  \n"
+    with pytest.raises(SystemExit, match="clipboard is empty"):
+        _next(tmp_path, clip)
+    assert not (tmp_path / "rec.json").exists()
+
+
+def test_next_resumes_after_the_recordings_already_made(tmp_path):
+    prompts = capture_tools.write_prompts("routing", tmp_path)
+    first = next(iter(prompts))
+    p = prompts[first]
+    evals.save_recording(
+        {evals._prompt_key(p["model"], p["system"], p["user"]): _ROUTING_OK}, tmp_path / "rec.json"
+    )
+    clip = _Clip()
+    assert "case 2/" in _next(tmp_path, clip, "haiku")
+
+
+def test_next_reports_a_complete_round(tmp_path):
+    prompts = capture_tools.write_prompts("routing", tmp_path)
+    recorded = {
+        evals._prompt_key(p["model"], p["system"], p["user"]): _ROUTING_OK for p in prompts.values()
+    }
+    evals.save_recording(recorded, tmp_path / "rec.json")
+    assert "Round complete" in _next(tmp_path, _Clip(), "haiku")
