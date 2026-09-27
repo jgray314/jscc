@@ -12,9 +12,15 @@ folded at the Phase F gate.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
-## Phase E — dashboard (E1–E2b shipped 2026-09-21; gate in progress)
+## Phase F prep
 
-The dashboard is a local FastAPI + Jinja2 app over the same storage layer as the CLI. The Phase E gate ran a backlog sweep, a recapture of the extraction and scoring prompts, two cold lenses, and a hardening slice; its entries come first, newest first, followed by the three build slices. The gate is not closed: the remaining fixes are tracked in the gate notes and will be summarized here when they land.
+### Composition grader: invented weekday and relative-date checks
+
+The first Phase F prep item decided at the Phase E gate close-out (2026-09-24): the composition grader's round-1 note had spotted "Tuesday, September 23" (a Wednesday) and two invented relative dates ("yesterday", "last week") by eye, but nothing in the grader caught them. `grade_composition` gained `invented_weekday` and `invented_relative_date` checks, grounded the same way as the existing `invented_number` check — a weekday or relative-date word in the draft must already appear in the case's own facts, since the composer is never told what day it is. Re-grading the same `recorded.json` (no recapture) found 5 instances, not the 3 spotted by eye: 2 more completions that had otherwise passed (`post-interview-thank-you` invents "Thursday", `panel-thank-you-multi` invents "Friday"). Composition moves from 24/28 (86%) to 20/28 (71%), below its 75% bar. Published as the honest number rather than held at the old figure; a prompt fix and a fresh capture round are next.
+
+## Phase E — dashboard (E1–E2b shipped 2026-09-21; gate closed 2026-09-24)
+
+The dashboard is a local FastAPI + Jinja2 app over the same storage layer as the CLI. The Phase E gate ran a backlog sweep, a recapture of the extraction and scoring prompts, two cold lenses, and a hardening slice; its entries come first, newest first, followed by the three build slices. Full findings, disposition and lessons: [docs/gate-reviews.md](docs/gate-reviews.md).
 
 ### Phase E gate, routing bundle (L1-4): the router stops seeing title and company; held-out and hostile cases; a code check for injected notes
 

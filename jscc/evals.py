@@ -721,6 +721,28 @@ _CALENDAR_AND_CLOSING_WORDS = frozenset(
     "january february march april may june july august september october november december "
     "best thanks regards sincerely cheers".split()
 )
+_WEEKDAY_WORDS = frozenset("monday tuesday wednesday thursday friday saturday sunday".split())
+# The composer is never told what "today" is, so a weekday name or a phrase
+# asserting elapsed time is a guess unless the facts themselves already state
+# it (e.g. a recorded `next_action` that says "Reply confirming Tuesday"). Real
+# captures included a stated weekday that didn't match its own date ("Tuesday,
+# September 23" for a Wednesday) and relative words ("yesterday", "last week")
+# with no clock the composer could have checked them against. "today"/"tonight"
+# are excluded on purpose: a thank-you for the conversation just had is the
+# ordinary same-day case the style samples themselves use, not an elapsed-time
+# claim, and the composer has no way to get that one wrong.
+_RELATIVE_DATE_PHRASES = (
+    "yesterday",
+    "tomorrow",
+    "last week",
+    "next week",
+    "this week",
+    "last month",
+    "next month",
+    "this month",
+    "last year",
+    "next year",
+)
 
 
 # Short, polite phrases that are ordinary social convention. In the reuse check
@@ -859,6 +881,35 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
         diffs.append(
             FieldDiff(
                 field="invented_number", expected="only numbers in the facts", actual=invented
+            )
+        )
+
+    # Split on normalized prose, not `_WORD`, so a possessive like "Thursday's"
+    # still registers as the word "thursday" (`_WORD`'s apostrophe-inclusive
+    # class would otherwise keep it as one token that never matches).
+    draft_words = set(_normalize_prose(subject + " " + body).split())
+    facts_words = set(_normalize_prose(facts).split())
+    invented_weekdays = sorted((draft_words & _WEEKDAY_WORDS) - facts_words)
+    if invented_weekdays:
+        diffs.append(
+            FieldDiff(
+                field="invented_weekday",
+                expected="only weekdays stated in the facts",
+                actual=invented_weekdays,
+            )
+        )
+
+    draft_prose = f" {_normalize_prose(subject + ' ' + body)} "
+    facts_prose = f" {_normalize_prose(facts)} "
+    invented_relative_dates = sorted(
+        p for p in _RELATIVE_DATE_PHRASES if f" {p} " in draft_prose and f" {p} " not in facts_prose
+    )
+    if invented_relative_dates:
+        diffs.append(
+            FieldDiff(
+                field="invented_relative_date",
+                expected="only relative-date words stated in the facts",
+                actual=invented_relative_dates,
             )
         )
 

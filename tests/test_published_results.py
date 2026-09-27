@@ -32,7 +32,7 @@ PUBLISHED = {
     "jd_extraction": (32, 36),
     "fit_scoring": (27, 28),
     "routing": (37, 38),
-    "composition": (24, 28),
+    "composition": (20, 28),
 }
 
 
@@ -114,6 +114,10 @@ PUBLISHED_MISSES = {
         "cadence-nudge-after-onsite",
         "cadence-nudge-applied-quiet",
         "logistics-video-link",
+        "post-interview-thank-you",
+        "panel-thank-you-multi",
+        "thank-you-hm-specific-topic",
+        "thank-you-sparse-notes",
     },
 }
 

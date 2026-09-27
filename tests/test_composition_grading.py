@@ -124,6 +124,79 @@ def test_style_sample_numbers_do_not_count_as_facts() -> None:
     assert "invented_number" in _failed(result)
 
 
+# ---- invented weekdays and relative dates -------------------------------------------
+#
+# The composer is never told what day it is, so it has no way to correctly
+# state a weekday or a phrase asserting elapsed time -- these check the same
+# facts-corpus grounding as invented numbers, above.
+
+
+def test_a_weekday_not_in_the_facts_fails() -> None:
+    """The fixture's only weekday is Thursday (in the history note); Friday is
+    not grounded anywhere."""
+    result = _grade(body=GOOD_BODY + " Friday works well for me.")
+    assert "invented_weekday" in _failed(result)
+
+
+def test_a_weekday_present_in_the_facts_passes() -> None:
+    result = _grade(body=GOOD_BODY + " Thursday at 4pm works well for me.")
+    assert "invented_weekday" not in _failed(result)
+
+
+def test_a_possessive_weekday_in_the_facts_still_counts_as_grounded() -> None:
+    """A fact phrased as \"Thursday's screen\" must still ground a draft that
+    says plain \"Thursday\" -- the possessive apostrophe should not hide the
+    word from the grounding check."""
+    case_kwargs = dict(
+        history=[
+            {
+                "id": "int-t1",
+                "application_id": "app-t1",
+                "type": "custom",
+                "occurred_at": "2026-09-01T10:00:00Z",
+                "notes": "Recruiter asked to move Thursday's screen to 4pm.",
+            }
+        ]
+    )
+    result = _grade(body=GOOD_BODY + " Thursday at 4pm works well for me.", **case_kwargs)
+    assert "invented_weekday" not in _failed(result)
+
+
+def test_style_sample_weekdays_do_not_count_as_facts() -> None:
+    case_kwargs = dict(style_samples=["Friday works great for me, thanks."])
+    result = _grade(body=GOOD_BODY + " Friday works.", **case_kwargs)
+    assert "invented_weekday" in _failed(result)
+
+
+def test_a_relative_date_word_not_in_the_facts_fails() -> None:
+    result = _grade(body=GOOD_BODY + " Thanks again for yesterday.")
+    assert "invented_relative_date" in _failed(result)
+
+
+def test_a_relative_date_word_present_in_the_facts_passes() -> None:
+    case_kwargs = dict(
+        history=[
+            {
+                "id": "int-t1",
+                "application_id": "app-t1",
+                "type": "custom",
+                "occurred_at": "2026-09-01T10:00:00Z",
+                "notes": "Recruiter said next step would come last week.",
+            }
+        ]
+    )
+    result = _grade(body=GOOD_BODY + " Thanks for the update last week.", **case_kwargs)
+    assert "invented_relative_date" not in _failed(result)
+
+
+def test_today_and_tonight_are_not_flagged() -> None:
+    """Thanking someone for a call 'today' is the ordinary same-day case (the
+    style samples use it too) and not an elapsed-time claim the composer could
+    get wrong, unlike 'yesterday' or 'last week'."""
+    result = _grade(body=GOOD_BODY + " Thanks again for making time tonight.")
+    assert "invented_relative_date" not in _failed(result)
+
+
 # ---- verbatim style reuse ----------------------------------------------------------
 
 
