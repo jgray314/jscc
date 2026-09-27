@@ -77,6 +77,30 @@ def test_record_refuses_unknown_case_and_empty_file(tmp_path: Path) -> None:
         )
 
 
+def test_record_refuses_mis_decoded_utf8(tmp_path: Path) -> None:
+    """A UTF-8 em dash read as cp1252 and re-encoded becomes 'â€”' -- this shipped in 6 of
+    28 composition recordings once, from a PowerShell `Get-Content` step without
+    `-Encoding utf8`. `_normalize_prose` treats the stray 'â' as a word character, so a
+    date word glued to it could dodge invented_weekday/invented_relative_date."""
+    prompts = capture_tools.build_prompts("routing")
+    f = tmp_path / "c.txt"
+    f.write_text(
+        '{"classification": "routine", "reason": "call went well â€” thanks", "considerations": []}',
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit, match="mis-decoded"):
+        capture_tools.record_completion(
+            "routing", next(iter(prompts)), f, prompts, tmp_path / "r.json"
+        )
+
+
+def test_committed_recordings_contain_no_mojibake() -> None:
+    for suite in capture_tools.SUITES:
+        recorded = evals.load_recording(capture_tools.recording_path(suite))
+        offenders = [k for k, v in recorded.items() if capture_tools._MOJIBAKE_MARKER in v]
+        assert not offenders, f"{suite}: mis-decoded UTF-8 in recordings {offenders}"
+
+
 def test_stale_prompts_are_refused(tmp_path: Path) -> None:
     """A saved prompts file that no longer matches the code would record under a dead key."""
     capture_tools.write_prompts("routing", tmp_path)

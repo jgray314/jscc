@@ -193,6 +193,13 @@ def record_completion(
     return record_text(suite, case_id, completion_file.read_text(encoding="utf-8"), prompts, path)
 
 
+# UTF-8 typographic punctuation (em/en dash, curly quotes, ellipsis -- the
+# U+2010-U+2027 block) misread as cp1252/Latin-1 always starts with this pair:
+# the shared lead byte decodes to U+00E2, the shared continuation byte to the
+# cp1252 euro sign.
+_MOJIBAKE_MARKER = "â€"
+
+
 def record_text(
     suite: str, case_id: str, completion: str, prompts: dict[str, dict[str, str]], path: Path
 ) -> str:
@@ -204,6 +211,14 @@ def record_text(
     completion = completion.removesuffix("\n").removesuffix("\r")
     if not completion.strip():
         raise SystemExit(f"empty completion for {case_id}; nothing to record")
+    if _MOJIBAKE_MARKER in completion:
+        raise SystemExit(
+            f"completion for {case_id} looks like mis-decoded UTF-8 (a byte sequence like "
+            "an em dash, curly quote, or accented letter was read as cp1252/Latin-1 and "
+            "re-encoded). Likely cause: a step between the model's reply and here read the "
+            "text with the wrong encoding -- e.g. PowerShell `Get-Content` without "
+            "`-Encoding utf8`. Re-copy the reply and try again."
+        )
     p = prompts[case_id]
     key = evals._prompt_key(p["model"], p["system"], p["user"])
     evals.save_recording({key: completion}, path)
