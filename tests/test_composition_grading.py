@@ -53,6 +53,21 @@ def _failed(result) -> set[str]:
     return {d.field for d in result.diffs}
 
 
+def _flagged(result) -> set[str]:
+    """Fields that matched at all, whether they failed the case or only advised."""
+    return _failed(result) | {a.field for a in result.advisories}
+
+
+def _padded_body(reused: str, total_words: int) -> str:
+    """A body of exactly `total_words` words: filler plus the reused sentence
+    verbatim, so a test can put the reused share at a precise percentage. The
+    filler ends with a period so the reused text starts its own sentence (an
+    unpunctuated run would make a capitalized reused word look like a
+    mid-sentence invented name)."""
+    filler = _words(total_words - len(reused.split()))
+    return f"{filler}. {reused}"
+
+
 def _words(n: int) -> str:
     return " ".join(["word"] * n)
 
@@ -198,15 +213,34 @@ def test_today_and_tonight_are_not_flagged() -> None:
 
 
 # ---- verbatim style reuse ----------------------------------------------------------
+#
+# A single reused closing line is ordinary shortness in a short email, not a template,
+# so severity scales with how much of the body it makes up rather than firing on any
+# match: under 20% passes clean, 20-30% is advisory, over 30% fails.
+
+_REUSED_SENTENCE = "Thanks again for the conversation today, it was really useful."  # 10 words
 
 
-def test_copying_a_style_sample_sentence_fails() -> None:
-    body = GOOD_BODY + " Thanks again for the conversation today, it was really useful."
+def test_copying_a_style_sample_sentence_under_20_percent_of_the_body_passes_clean() -> None:
+    body = _padded_body(_REUSED_SENTENCE, 60)  # 10/60 = 16.7%
+    assert "style_reuse" not in _flagged(_grade(body=body))
+
+
+def test_copying_a_style_sample_sentence_between_20_and_30_percent_is_advisory() -> None:
+    body = _padded_body(_REUSED_SENTENCE, 40)  # 10/40 = 25%
+    result = _grade(body=body)
+    assert "style_reuse" not in _failed(result)
+    assert "style_reuse" in {a.field for a in result.advisories}
+
+
+def test_copying_a_style_sample_sentence_over_30_percent_of_the_body_fails() -> None:
+    body = _padded_body(_REUSED_SENTENCE, 32)  # 10/32 = 31.25%
     assert "style_reuse" in _failed(_grade(body=body))
 
 
 def test_reuse_check_is_case_and_whitespace_insensitive() -> None:
-    body = GOOD_BODY + "  thanks  again for the CONVERSATION today,  it was really useful"
+    messy = "thanks  again for the CONVERSATION today,  it was really useful"
+    body = _padded_body(messy, 32)
     assert "style_reuse" in _failed(_grade(body=body))
 
 
@@ -264,28 +298,31 @@ def test_a_case_without_expectations_gets_only_the_generic_checks() -> None:
 
 def test_a_sample_sentence_made_mostly_of_stock_phrases_may_be_echoed() -> None:
     """'wanted to check in' and 'timing for next steps' each count as one unit, so
-    the copied run is 4 units, under the 6-unit limit."""
-    case_kwargs = dict(style_samples=["Wanted to check in briefly on timing for next steps."])
-    body = GOOD_BODY + " Wanted to check in briefly on timing for next steps."
-    assert "style_reuse" not in _failed(_grade(body=body, **case_kwargs))
+    the copied run is 4 units, under the 6-unit limit: never even matched, at any
+    body length."""
+    sample = "Wanted to check in briefly on timing for next steps."
+    body = _padded_body(sample, 32)
+    assert "style_reuse" not in _flagged(_grade(body=body, style_samples=[sample]))
 
 
 def test_a_whole_sentence_with_a_stock_phrase_inside_is_still_flagged() -> None:
     sample = "No pressure, just keen to know how the team is thinking about timing."
-    body = GOOD_BODY + " " + sample
+    body = _padded_body(sample, 32)
     assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))
 
 
 def test_the_limit_is_still_six_units_after_collapsing() -> None:
-    """'happy to work around' is one unit, plus five ordinary words: exactly 6."""
+    """'happy to work around' is one unit, plus five ordinary words: exactly 6 --
+    still matched as a copy (at least advisory), not exempted for being borderline."""
     sample = "Happy to work around whatever the team has open."
-    body = GOOD_BODY + " " + sample
-    assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))
+    body = _padded_body(sample, 32)
+    assert "style_reuse" in _flagged(_grade(body=body, style_samples=[sample]))
 
 
 def test_stock_phrase_matching_ignores_case_and_apostrophes() -> None:
     sample = "Let me know if there's anything else I can do to help."
-    body = GOOD_BODY + " LET ME KNOW if there's anything else I can do to help"
+    messy = "LET ME KNOW if there's anything else I can do to help"
+    body = _padded_body(messy, 32)
     assert "style_reuse" in _failed(_grade(body=body, style_samples=[sample]))  # 8 units left
 
 

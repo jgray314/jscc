@@ -712,6 +712,11 @@ def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[Composit
 COMPOSITION_BODY_WORDS = (30, 160)
 COMPOSITION_SUBJECT_MAX_WORDS = 10
 _STYLE_REUSE_MIN_WORDS = 6
+# A single reused closing line is ordinary shortness in a short email; a body
+# substantially built from sample sentences is a template. Judged by share of
+# the body's own word count, not by whether any single sentence matched.
+COMPOSITION_STYLE_REUSE_ADVISE_ABOVE = 0.20
+COMPOSITION_STYLE_REUSE_FAIL_ABOVE = 0.30
 
 _PLACEHOLDER = re.compile(r"\[[^\]]*\]|\{\{.*?\}\}|<[^>\n]+>|redacted", re.IGNORECASE)
 _DIGIT_RUN = re.compile(r"\d+")
@@ -913,20 +918,34 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
             )
         )
 
+    advisories: list[FieldDiff] = []
     normalized_body = _normalize_prose(body)
+    reused_sentences: list[str] = []
     for sample in case.style_samples:
         for sentence in _sentences(sample):
             if (
                 len(_collapse_stock(_normalize_prose(sentence))[0]) >= _STYLE_REUSE_MIN_WORDS
                 and _normalize_prose(sentence) in normalized_body
             ):
-                diffs.append(
-                    FieldDiff(
-                        field="style_reuse",
-                        expected="no copied sample sentence",
-                        actual=sentence.strip(),
-                    )
-                )
+                reused_sentences.append(sentence.strip())
+
+    if reused_sentences:
+        # A single closing line lifted from a sample reads as ordinary
+        # shortness, not a template; a body that's substantially assembled
+        # from sample sentences does. Judge by share of the body, not by
+        # whether any single sentence matched.
+        body_word_count = len(normalized_body.split()) or 1
+        reused_word_count = sum(len(_normalize_prose(s).split()) for s in reused_sentences)
+        reused_share = reused_word_count / body_word_count
+        reuse_diff = FieldDiff(
+            field="style_reuse",
+            expected="no copied sample sentence",
+            actual=reused_sentences if len(reused_sentences) > 1 else reused_sentences[0],
+        )
+        if reused_share > COMPOSITION_STYLE_REUSE_FAIL_ABOVE:
+            diffs.append(reuse_diff)
+        elif reused_share > COMPOSITION_STYLE_REUSE_ADVISE_ABOVE:
+            advisories.append(reuse_diff)
 
     known_words = {w.lower() for w in _WORD.findall(facts)} | _CALENDAR_AND_CLOSING_WORDS
     invented_names: list[str] = []
@@ -953,7 +972,6 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
     if forbidden:
         diffs.append(FieldDiff(field="must_not_include", expected="absent", actual=forbidden))
 
-    advisories: list[FieldDiff] = []
     _, stock_found = _collapse_stock(normalized_body)
     if len(stock_found) > COMPOSITION_STOCK_PHRASE_ADVISORY_ABOVE:
         advisories.append(
