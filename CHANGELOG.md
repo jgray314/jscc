@@ -18,6 +18,10 @@ design principles D1 to D10 in `docs/design-principles.md`.
 
 The README's Status table still said the Phase E gate was "in progress" and the top summary hadn't been updated since before that gate closed (2026-09-24) or the Phase F prep composition fixes closed (2026-09-27) — fixed in both places. Added an "Architecture" section with a mermaid diagram of the one path every LLM stage takes through `stage_call.py` (sanitize, verify, meter, call) and the two egress points (sanitizer, pre-commit scanner) that share `personal_data.py`'s definition of "personal." The plan's "demo link" item has no destination yet — no hosted demo per D4, and the video (F2) hasn't shipped — so "Sample output" now says so explicitly instead of a dead or placeholder link. 749 tests pass unchanged; no code touched.
 
+### F2: video walkthrough script
+
+`docs/video-script.md` — a 3-5 minute beat-by-beat script (what to show, what to say) covering DLQ ingestion recovery, scoring, drafting, the eval harness (`eval composition --replay`, 25/28), the cost dashboard, and a tour of `jscc serve`. Grounded in commands actually run against the seeded fixture during this slice, not written from memory: DLQ resolve, score/followup stub-client caveats stated on camera rather than silently passed off as real answers, and the exact `25/28 passed (89%)` replay line. Recording itself is not part of this slice. README's Status table links it and marks F1 shipped. No code touched; 749 tests pass unchanged.
+
 ## Phase F prep
 
 ### Composition grader: invented weekday and relative-date checks
