@@ -1,0 +1,29 @@
+# Demo profile for the F2 video recording ONLY. Not the real profile.private.yaml.
+#
+# Built from the candidate's own resume for realistic scope (org size, domain,
+# skills) but with every identifying detail removed: no real name, no contact
+# info, no employer names, no dates, no numbers specific enough to be
+# googlable back to a real person or company. Copy this over
+# config/profile.private.yaml before recording, then delete it afterward --
+# see docs/video-script.md's setup note.
+display_name: "Demo Candidate"
+role_focus:
+  - "engineering manager, trust & safety / fraud risk"
+  - "senior engineering manager, ML infrastructure and data platforms"
+level_target: "Senior Manager / Director (L6-L7 equivalent)"
+experience_years: 20
+comp_target:
+  min_usd: 300000
+  max_usd: 500000
+must_haves:
+  - "cross-functional scope (product, compliance, risk or policy partners)"
+  - "org of 10+ engineers across more than one team"
+  - "modern tooling and CI"
+deal_breakers:
+  - "individual-contributor-only scope"
+  - "on-call rotations >1 week/month"
+# Generic, invented lines in a plausible professional tone -- not real writing
+# samples, so the drafter demo doesn't echo anyone's actual voice on camera.
+style_samples:
+  - "Really appreciated the chance to talk through how the team handles cross-functional launches -- that kind of scope is exactly what I look for."
+  - "Thanks for walking through the on-call model in detail; reducing operational burden while keeping response times fast is work I've spent a long time on."

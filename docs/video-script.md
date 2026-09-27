@@ -14,6 +14,31 @@ uv run jscc db init
 uv run jscc seed --random-seed 42 --now 2026-08-28T12:00:00+00:00
 ```
 
+**Profile for the recording:** `resolve_profile_path` prefers a private
+profile over the tracked example in every mode, so if `config/profile.private.yaml`
+exists on the recording machine, scoring and drafting will use it —
+real comp target, real must-haves, real writing samples, on camera. Before
+recording, either delete/move that file so synthetic mode falls back to
+`profile.example.yaml`, or copy the redacted stand-in built for this purpose:
+
+```bash
+cp docs/demo-fixtures/profile.demo.yaml config/profile.private.yaml
+```
+
+`profile.demo.yaml` carries realistic scope and skills pulled from a resume,
+with every identifying detail stripped (no real name, contact info, employer
+names, or actual writing samples). Delete `config/profile.private.yaml`
+after recording — it's gitignored, so it won't get committed, but it
+shouldn't linger either.
+
+The DLQ-resolve beat below pastes `docs/demo-fixtures/jd-posting-hybridized.txt`
+— a fictional posting for a fictional company ("Vireo Systems"), hybridized
+from three real, public postings (an ML platform EM role, an AI/ML platform
+build-out, and an ML engineering leadership role) so it reads like a real
+senior-EM posting without being any one real company's actual listing.
+`jd-posting-fictional.txt` is a shorter fallback if the longer one runs the
+DLQ-resolve beat too long in a take.
+
 Terminal font large enough to read on a 1080p recording; dashboard browser
 window at a plain 1280×800 or similar so nothing overflows off-frame.
 
@@ -48,17 +73,11 @@ Those don't crash the pipeline or get silently dropped; they land here, in a
 dead-letter queue, with the failure mode recorded."
 
 **Show:** Run the resolve command against the `blocked` entry's id (copy the
-real id `dlq list` just printed):
+real id `dlq list` just printed), pasting the hybridized posting from
+`docs/demo-fixtures/jd-posting-hybridized.txt`:
 
 ```bash
-uv run jscc resolve-dlq <entry-id> --paste-text "$(cat <<'EOF'
-Senior Engineering Manager, Platform
-Acme Robotics is hiring a Senior Engineering Manager to lead our Platform
-team. You'll own reliability, developer experience, and the on-call rotation
-across 4 teams. Requirements: 5+ years managing managers, experience with
-distributed systems, strong track record of hiring and retention.
-EOF
-)" --company "Acme Robotics"
+uv run jscc resolve-dlq <entry-id> --paste-text "$(cat docs/demo-fixtures/jd-posting-hybridized.txt)" --company "Vireo Systems"
 ```
 
 **Say:** "The recovery path is the same one line the dashboard's resolve form

@@ -1,0 +1,5 @@
+Senior Engineering Manager, Platform
+Acme Robotics is hiring a Senior Engineering Manager to lead our Platform
+team. You'll own reliability, developer experience, and the on-call rotation
+across 4 teams. Requirements: 5+ years managing managers, experience with
+distributed systems, strong track record of hiring and retention.

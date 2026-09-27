@@ -1,0 +1,129 @@
+Senior Engineering Manager, ML Platform & Trust Infrastructure
+Vireo Systems
+Location: Remote - USA; San Francisco, CA; Seattle, WA (Hybrid, 3 days/week in a hub)
+Employment Type: Full time
+Compensation: $260,000 - $360,000 OTE, plus equity
+
+About the Team
+The ML Platform team builds the training pipelines, feature infrastructure, and
+evaluation systems behind every risk score Vireo returns, across hundreds of
+customers and billions of events a year. We sit inside Vireo's Data & ML
+organization, alongside teams building the agentic AI layer for Vireo's
+internal finance and operations tooling -- the same evaluation and governance
+discipline that keeps a fraud score trustworthy also has to keep an
+AI-generated financial answer trustworthy, and this role owns both.
+
+What We're Looking For
+We're hiring a Senior Engineering Manager to lead this team: an inspiring,
+technical manager who brings focus to what matters now without losing sight
+of the long term. You're comfortable being the founding engineering leader
+for a build-from-scratch mandate as well as the steady hand raising the bar
+on a mature production system. You value collaboration and transparency,
+operate with a get-stuff-done mindset, and have the technical depth to spot
+the manual, brittle, or duplicated work quietly slowing the team down. You
+build a culture of mentorship, give regular and constructive feedback, set
+clear goals, and grow your team by hiring effectively.
+
+Projects You Might Lead
+
+* Launch a unified model evaluation framework that gives Data Science and ML
+  Engineering fast, trustworthy, apples-to-apples comparisons before a model
+  or an AI agent ever reaches production.
+* Evolve core feature infrastructure -- including a new global feature store
+  -- to improve accuracy and unlock faster experimentation.
+* Own the AI/LLM roadmap for an internal agentic tooling platform: RAG
+  pipelines, prompt and model versioning, and a governed, semantic data
+  layer, built from an early stage rather than inherited.
+* Enforce governance by design -- role-based access control at the data
+  model level, not the application layer, so speed and automation never
+  come at the cost of data governance.
+* Build automation that detects an active fraud attack, adjusts score
+  calibration in real time, and cleanly reverts once it subsides.
+* Introduce agentic, AI-assisted tooling into customer investigations,
+  automating repetitive data pulls and validation so analysts spend their
+  time on judgment calls, not manual digging.
+
+What You'll Do
+
+* Lead and grow the team: own the roadmap, execution, and quality of the
+  systems that train, evaluate, and serve Vireo's ML models and AI agents in
+  production, leading a team of ML platform engineers and data scientists.
+* Stay technical: review designs, unblock engineers on hard problems, and
+  make credible calls on architecture and trade-offs; step in on
+  implementation when it matters.
+* Be the stakeholder-facing technical lead: act as the primary engineering
+  liaison to business partners and leadership, translating ambiguous
+  requirements into a scoped, buildable roadmap and representing
+  engineering trade-offs credibly to technical and non-technical audiences.
+* Raise the production engineering bar: models and agents ship as
+  dependable software -- clear APIs, tests, CI/CD, observability, on-call
+  ownership, and defined reliability targets.
+* Build the ML and agent operating model: shared approaches to evaluation,
+  golden sets, training-data provenance, model and prompt versioning,
+  monitoring, retraining, latency, and cost. Replace artisanal evaluation
+  with repeatable systems.
+* Reduce technical debt: drive a sustained, measurable reduction in
+  technical debt across the platform, balancing new feature delivery with
+  the health of existing systems.
+* Partner cross-functionally: align platform investments with business
+  priorities alongside Data Science, Core Infrastructure, Product, Security,
+  and Customer Success.
+* Model AI-native leadership: use AI to increase the team's speed and
+  ambition while keeping ownership of every output -- as generated code
+  gets cheaper, raise the bar on judgment, verification, and system design.
+
+Technical Stack
+GCP, AWS, Spark, Kafka, Kubernetes, Docker, Databricks, Python, and a modern
+LLM orchestration stack (retrieval, vector store, prompt/model versioning).
+
+What Would Make You a Strong Fit
+
+* 8+ years of hands-on engineering experience, including 4+ years managing
+  software, data science, or machine learning engineering teams.
+* Deep technical fluency in ML systems: model training pipelines, feature
+  engineering, model serving, and evaluation at production scale.
+* Demonstrated experience architecting and shipping production LLM/AI
+  applications -- not just prototypes -- including RAG pipelines, prompt
+  engineering, and retrieval design at scale.
+* Demonstrated success reducing technical debt in a live, high-traffic
+  production system without stalling feature delivery.
+* Experience designing or scaling evaluation frameworks (offline and/or
+  online) for machine learning models or LLM-based systems.
+* Track record of identifying manual, repeatable engineering processes and
+  driving their automation.
+* Executive-level communication: able to make a hard technical trade-off
+  legible to senior, non-technical stakeholders and leave the room with a
+  decision.
+* Experience hiring, mentoring, and developing engineering talent, including
+  senior and staff-level technical leaders.
+* B.S. or MS/PhD in Computer Science (or related technical discipline), or
+  equivalent practical experience.
+
+Bonus Points
+
+* Familiarity with fraud detection, risk, or trust & safety domains.
+* Experience operating in a compliance-sensitive domain (fintech, healthcare,
+  or a large regulated enterprise).
+* Experience working across distributed, cross-timezone engineering teams.
+* Familiarity with using AI coding assistants (e.g., Claude Code) to
+  accelerate development.
+
+Our Interview Process
+
+* Introduction interview: 30-45 minutes with a recruiter to discuss your
+  background and the role.
+* Hiring Manager interview: 30-45 minutes with the hiring manager to explore
+  your fit for the position.
+* Hybrid onsite loop with the team: approximately 4-5 hours covering system
+  design, a technical deep dive, a cross-functional stakeholder scenario,
+  and values & behavior.
+
+A Little About Us
+Vireo Systems is a fraud and trust platform securing digital commerce for
+mid-market and enterprise customers, scoring billions of events a year. We
+believe diversity drives innovation, equity is a fundamental right, and
+inclusion is a basic human need.
+
+Benefits and Perks
+Competitive total compensation package, 401k plan, medical/dental/vision
+coverage, wellness reimbursement, education reimbursement, flexible time off.
