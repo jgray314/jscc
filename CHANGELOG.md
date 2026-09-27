@@ -1,13 +1,14 @@
 # Changelog
 
-Slice-by-slice arc, newest first. Phase E, the phase now closing, keeps its
-reasoning in full. Phases A to D are summarized: the shape of the build and the
+Slice-by-slice arc, newest first. Phase F, the phase now closing, keeps its
+reasoning in full. Phases A to E are summarized: the shape of the build and the
 lessons worth keeping, with per-slice detail in git history. Review findings are
 recorded here rather than in code comments.
 
 Standing practice: at each phase gate, the phase before the one that just closed
-is folded into a summary. Phase D was folded at the Phase E gate; Phase E will be
-folded at the Phase F gate.
+is folded into a summary. Phase D was folded at the Phase E gate; Phase E was
+folded at the Phase F gate (2026-09-27, alongside the full-project gate). The
+next fold happens whenever a future phase's own gate closes.
 
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
@@ -20,7 +21,9 @@ Two cold-read lenses (adversarial, outside-reviewer walkthrough) across the whol
 
 The adversarial lens found that `redact()` in `jscc/personal_data.py` substitutes `name_roles` entries in the caller's map-iteration order, which every caller builds alphabetically (`storage.list_contacts`'s `ORDER BY name`). Two contacts on the same application whose names are in a prefix relationship — "Dana" and "Dana Reyes" — sorted the shorter one first, so its substitution consumed the start of the longer name's own text before that name's rule ever ran. Reproduced directly against `redact()`: the surname "Reyes" shipped in clear text with no error, despite `name_roles` supposedly covering the full name. This is a silent break of the exact guarantee D7/D8 exist to make, so treated as High rather than the reviewer's own Medium rating. Fixed by substituting longest name first (`jscc/personal_data.py`), so a name can only be partially consumed by one that isn't itself a substring of it; verified by inversion (the new regression test fails with the fix reverted). 750 tests, ruff/format clean.
 
-## Phase F — narrative (in progress)
+## Phase F — narrative (closed 2026-09-27)
+
+F1 (README), F2 prep (video script + demo fixtures), F3a (blog outline), and F4 (lessons learned) all shipped. **F2's actual recording and F3b's blog revision/publish are deliberately not phase-close blockers** — per [[feedback-writing-cadence]], content production is decoupled from engineering-phase bookkeeping; both stay open on the personal reminders list as standing follow-ups, not as unfinished Phase F work. This is also, functionally, JSCC's v1 close: Phase F was the last phase in the original plan (`jscc.md`).
 
 ### F4: lessons learned — the estimation and gate-work lessons the plan held back for more data
 
@@ -67,139 +70,35 @@ Requested as its own gate check rather than waiting for a phase boundary. Two co
 
 Also found and fixed: 6 of 28 round-2 recordings contained mojibake (a UTF-8 em dash misread as cp1252 and re-encoded, e.g. `todayâ€"I`) — likely from this round's own capture mechanic, a PowerShell `Get-Content -Raw | Set-Clipboard` step without `-Encoding utf8`. `_normalize_prose` treats the stray `â` as a word character, so a date word glued to one could dodge `invented_relative_date`/`invented_weekday` undetected (demonstrated on a synthetic input; no effect on today's published numbers). Repaired the 6 recordings and added a guard in `scripts/capture_tools.py`'s `record_text` that refuses to record text containing the mojibake marker, plus a test that no committed recording contains one. Two stale restatements of the pre-recalibration `style_reuse` rule ("reuses six words of a style sample") survived in `jscc/evals.py` and `evals/README.md` outside the diff that changed the rule — fixed. `docs/threat-model.md`'s T12 residual cell had lost its actual validation caveat (one round, ADR-006's two-round rule not met) to grader-calibration history; restored alongside it. Softened "eliminated that defect class" to name the fixed-phrase-list limitation, and documented a real "today" exemption gap (3 of 24 drafts say "today" about an event the fixture's own `next_action_due` puts a day later). No recording besides the 6 mojibake repairs changed, so composition's published 25/28 is unchanged; 749 tests pass, lint/format/scanner clean.
 
-## Phase E — dashboard (E1–E2b shipped 2026-09-21; gate closed 2026-09-24)
+## Phase E — dashboard (E1–E2b shipped 2026-09-21; Phase E gate closed 2026-09-24)
 
-The dashboard is a local FastAPI + Jinja2 app over the same storage layer as the CLI. The Phase E gate ran a backlog sweep, a recapture of the extraction and scoring prompts, two cold lenses, and a hardening slice; its entries come first, newest first, followed by the three build slices. Full findings, disposition and lessons: [docs/gate-reviews.md](docs/gate-reviews.md).
+A local FastAPI + Jinja2 app over the same storage layer as the CLI, so the two surfaces read identical state and cannot drift on what counts as stale. Per-slice detail is in git history; full gate findings and disposition in [docs/gate-reviews.md](docs/gate-reviews.md).
 
-### Phase E gate, routing bundle (L1-4): the router stops seeing title and company; held-out and hostile cases; a code check for injected notes
+**The build**
 
-The walkthrough found that the extracted title and company, text a model pulled from a posting, still reached the router while the docs said the router saw no posting text.
+| | |
+|---|---|
+| E1 | Web scaffold (ADR-007): FastAPI + Jinja2, no SPA, no separate JS build step — same "earn its slot" judgment already applied to the LLM-stage splits. `jscc serve` boots it, 127.0.0.1 by default, local-only per D4. HTMX was named in the ADR but never actually used, and was removed at the gate. |
+| E2a | Funnel, pipeline, and stale-alert views, all reading `report.py`'s pure functions (`funnel_counts`, `detect_stale`, a new `group_by_stage`) — the CLI and dashboard render the same computation. A `?now=` query param mirrors the CLI's `--now`. |
+| E2b | Application detail pages and DLQ resolve. `resolve-dlq`'s extraction/storage logic moved into `jscc/ingest_logic.py` and `jscc/dlq.py` (`resolve_dlq_entry_via_paste`) so the CLI and the dashboard's resolve form call the identical function — one write path, not two that could drift. |
 
-- **Withheld from the router (L1-4).** `application_for_routing` blanks `title` and `company`; composition still gets them, since a draft needs them. Enforced by a production-shaped test.
-- **Suite widened 26 to 38.** Ten held-out cases, written by an agent that was not shown the prompt (4 routine, 6 non-routine), and two hostile cases with third-party text inside a history note. Results are reported per group. This is the held-out set the routing suite had lacked since round 5.
-- **Recapture, two rounds.** Every prompt or payload change invalidates all recordings, so round 6a was a full 38-case capture (35/38, one false-routine: a withdrawal called routine). The prompt then named withdrawing from a process as non-routine, and round 6b recaptured all 38 (36/38 from the model alone, one false-routine: the hostile posting excerpt). Two further prompt wordings were screened on that one case with a single fresh chat each and did not fix it; both were reverted and none of those replies is in the recordings.
-- **Code check for text addressed to the classifier.** `route_followup` overturns a routine answer to non-routine when a note or next action reads as an instruction to the classifier. It only moves answers toward a person. It knows a fixed list of shapes, not every phrasing, and a test requires it to fire on exactly the two hostile cases and none of the other 36. The published 37/38 is model plus check; the model alone replays to 36/38, and a test pins both.
-- **What it does not show.** 10/10 on the held-out set is n=10. The core 25/26 was tuned on. The hostile group is two fictional cases, and the model passed one of them only with the check's help. Held-out status held because no prompt edit responded to a held-out result.
-- **Left alone.** `routine-recruiter-ack` is sent to a person, the safe direction, in both rounds.
+**What the Phase E gate changed**
 
-### Phase E gate, fixes B: the lightweight findings
+- **Dashboard request guards.** No Host/Origin check meant DNS rebinding could point an attacker's domain at 127.0.0.1 and read or write through the dashboard from a hostile page in the user's own browser. Now every request's `Host` must be on an allowlist and a state-changing request needs a same-origin `Origin`/`Sec-Fetch-Site` (threat model T13).
+- **DLQ resolve race, and the IDN/DNS-pin gap — both CONTRADICTED an earlier "fixed" disposition.** The idempotency guard checked "still unresolved" before a seconds-long model call and wrote unconditionally after, so a double-click made two Applications; resolves are now serialized with a compare-and-set final write. Separately, `urllib3` resolves an internationalized hostname in punycode, so a pin keyed on the URL's original spelling never matched and the connection went out unpinned; the check and the pin now compare through one normalization.
+- **Egress test made structural.** The sanitizer-bypass scanner matched only a literal `.complete(` call; an alias, a `getattr`, or importing the unsanitized helper directly all slipped past it. It now flags any reference to the client's `complete` or the unsanitized helpers outside `stage_call`, with six bypass shapes under test.
+- **The router stopped seeing title and company.** Extracted text a model pulled from the posting still reached the routing classifier while the docs said it didn't. Withheld from the router (composition still gets them); the routing suite widened from 26 to 38 cases (ten held-out, two hostile), and a code check now overturns a routine answer to non-routine when a note reads as an instruction addressed to the classifier — the published 37/38 is model plus check, the model alone replays to 36/38, and a test pins both.
+- **Extraction and scoring both failed their first Phase E capture and were fixed the same way: a rubric or rule gap, not the model.** Extraction's 36-case suite scored 20/36 (56%) on the first capture; the skills rule was over-including restated titles and stack paragraphs, fixed over two more rounds to 32/36 (89%). Scoring's 28-case suite scored 18/28 (64%); the prompt had left comp/level bands implicit and nine fixture ranges contradicted it, fixed to 27/28 across two rounds.
+- **Model provenance: scoring and composition recordings were Sonnet 5, not the 4.5 the prompts printed.** Manual captures run through the Claude.ai chat default, which has been Sonnet 5 since 2026-06-30 — the docs named a model that didn't produce the data. `SCORING_MODEL`/`COMPOSITION_MODEL` corrected; 56 recordings re-keyed, replies untouched, replays identical.
+- **The fetcher's DNS pin had a proxy-shaped hole**, recorded as a residual at the Phase D gate and dispositioned here: with `HTTPS_PROXY` set, the proxy does its own lookup, which the pin can't see. Every fetch now goes through a session with `trust_env=False`.
+- **Public-doc and eval-claim drift, again.** The README, ADRs and this file described a slightly better system than the one that existed — a private-workspace path leaked into public docs, a superseded eval figure (84% fit scoring) was still the lead claim, "validated" wasn't yet tied to ADR-006's two-round rule. `tests/test_public_docs.py` and `tests/test_readme_claims.py` now fail the build on either drift rather than relying on the next reviewer to notice by eye.
+- **Smaller fixes:** clock-skew tolerance on staleness (a moment ahead of the reading clock no longer 500s), no schema write on opening an already-current database, the pre-commit scanner now reads UTF-16 (a Windows `>` redirect had been committing unscanned), non-`http` URLs never rendered as a link, concurrent dashboard requests no longer pinned to their creating thread.
 
-- **Published results pin which cases miss (L1-12).** The pinning test compared pass counts, so one pass and one fail swapping places stayed green, and nothing tied the hostile-posting cases T5 rests on. It now pins the exact set of misses per suite and requires every hostile case to pass in the suites that have them.
-- **A moment of clock skew is not bad data (L1-14).** A reference timestamp a second ahead of the reading clock raised, and one such row returned a 500 for the whole dashboard index and a traceback from `jscc report`. Skew up to five minutes counts as age zero; anything further ahead still raises, now as a named error (a 500 page that says which row on the dashboard, exit 1 with a message on the CLI).
-- **Opening a current database takes no write (L1-13).** Every dashboard request re-ran the schema DDL and re-stamped the version, and would have lowered a newer database's stamp. A database already at this version is only checked for missing columns, and the stamp only moves upward.
-- **The pre-commit scanner reads UTF-16 and legacy-encoded text (L1-16).** Windows PowerShell 5.1's `>` writes UTF-16, which failed the UTF-8 decode and was skipped as binary, so a redirected text dump committed unscanned. A UTF-16 file (by byte-order mark) and a single-byte-encoded text file are now scanned; a file with NUL bytes that is not UTF-16 is still treated as binary.
-- **Smaller.** The comment on the extraction API-error path now states that a pasted text is still lost (L1-11), the dashboard test that flagged only the overdue application checks the alerts section instead of the whole page, and `docs/gate-reviews.md` no longer says the recordings are not a CI gate or lists a closed item as open (W7).
+**Lessons worth keeping**
 
-Tests: 704 to 718. Each fix was checked by removing it and confirming a test failed.
-
-### Phase E gate, fixes A: walkthrough highs and the findings that share their files
-
-The gate's outside-reviewer lens found the README, the ADRs and this file describing a slightly better system than the one that exists, and three earlier "fixed" items had regressed.
-
-- **Egress test made structural (L1-5).** The scan matched only a literal `.complete(` call. An alias (`send = client.complete`), `getattr(client, "complete")` and an import of `stage_call._raw_call` all skipped the sanitizer and left it green, confirmed on a scratch copy. It now flags any reference to the client's `complete` or to the unsanitized helpers outside `stage_call`; six bypass shapes have tests. It cannot stop deliberately obfuscated code, and T8 says so.
-- **DLQ resolve (L1-17, L1-10).** A posting that is already an Application, whether ingested later or created by a resolve that crashed before marking the entry, is reported as a duplicate and linked instead of created twice. The comment claiming `FailureMode.other` is never produced was wrong: `ingest` writes it for an extraction API error, and `manual` is the correct fetch status when the text arrives by paste.
-- **Real mode refuses the placeholder extractor.** With no key, extraction falls back to a stub. `ingest` and the resolve paths in real mode saved a made-up application beside real ones; they now stop first.
-- **Public docs (W1, W15).** The private-workspace path and references to plans the repo does not contain are gone from this file, the evals README and ADR-007, and first person replaces third person. `tests/test_public_docs.py` fails if any return; the Phase D scrub had no check and did not last.
-- **Eval claims (W4, W5, W6, W8, W13).** The README's opening paragraph still cited fit scoring as 84% (21/25); it now gives the path (84%, 64%, then 27/28 twice, tuned). "Validated" now follows ADR-006's two-round rule, so extraction's current prompt is one round and not validated, and "band" means rounds with the prompt held fixed. The evals README gained a threats-to-validity section (chat, not API; provenance from my account; no live path has run; tuned, not held out) and lost its errors. The README test now rejects a superseded figure that is not beside its replacement, and requires the extraction figure to say it is not held out.
-- **ADR-007 (W3).** Reworded in engineering terms; the addendum records that HTMX was never used.
-- **README and this file (W9, W10, W11).** Status is now one table plus one section per topic instead of four overlapping ones; ADR, threat and test counts corrected. This file went from 696 to about 350 lines: Phase D is folded into a summary, and the Phase E entries are newest first.
-
-Tests: 689 to 704.
-
-### Phase E gate, hardening slice 1: dashboard and fetcher (adversarial findings L1-1, L1-2, L1-3, L1-6, L1-7, L1-9)
-
-Both cold lenses ran at the Phase E gate. This slice fixes the adversarial lens's High findings and the dashboard and fetcher findings that share their files; the rest of the gate's findings are tracked in the gate doc.
-
-- **Dashboard request guards (L1-1).** Binding to 127.0.0.1 keeps other machines out, not a web page in the user's own browser: DNS rebinding points an attacker's domain at the loopback address, and the browser then treats the dashboard as that page's own site. A probe read `/dlq` with a foreign `Host` and created an Application with a foreign `Origin`. Now every request's `Host` must be on an allowlist (loopback names plus the address `serve` binds), and a state-changing request with a foreign or `null` `Origin`, or a cross-site `Sec-Fetch-Site`, is refused. Threat model T13.
-- **DLQ resolve race (L1-2, contradicts the earlier idempotency fix).** The guard checked "still unresolved" before a seconds-long model call and wrote unconditionally after it, so a double-click made two Applications. Resolves are now serialized per entry, and the final write is a compare-and-set that a second process can lose, in which case its Application is deleted. The form's button disables on submit.
-- **IDN hosts and the DNS pin (L1-3, contradicts the DNS-rebinding fix).** `urllib3` resolves an internationalized host in punycode, so a pin keyed on the URL's spelling never matched and the connection was resolved unpinned. The URL check and the pin now compare through one normalization (lowercase, no trailing dot, IDNA), and a host that cannot be encoded is rejected. Overlapping pins are serialized, since the patched resolver is process-global (L1-15).
-- **Concurrent page loads (L1-6).** The per-request connection was pinned to its creating thread while the framework runs setup and teardown on other workers; 150 of 200 concurrent GETs returned 500. The dashboard connection now opts out of the same-thread check.
-- **No script, no third-party origin (L1-7).** The base template loaded HTMX from a CDN with no integrity hash, and nothing used it. Removed; ADR-007 has an addendum, and a test fails if a template gains a `<script>` or an absolute URL.
-- **Non-http source URLs are not linked (L1-9).** A stored `javascript:` URL was rendered as a link.
-
-Tests: 654 to 689. Each fix was checked by removing it and confirming a test failed.
-
-### Phase E gate, extraction prompt: skills rule tightened after a failed 36-case capture (recaptured: 32/36, 89%)
-
-The first capture of the 36-case jd_extraction suite scored 20/36 (56%) against the 80% bar, where the last 33-case round had scored 27/33 (82%). Diagnostic chats cleared the model choice, chat memory and the one new prompt paragraph: Haiku was over-including skills the rules exclude (a title's restated experience such as "SRE", a tech stack copied from a stack paragraph) and paraphrasing requirement wording. `EXTRACTION_SYSTEM_PROMPT` now takes every skill from the requirement's own words, never from responsibilities, title or stack, lets a trailing "preferred" cover its whole sentence, excludes track-record statements and context-only domains (with carve-outs so "managing managers" and "production deployment" still extract), and makes a figureless "competitive compensation" a null comp band. After round 2 (27/36, 75%) the misses were debugged in real chats, and the prompt gained title-only titles, years of experience never raising the level, and six worked examples on invented postings.
-
-Round 3 scored 32/36 (89%) on the frozen prompt; misses 06, 26, 27, 31. Three fixture expectations were widened before the recapture (see "Expected skills accept the posting's own wording" in `evals/README.md`); a smarter synonym grader stays deferred until the planned phases are complete. Not a held-out rate: the prompt was debugged against these same 36 fixtures, and round 3 is one round of its final prompt. Proxy runs (26/36 up to 30/36) were advisory only. Round-by-round detail is in `evals/README.md`.
-
-### Phase E gate, model provenance: scoring and composition recordings were Sonnet 5, not 4.5
-
-My manual captures run in Claude.ai chat, whose default Sonnet has been Sonnet 5 since 2026-06-30. I used that default for every Sonnet capture (composition 2026-09-20, both scoring rounds), while the prompts printed `claude-sonnet-4-5-20250929` and the recordings were keyed to it, so the docs named a model that did not produce them. This rests on my account and the launch date; the chats cannot be re-inspected. `SCORING_MODEL` is now `claude-sonnet-5` (`COMPOSITION_MODEL` aliases it), priced at $2 / $10 per million tokens (the announced September increase was cancelled, per the pricing page, checked 2026-09-24). The 56 scoring and composition recordings were re-keyed by recomputing each key with the new model; replies are untouched and replays are identical (composition 24/28, scoring 27/28). Extraction is Haiku 4.5 and unaffected. Any future recapture should confirm the model in the chat's picker.
-
-### Phase E gate, scoring prompt: numeric bands and an adjacent-title anchor after a failed 28-case capture (recaptured, 27/28 in two rounds)
-
-The first capture of the 28-case fit_scoring suite scored 18/28 (64%) against the 80% bar; the hostile cases passed 3/3. Of ten misses, four were rubric gaps and six were fixture ranges that contradicted the prompt. `SCORING_SYSTEM_PROMPT` now states the bands it had left implicit (a comp shortfall caps at about 45 to 70, a missing must-have at about 15 to 50), anchors an adjacent title with everything else met in the low 70s, counts a comp band whose midpoint clears the minimum as within range, and treats a title using the profile's own target words as on target. Nine fixture ranges were corrected before the recapture, justified by consistency with the prompt rather than by what the model returned (table in `evals/README.md`). The same change dropped `display_name` and `style_samples` from the scoring payload (gate finding G4).
-
-Two rounds of 28 on the revised prompt replayed 27/28 (96%) and 27/28, the same case (24, a Tech Lead) missing both times. Not a held-out rate: the prompt and nine ranges were tuned after the 64% capture. The recording holds round 2; round 1 is in commit `734ba48`.
-
-### Phase E gate, backlog sweep: fetcher ignores proxy environment variables
-
-The Phase D gate recorded a new residual on the DNS-rebinding fix and never dispositioned it: with `HTTPS_PROXY` or `ALL_PROXY` set, `requests` hands the target hostname to the proxy, and the proxy's own lookup is one the pin cannot see. A rebinding answer at that point reaches whatever the proxy can reach. Every fetch now goes through a session with `trust_env = False`, so the request always connects direct to the address that was checked. A machine that can only reach the web through a proxy now gets `blocked` fetches, which land in the DLQ with the usual manual-paste remedy. The new test fails with that line removed.
-
-### E2b: application detail, DLQ views, and the one write path in Phase E
-
-Pipeline and stale-alert rows on the dashboard now link to `/applications/{id}`:
-title, company, stage, fit score and rationale, the full extracted JD, contacts,
-and the interaction timeline, all off the same storage functions the CLI already
-had (`get_application`, `list_contacts`, `list_interactions`) — no new read path.
-
-The DLQ half needed an actual write, and D6's `resolve-dlq` already carried real
-behavior worth not duplicating: the idempotency guard (gate finding M-1/M-9) and
-the `dlq_*` fetch-status mapping (gate finding M-6). Rather than reimplement
-either in the web layer, `_extract_and_create_application` and its small helpers
-moved out of `jscc/cli/ingest.py` into a new `jscc/ingest_logic.py`, and the
-resolve logic itself moved into a new `jscc/dlq.py` as `resolve_dlq_entry_via_paste`
-— a typed result (`DLQResolveOutcome`) instead of echo calls and `sys.exit`, so
-each caller renders it in its own idiom. `resolve-dlq` is now a thin translation
-of that result into click's exit-code contract; all 85 existing CLI tests passed
-unchanged after the refactor, which is the point — the behavior didn't move, only
-where it lives. The dashboard's `/dlq/{id}/resolve` form calls the identical
-function, so the CLI and the browser cannot drift on how a DLQ entry gets resolved.
-
-Manually verified end to end against a freshly seeded synthetic DB: loaded the
-resolve form for a real `blocked` DLQ entry, posted a pasted JD through the actual
-HTTP form (not a test client), got back a created-application link, and confirmed
-`jscc dlq list` immediately stopped showing that entry as unresolved — the CLI and
-the web session were reading the same state. +19 tests across `tests/test_dlq.py`
-(new, direct coverage of `resolve_dlq_entry_via_paste`) and `tests/test_web.py`
-(643 total).
-
-### E2a: pipeline, funnel, and stale-alert views
-
-The index route now renders what `jscc report` already prints as text: a funnel
-table (every configured stage, including zero-count ones), a pipeline table
-grouping applications under their stage, and the stale-alert list. All three read
-`report.py`'s pure functions — `funnel_counts`, `detect_stale`, and a new
-`group_by_stage` added alongside them — so the CLI and the dashboard render the
-same underlying computation and cannot silently disagree on what counts as stale.
-
-A `?now=` query parameter mirrors the CLI's `--now`: same ISO-8601-with-timezone
-format, same 400-on-bad-input framing as `report`'s UsageError, so a pinned seed's
-stale block is reproducible from a browser the same way it already was from a
-shell. Manually verified against the seeded synthetic fixture and `--now
-2026-08-28T12:00:00+00:00`: funnel counts, pipeline listing, and all 13 stale
-alerts matched `jscc report`'s output line for line. +7 tests (629 total).
-Application detail + DLQ resolve (E2b) are next.
-
-### E1: web scaffold (ADR-007)
-
-Resolved the deferred web-stack discussion (the deferred web-stack question): FastAPI + Jinja2 +
-HTMX, no SPA, no separate JS build step — the dashboard stays in JSCC's existing
-Python toolchain, matching the "earn its slot over the fancier default" judgment
-already applied to the LLM-stage splits (D9/D10). ADR-007 records the alternatives
-(React/Vite, plain server-rendered HTML, Streamlit/Gradio) and why they lost.
-
-`jscc/web/` holds a `create_app(data_dir, config_dir)` factory and Jinja2 templates;
-`jscc serve` boots it (127.0.0.1 by default, local-only per D4 — no BYOK). The index
-route opens the active mode's DB through the same `open_for_mode` contract the CLI
-uses, shows the application count, and renders the SYNTHETIC MODE banner (D7 M6) a
-slice early, since it was cheap to add once the template existed. +3 tests (622 total).
-Pipeline/funnel/stale views (E2a) and application detail + DLQ resolve (E2b) are next.
-
-HTMX, named here, was never used and was removed at the Phase E gate; see the addendum in ADR-007.
+- Two findings this gate CONTRADICTED an earlier pass's own "fixed" — the DLQ race and the DNS pin's IDN gap. A closed disposition is a claim about the code at the time it closed, not a guarantee against the next scenario a colder read tries.
+- The egress scanner and the public-doc/README claims each needed a structural check (a test that walks the real call graph, a test that fails on drift) after living for a phase as something a reviewer had to remember to eyeball.
+- A failed first capture on a new or widened suite was, both times this phase, a real rubric gap rather than model variance — worth debugging the prompt before assuming the suite needs more cases.
 
 ## Phase D — follow-up drafter (D1–D5, closed 2026-09-20; Phase D gate 2026-09-20)
 
