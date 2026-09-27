@@ -32,7 +32,7 @@ PUBLISHED = {
     "jd_extraction": (32, 36),
     "fit_scoring": (27, 28),
     "routing": (37, 38),
-    "composition": (24, 28),
+    "composition": (25, 28),
 }
 
 
@@ -110,10 +110,9 @@ PUBLISHED_MISSES = {
     "fit_scoring": {"case-24-ambiguous-tech-lead-title"},
     "routing": {"routine-recruiter-ack"},
     "composition": {
-        "interview-availability-confirm",
-        "cadence-nudge-after-onsite",
-        "cadence-nudge-applied-quiet",
-        "logistics-video-link",
+        "reschedule-accept",
+        "second-cadence-nudge",
+        "coordinator-scheduling-ack",
     },
 }
 

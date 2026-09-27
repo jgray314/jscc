@@ -709,9 +709,14 @@ def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[Composit
 # machine can make reproducibly, so a pass means "no mechanical defect", not "a
 # good email". The prompt asks for 50-130 words and a subject of 8 or fewer; the
 # bounds here are looser so the grader flags real drift, not rounding.
-COMPOSITION_BODY_WORDS = (30, 160)
+COMPOSITION_BODY_WORDS = (25, 160)
 COMPOSITION_SUBJECT_MAX_WORDS = 10
 _STYLE_REUSE_MIN_WORDS = 6
+# A single reused closing line is ordinary shortness in a short email; a body
+# substantially built from sample sentences is a template. Judged by share of
+# the body's own word count, not by whether any single sentence matched.
+COMPOSITION_STYLE_REUSE_ADVISE_ABOVE = 0.20
+COMPOSITION_STYLE_REUSE_FAIL_ABOVE = 0.30
 
 _PLACEHOLDER = re.compile(r"\[[^\]]*\]|\{\{.*?\}\}|<[^>\n]+>|redacted", re.IGNORECASE)
 _DIGIT_RUN = re.compile(r"\d+")
@@ -720,6 +725,28 @@ _CALENDAR_AND_CLOSING_WORDS = frozenset(
     "monday tuesday wednesday thursday friday saturday sunday "
     "january february march april may june july august september october november december "
     "best thanks regards sincerely cheers".split()
+)
+_WEEKDAY_WORDS = frozenset("monday tuesday wednesday thursday friday saturday sunday".split())
+# The composer is never told what "today" is, so a weekday name or a phrase
+# asserting elapsed time is a guess unless the facts themselves already state
+# it (e.g. a recorded `next_action` that says "Reply confirming Tuesday"). Real
+# captures included a stated weekday that didn't match its own date ("Tuesday,
+# September 23" for a Wednesday) and relative words ("yesterday", "last week")
+# with no clock the composer could have checked them against. "today"/"tonight"
+# are excluded on purpose: a thank-you for the conversation just had is the
+# ordinary same-day case the style samples themselves use, not an elapsed-time
+# claim, and the composer has no way to get that one wrong.
+_RELATIVE_DATE_PHRASES = (
+    "yesterday",
+    "tomorrow",
+    "last week",
+    "next week",
+    "this week",
+    "last month",
+    "next month",
+    "this month",
+    "last year",
+    "next year",
 )
 
 
@@ -862,20 +889,63 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
             )
         )
 
+    # Split on normalized prose, not `_WORD`, so a possessive like "Thursday's"
+    # still registers as the word "thursday" (`_WORD`'s apostrophe-inclusive
+    # class would otherwise keep it as one token that never matches).
+    draft_words = set(_normalize_prose(subject + " " + body).split())
+    facts_words = set(_normalize_prose(facts).split())
+    invented_weekdays = sorted((draft_words & _WEEKDAY_WORDS) - facts_words)
+    if invented_weekdays:
+        diffs.append(
+            FieldDiff(
+                field="invented_weekday",
+                expected="only weekdays stated in the facts",
+                actual=invented_weekdays,
+            )
+        )
+
+    draft_prose = f" {_normalize_prose(subject + ' ' + body)} "
+    facts_prose = f" {_normalize_prose(facts)} "
+    invented_relative_dates = sorted(
+        p for p in _RELATIVE_DATE_PHRASES if f" {p} " in draft_prose and f" {p} " not in facts_prose
+    )
+    if invented_relative_dates:
+        diffs.append(
+            FieldDiff(
+                field="invented_relative_date",
+                expected="only relative-date words stated in the facts",
+                actual=invented_relative_dates,
+            )
+        )
+
+    advisories: list[FieldDiff] = []
     normalized_body = _normalize_prose(body)
+    reused_sentences: list[str] = []
     for sample in case.style_samples:
         for sentence in _sentences(sample):
             if (
                 len(_collapse_stock(_normalize_prose(sentence))[0]) >= _STYLE_REUSE_MIN_WORDS
                 and _normalize_prose(sentence) in normalized_body
             ):
-                diffs.append(
-                    FieldDiff(
-                        field="style_reuse",
-                        expected="no copied sample sentence",
-                        actual=sentence.strip(),
-                    )
-                )
+                reused_sentences.append(sentence.strip())
+
+    if reused_sentences:
+        # A single closing line lifted from a sample reads as ordinary
+        # shortness, not a template; a body that's substantially assembled
+        # from sample sentences does. Judge by share of the body, not by
+        # whether any single sentence matched.
+        body_word_count = len(normalized_body.split()) or 1
+        reused_word_count = sum(len(_normalize_prose(s).split()) for s in reused_sentences)
+        reused_share = reused_word_count / body_word_count
+        reuse_diff = FieldDiff(
+            field="style_reuse",
+            expected="no copied sample sentence",
+            actual=reused_sentences if len(reused_sentences) > 1 else reused_sentences[0],
+        )
+        if reused_share > COMPOSITION_STYLE_REUSE_FAIL_ABOVE:
+            diffs.append(reuse_diff)
+        elif reused_share > COMPOSITION_STYLE_REUSE_ADVISE_ABOVE:
+            advisories.append(reuse_diff)
 
     known_words = {w.lower() for w in _WORD.findall(facts)} | _CALENDAR_AND_CLOSING_WORDS
     invented_names: list[str] = []
@@ -902,7 +972,6 @@ def grade_composition(case: CompositionEvalCase, draft: DraftEmail) -> EvalCaseR
     if forbidden:
         diffs.append(FieldDiff(field="must_not_include", expected="absent", actual=forbidden))
 
-    advisories: list[FieldDiff] = []
     _, stock_found = _collapse_stock(normalized_body)
     if len(stock_found) > COMPOSITION_STOCK_PHRASE_ADVISORY_ABOVE:
         advisories.append(
