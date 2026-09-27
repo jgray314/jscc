@@ -12,6 +12,12 @@ folded at the Phase F gate.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## Phase F — narrative (in progress)
+
+### F1: README — architecture diagram, demo-link disclosure, status refresh
+
+The README's Status table still said the Phase E gate was "in progress" and the top summary hadn't been updated since before that gate closed (2026-09-24) or the Phase F prep composition fixes closed (2026-09-27) — fixed in both places. Added an "Architecture" section with a mermaid diagram of the one path every LLM stage takes through `stage_call.py` (sanitize, verify, meter, call) and the two egress points (sanitizer, pre-commit scanner) that share `personal_data.py`'s definition of "personal." The plan's "demo link" item has no destination yet — no hosted demo per D4, and the video (F2) hasn't shipped — so "Sample output" now says so explicitly instead of a dead or placeholder link. 749 tests pass unchanged; no code touched.
+
 ## Phase F prep
 
 ### Composition grader: invented weekday and relative-date checks

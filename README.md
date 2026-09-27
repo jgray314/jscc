@@ -4,7 +4,7 @@
 
 A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, scores fit against a profile through a second eval-backed LLM stage, stores them, and surfaces stale opportunities. A follow-up drafter first routes each case as routine or non-routine, drafts only the routine ones, and hands everything else to a person as a briefing card. Both drafter prompts have been checked against real model output; how far that evidence goes is in [Status](#status).
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) shipped as planned: E1 (scaffold), E2a (funnel, pipeline, stale-alert views), and E2b (application detail + DLQ resolve); its gate is in progress. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) shipped as planned — E1 (scaffold), E2a (funnel, pipeline, stale-alert views), and E2b (application detail + DLQ resolve) — and its gate closed 2026-09-24. Phase F (narrative: this README, a video walkthrough, a blog post, lessons learned) is now underway. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
 ## Start here: five things worth reading first
 
@@ -61,6 +61,8 @@ JSCC_DATA=real uv run jscc serve --host 127.0.0.1 --port 8000
 `serve` binds to `127.0.0.1` by default, not `0.0.0.0` — it's a personal tool over real job-search data, not a service meant to be reachable from other hosts. There's no auth layer, so don't widen the bind address on a shared or exposed machine. The server also refuses any request whose `Host` header is not a loopback name or the address you bound (a DNS-rebinding guard) and any cross-origin POST; see threat T13 in [docs/threat-model.md](docs/threat-model.md). `--data-dir` and `--config-dir` are also available if you're pointing at a non-default location (see `uv run jscc serve --help`).
 
 ## Sample output
+
+No hosted demo exists (D4 — video is the planned demo for v1, not a live deployment) and the video itself hasn't shipped yet (Phase F, slice F2). Until then, this section and "Sample drafter output" below are the demo: real commands against the seeded fixture, output reproduced verbatim.
 
 `uv run python -m jscc report --now 2026-08-28T12:00:00+00:00` after the seed above, reproduced verbatim:
 
@@ -128,6 +130,47 @@ Weigh before replying:
   - How much detail to include about why the role no longer fits, given the candidate's other conversations have progressed further
 Application: app-26
 ```
+
+## Architecture
+
+Every LLM stage — extraction, scoring, routing, composition — reaches the model through one path: `stage_call.py`. That's deliberate ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary)) — no caller can skip the sanitizer, and no caller can duck the cost meter.
+
+```mermaid
+flowchart TB
+    CLI["CLI (jscc ingest / score / route / followup)"]
+    Dash["Dashboard (jscc serve)"]
+
+    CLI --> Ingest["ingest_logic.py"]
+    Dash --> Ingest
+    Ingest --> Extract["extraction.py"]
+    CLI --> Score["scoring.py"]
+    CLI --> Route["routing.py"]
+    CLI --> Compose["composition.py"]
+
+    subgraph gate["stage_call.py — the one path to a model"]
+        direction LR
+        Sanitize["sanitizer.py"] --> Verify["HMAC verify"] --> Meter["instrumentation.py\n@instrumented"] --> Client["llm_client.py\n(Anthropic or stub)"]
+    end
+
+    Extract --> gate
+    Score --> gate
+    Route --> gate
+    Compose --> gate
+
+    Extract --> Storage[("storage.py\nSQLite, mode-stamped")]
+    Score --> Storage
+    Route --> Storage
+    Ingest --> Storage
+    Storage --> Report["report.py\nfunnel + staleness"]
+    Report --> CLI
+    Report --> Dash
+
+    PD["personal_data.py\none definition of 'personal'"] --> Sanitize
+    PD --> Scanner["scripts/scan_tracked.sh\npre-commit"]
+    Commit["git commit"] --> Scanner
+```
+
+Two egress points, one shared definition of "personal": the sanitizer guards every call to a model, and the pre-commit scanner guards every commit, both reading `personal_data.py` rather than keeping their own rules. The mode-stamped storage layer (synthetic vs. real) is the third structural guard — [ADR-003](decisions/003-mode-isolation.md).
 
 ## Repo layout
 
@@ -211,7 +254,8 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 | **Phase B — ingestion + extraction** | Extraction eval suite and prompt, fetcher with a Playwright fallback and a dead-letter queue, a paste-only path, a three-value exit contract, a ruff lint/format gate. Gate closed. | — |
 | **Phase C — fit scoring** | Fit-scoring eval suite, prompt and call path, `--manual` capture, and `jscc costs` (per-feature cost and latency, and a check that flags a recorded cost that no longer matches its model's published rate). Gate closed. | — |
 | **Phase D — follow-up drafter** | Routing (suite, prompt, `route`), composition (suite, prompt, a deterministic grader, a `needs_input` escape so the composer can decline instead of inventing a fact), the briefing renderer and `followup`. Gate closed 2026-09-20. | — |
-| **Phase E — dashboard** | `jscc serve`: funnel, pipeline and stale-alert views built on the same `report.py` functions `jscc report` uses (so the two cannot disagree on what is stale), application detail, a DLQ list, and a DLQ resolve form that calls the same function as `resolve-dlq`, the one write path. Gate in progress: the adversarial lens's high findings are fixed (dashboard request guards, a duplicate-resolve race, an internationalized-hostname gap in the DNS pin); documentation and test fixes from the walkthrough lens are landing. | Finish the Phase E gate, then Phase F: narrative (README refresh, video, blog post). |
+| **Phase E — dashboard** | `jscc serve`: funnel, pipeline and stale-alert views built on the same `report.py` functions `jscc report` uses (so the two cannot disagree on what is stale), application detail, a DLQ list, and a DLQ resolve form that calls the same function as `resolve-dlq`, the one write path. Gate closed 2026-09-24: adversarial highs fixed (dashboard request guards, a duplicate-resolve race, an internationalized-hostname gap in the DNS pin) and the walkthrough lens's doc and test fixes landed. | — |
+| **Phase F — narrative** | F1 (this README: architecture diagram, status refresh) in progress. A Phase F prep item — the composition grader's invented-weekday/relative-date checks — closed 2026-09-27 ahead of this slice; see [CHANGELOG.md](CHANGELOG.md). | F2 (video walkthrough), F3 (blog post), F4 (`docs/lessons-learned.md`, early draft in progress). |
 
 **Eval status.** Current numbers, every round that produced them, and the threats to validity are in [evals/README.md](evals/README.md). None of these is a held-out rate.
 - **Extraction: 32/36 (89%)**, one round on the current prompt, after 56% and 75% on earlier wording. The prompt was debugged against these same 36 cases. Only the older 33-case suite gives a band (76% to 82% across rounds with its prompt held fixed).
