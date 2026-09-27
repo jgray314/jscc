@@ -1164,7 +1164,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
 
     result = runner.invoke(cli, ["eval", "jd_extraction", "--data-dir", str(tmp_path)])
     assert result.exit_code == 1, result.output  # stub fails every case, as expected
-    assert "0/36 passed" in result.output
+    assert "0/38 passed" in result.output
 
     from jscc.mode import Mode
     from jscc.storage import list_llm_calls, open_for_mode
@@ -1173,7 +1173,7 @@ def test_eval_command_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 36, "one ledger row per eval case"
+    assert len(calls) == 38, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"extraction_eval"}
 
 
@@ -1204,7 +1204,7 @@ def test_ingest_and_eval_traffic_stay_separable_in_the_ledger(
     conn.close()
 
     assert features.count("extraction") == 1
-    assert features.count("extraction_eval") == 36
+    assert features.count("extraction_eval") == 38
 
 
 def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
@@ -1713,7 +1713,7 @@ def test_record_then_replay_round_trips(
     )
     assert rec.exit_code == 0, rec.output
     assert recording.exists()
-    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 36
+    assert len(json.loads(recording.read_text(encoding="utf-8"))) == 38
 
     play = runner.invoke(
         cli,
@@ -1761,7 +1761,7 @@ def test_record_preserves_an_unrelated_stale_recording_instead_of_clobbering_it(
     assert result.exit_code == 0, result.output
     saved = json.loads(recording.read_text(encoding="utf-8"))
     assert saved["stale-key-from-a-prior-run"] == "some response"
-    assert len(saved) == 37  # the stale key plus this run's 36
+    assert len(saved) == 39  # the stale key plus this run's 38
 
 
 def test_replay_without_a_recording_is_a_usage_error(
@@ -1814,7 +1814,7 @@ def test_eval_fit_scoring_records_calls_under_its_own_feature_label(
     calls = list_llm_calls(conn)
     conn.close()
 
-    assert len(calls) == 28, "one ledger row per eval case"
+    assert len(calls) == 30, "one ledger row per eval case"
     assert {c.feature for c in calls} == {"scoring_eval"}
 
 

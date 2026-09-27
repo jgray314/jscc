@@ -501,6 +501,12 @@ class FitEvalCase(BaseModel):
     profile: dict[str, Any]
     min_score: float
     max_score: float
+    # "core" (the cases the prompt was tuned against), "hostile" (posting text
+    # trying to steer the score), "hostile_held_out" (new hostile shapes added
+    # after the prompt was written, never fed back into further prompt tuning
+    # -- see T5 in docs/threat-model.md). Reporting only, same convention as
+    # jd_extraction's group and routing's group.
+    group: str = "core"
 
 
 def load_fit_cases(path: Path = FIT_SCORING_CASES_PATH) -> list[FitEvalCase]:
@@ -520,7 +526,7 @@ def grade_fit_score(case: FitEvalCase, result: FitResult) -> EvalCaseResult:
         )
     if not result.rationale.strip():
         diffs.append(FieldDiff(field="rationale", expected="<non-empty>", actual=result.rationale))
-    return EvalCaseResult(case_id=case.id, passed=not diffs, diffs=diffs)
+    return EvalCaseResult(case_id=case.id, group=case.group, passed=not diffs, diffs=diffs)
 
 
 def run_fit_scoring_evals(
@@ -537,7 +543,9 @@ def run_fit_scoring_evals(
         except (SanitizerRefusal, LLMSendError):
             raise
         except Exception as e:  # scorer stub, prompt bugs, malformed fixtures, etc.
-            results.append(EvalCaseResult(case_id=case.id, passed=False, error=str(e)))
+            results.append(
+                EvalCaseResult(case_id=case.id, group=case.group, passed=False, error=str(e))
+            )
             continue
         results.append(grade_fit_score(case, result))
     passed = sum(1 for r in results if r.passed)
