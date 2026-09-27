@@ -58,13 +58,29 @@ Related, and not repeated here: [how the phase gates work and six worked finding
 
 This style of project work has a bit of the Civilization (game) "one more turn" structure: a short wait, then a reward, and the next step is always right there. Each slice finishes quickly and shows a visible result, and that makes it easy to keep going. I'm noting it as an observation, not a conclusion. I have no measurement of what it did to the work, and I haven't yet separated the parts that helped from the parts that cost something.
 
+## 8. AI over-estimates its own work, and "the other 80%" oversold the gates
+
+**What happened.** My live impression while building this, stated out loud more than once, was that AI dramatically over-estimates how long its own work will take, under-estimates manual work (especially new manual work like a capture round or key setup), and that gate and hardening work was "the other 80%" of the effort — a more extreme version of the usual review-tax pattern. I did not check that impression against anything until this slice. [`scripts/active_time.py`](../scripts/active_time.py) sums the gaps between consecutive commits (dropping anything over 4 hours as "not working") and splits the result by a keyword match on commit subjects. Run today against the full history — 138 commits, 22 work clusters — it puts upper-bound active time at 39.6 hours, split 19.1 hours feature/eval/prompt work (48%) and 20.5 hours gate/hardening/docs work (52%). That is roughly 1:1, not 4:1. "The other 80%" does not survive contact with the timestamps.
+
+**What worked.** Running the number before publishing the impression. The corrected version is still a real finding — gate and hardening work is about as large as the build itself, which is a substantial, worth-budgeting-for share most project estimates don't carve out at all — it is just a different number than the one that felt true in the moment. The script prints its own bias in both directions every time it runs (gaps under the cap still contain interrupts and meals; the first commit of a cluster and any work that never reaches a commit — planning docs, a manual capture round before it's recorded — are invisible to it), so the 39.6 hours is a proxy, not a timesheet, and I'm stating it as one.
+
+**For a team, as a hypothesis.** An in-the-moment read of how much time review work is costing is worth checking against something reproducible before it turns into a policy — a "the reviews cost 4x the build" story and a "the reviews cost about as much as the build" story lead to different staffing decisions, and only one of them was true here.
+
+## 9. The highest-leverage output was a check, not a feature
+
+**What happened.** Across every phase, the artifacts that kept paying off were deterministic checks written once and then run automatically, cheaply, forever: the ruff lint/format gate, the personal-data pre-commit scanner ([`scripts/scan_tracked.sh`](../scripts/scan_tracked.sh)), the doc-honesty tests that fail the build when a published number or test count drifts from what's true, and CI replaying every eval recording so a prompt or grader change can't silently move a published figure. None of these needed a human to remember to run them again.
+
+**What worked.** Treating "write a check that runs forever" as competing directly with "ship the next feature" for slice time, and letting the check win more often than felt natural. The caveat is real, not rhetorical: an AI-written check needs its own validation, exactly the way lesson 2's mocked tests and always-true assertions did not earn their pass. A check is only leverage once something has confirmed it can actually fail.
+
+**For a team, as a hypothesis.** If AI makes writing a check nearly free, the bottleneck moves to deciding which checks are worth having and verifying each one can fail — not to writing them. A team adopting this would get more from a checklist of "what would this guard miss" than from more guards.
+
 ## What this does not show
 
 - **Anything about a team.** No adoption, change management, review load, junior development or onboarding. Each "for a team" line above is a guess I'd want to test.
 - **Production behaviour.** There is no live traffic and no API key configured, so there are no real cost or latency figures.
 - **Independent review.** The gate reviewers were all one model family, and no human outside the project has reviewed the work.
-- **A measured productivity effect.** I have observations about how estimates and actual effort compared, and a script that estimates active time from commit history with its biases stated ([scripts/active_time.py](../scripts/active_time.py)). I am holding those back until there is more data and I can state them properly.
+- **A ladder for AI autonomy.** I have not written down what specifically earned each step-up in how much I let the AI run unattended — that's still an unevidenced impression, unlike the estimation lesson above, which I checked before publishing.
 
 ## Still to come
 
-Lessons I expect to add once I can back them: how AI estimates of its own work and of manual work compare with what happened; how much of the effort went to gates and hardening; what else planning and breaking work into slices changed beyond slice size; how confidence in letting the AI run unattended grew, and what earned each step; and how much difference bringing a key insight early made, with the eval-suite sizing as the example.
+Lessons I expect to add once I can back them: how confidence in letting the AI run unattended grew, and what specifically earned each step; and whether bringing a key insight early (the eval-suite sizing in lesson 3 is the one example so far) generalizes into its own lesson or stays that one example.
