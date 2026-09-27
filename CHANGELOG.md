@@ -12,6 +12,14 @@ folded at the Phase F gate.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## Full-project gate (2026-09-27)
+
+Two cold-read lenses (adversarial, outside-reviewer walkthrough) across the whole repo, not scoped to one phase's delta — the first review at this scope since individual phase gates began. Full findings and disposition: `jscc-phase-b-rerun-gate.md` in the private planning docs.
+
+### Fixed: name_roles redaction silently broken by a prefix collision between two contacts
+
+The adversarial lens found that `redact()` in `jscc/personal_data.py` substitutes `name_roles` entries in the caller's map-iteration order, which every caller builds alphabetically (`storage.list_contacts`'s `ORDER BY name`). Two contacts on the same application whose names are in a prefix relationship — "Dana" and "Dana Reyes" — sorted the shorter one first, so its substitution consumed the start of the longer name's own text before that name's rule ever ran. Reproduced directly against `redact()`: the surname "Reyes" shipped in clear text with no error, despite `name_roles` supposedly covering the full name. This is a silent break of the exact guarantee D7/D8 exist to make, so treated as High rather than the reviewer's own Medium rating. Fixed by substituting longest name first (`jscc/personal_data.py`), so a name can only be partially consumed by one that isn't itself a substring of it; verified by inversion (the new regression test fails with the fix reverted). 750 tests, ruff/format clean.
+
 ## Phase F — narrative (in progress)
 
 ### F4: lessons learned — the estimation and gate-work lessons the plan held back for more data

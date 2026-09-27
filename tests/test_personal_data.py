@@ -128,6 +128,25 @@ def test_name_role_survives_a_danger_term_inside_the_name() -> None:
     assert "[contact:recruiter]" in out
 
 
+def test_name_role_survives_a_prefix_collision_with_another_contact() -> None:
+    """Full-project gate finding, 2026-09-27: two contacts on the same
+    application can have a prefix relationship ("Dana" and "Dana Reyes").
+    Callers build name_roles alphabetically (storage.list_contacts's
+    ORDER BY name), so the shorter name used to substitute first and
+    silently eat the start of the longer name's own text, leaving the
+    surname "Reyes" in clear text with no error. Reproduced directly
+    against redact() regardless of what order the caller's dict iterates
+    in -- dict literal order here is deliberately shortest-first, the
+    order that broke."""
+    out = redact(
+        "Spoke with Dana Reyes about the offer timeline.",
+        name_roles={"Dana": "recruiter", "Dana Reyes": "hiring_manager"},
+    )
+    assert "Reyes" not in out
+    assert "Dana" not in out
+    assert "[contact:hiring_manager]" in out
+
+
 def test_redacts_all_three_classes_in_one_pass() -> None:
     text = f"Dana Reyes, {RECRUITER_EMAIL}, {RECRUITER_PHONE}, via ExampleCorp"
     out = redact(text, danger_terms=["examplecorp"], name_roles={"Dana Reyes": "recruiter"})

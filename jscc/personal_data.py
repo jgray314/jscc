@@ -259,7 +259,16 @@ def redact(
     out = CREDENTIAL_RE.sub(CREDENTIAL_TOKEN, text)
     out = EMAIL_RE.sub(EMAIL_TOKEN, out)
     out = _redact_phones(out)
-    for name, role in (name_roles or {}).items():
+    # Longest name first (gate finding, full-project gate 2026-09-27): two
+    # contacts on the same application can have a prefix relationship, e.g.
+    # "Dana" and "Dana Reyes". Substituting in map-iteration order (which
+    # callers build alphabetically from storage) let the shorter name consume
+    # part of the longer one's text before the longer name's own rule ran, so
+    # "Dana Reyes" silently degraded to "[contact:role] Reyes" -- the surname
+    # shipped in clear text with no error. Longest-first removes the
+    # ordering dependency: a name can only be partially consumed by one that
+    # is not itself a substring of it.
+    for name, role in sorted((name_roles or {}).items(), key=lambda item: -len(item[0])):
         out = _replace_case_insensitive(out, name, f"[contact:{role}]")
     for term in danger_terms:
         out = _replace_case_insensitive(out, term, DANGER_TOKEN)
