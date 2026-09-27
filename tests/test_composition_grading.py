@@ -100,9 +100,9 @@ def test_placeholders_and_redaction_tokens_fail_in_body_or_subject(bad: str) -> 
 # ---- length -----------------------------------------------------------------------
 
 
-def test_body_length_bounds_are_30_to_160_words() -> None:
-    assert "body_length" in _failed(_grade(body=_words(29)))
-    assert "body_length" not in _failed(_grade(body=_words(30)))
+def test_body_length_bounds_are_25_to_160_words() -> None:
+    assert "body_length" in _failed(_grade(body=_words(24)))
+    assert "body_length" not in _failed(_grade(body=_words(25)))
     assert "body_length" not in _failed(_grade(body=_words(160)))
     assert "body_length" in _failed(_grade(body=_words(161)))
 

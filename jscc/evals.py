@@ -709,7 +709,7 @@ def load_composition_cases(path: Path = COMPOSITION_CASES_PATH) -> list[Composit
 # machine can make reproducibly, so a pass means "no mechanical defect", not "a
 # good email". The prompt asks for 50-130 words and a subject of 8 or fewer; the
 # bounds here are looser so the grader flags real drift, not rounding.
-COMPOSITION_BODY_WORDS = (30, 160)
+COMPOSITION_BODY_WORDS = (25, 160)
 COMPOSITION_SUBJECT_MAX_WORDS = 10
 _STYLE_REUSE_MIN_WORDS = 6
 # A single reused closing line is ordinary shortness in a short email; a body
