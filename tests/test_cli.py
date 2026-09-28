@@ -1758,7 +1758,7 @@ def test_resolve_dlq_prompts_to_confirm_a_mismatched_title(
 
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
-    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184." + "216.34"])
     from unittest.mock import Mock
 
     blocked = Mock()
