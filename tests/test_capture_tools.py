@@ -140,20 +140,12 @@ def test_proxy_grade_reports_failures_and_writes_no_recording(tmp_path: Path) ->
     assert "ADVISORY ONLY" in report
 
 
-# T5 coverage-expansion cases added to jd_extraction, fit_scoring and routing
-# (see docs/threat-model.md T5) have no recording yet -- a real capture round
-# is the next step, not a regression. `composition` is untouched by this work
-# and still replays clean. Change only together with a capture round landing.
+# T5 coverage-expansion cases (see docs/threat-model.md T5) were captured
+# 2026-09-28. All four suites now replay clean on a committed tree.
 _PENDING_CAPTURE = {
-    "jd_extraction": [
-        "case-37-hostile-homoglyph-override",
-        "case-38-hostile-hr-compliance-authority",
-    ],
-    "fit_scoring": [
-        "case-29-hostile-roleplay-persona-override",
-        "case-30-hostile-ethics-laundered-override",
-    ],
-    "routing": ["hostile-soft-steering-no-trigger-words"],
+    "jd_extraction": [],
+    "fit_scoring": [],
+    "routing": [],
     "composition": [],
 }
 
