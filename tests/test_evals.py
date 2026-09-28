@@ -8,10 +8,12 @@ from jscc.evals import (
     COMPOSITION_CASES_PATH,
     FIT_SCORING_CASES_PATH,
     JD_EXTRACTION_CASES_PATH,
+    JD_EXTRACTION_RECORDING_PATH,
     PASS_THRESHOLD,
     ROUTING_CASES_PATH,
     CompositionEvalCase,
     EvalCase,
+    ExtractionToScoringEvalCase,
     FitEvalCase,
     ManualCaptureClient,
     RecordingClient,
@@ -20,20 +22,24 @@ from jscc.evals import (
     RoutingEvalCase,
     false_routine_cases,
     format_eval_summary,
+    format_extraction_to_scoring_summary,
     grade_composition,
     grade_extraction,
     grade_fit_score,
     grade_routing_decision,
     load_cases,
     load_composition_cases,
+    load_extraction_to_scoring_cases,
     load_fit_cases,
+    load_recording,
     load_routing_cases,
     run_composition_evals,
+    run_extraction_to_scoring_evals,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
     run_routing_evals,
 )
-from jscc.extraction import extract_jd
+from jscc.extraction import EXTRACTION_EVAL_FEATURE, extract_jd
 from jscc.llm_client import (
     LLMResponse,
     StubCompositionClient,
@@ -51,7 +57,7 @@ from jscc.models import (
     RoutingDecision,
 )
 from jscc.routing import route_followup
-from jscc.scoring import score_fit
+from jscc.scoring import SCORING_CHAIN_EVAL_FEATURE, score_fit
 
 
 def _case(**expected_overrides) -> EvalCase:
@@ -865,4 +871,135 @@ def test_run_composition_evals_ordinary_errors_still_count_as_failed_cases() -> 
     summary = run_composition_evals(broken)
     assert summary.total == 28
     assert summary.passed == 0
+
+
+# ---- extraction_to_scoring (post-v1 item 2) -------------------------------------
+#
+# Candidate 2 of jscc-extraction-error-propagation-probe.md: chains each
+# jd_extraction short/long case's gold and recorded extraction into scoring
+# and reports the score gap. Report-only, no pass/fail bar -- see the
+# module docstring in evals.py for why.
+
+
+def _real_extraction_replay(raw_jd: str) -> ExtractedJD:
+    """The real extract_fn the CLI wires: replays jd_extraction's own
+    committed recording rather than making a fresh call -- this suite
+    measures what a captured extraction round already produced."""
+    recorded = load_recording(JD_EXTRACTION_RECORDING_PATH)
+    client = ReplayClient(recorded, suite="jd_extraction")
+    return extract_jd(raw_jd, client=client, feature=EXTRACTION_EVAL_FEATURE)
+
+
+def _score_via_stub_chain(extracted: ExtractedJD, raw_jd_text: str, profile: Profile) -> FitResult:
+    return score_fit(
+        extracted,
+        raw_jd_text,
+        profile,
+        client=StubScoringClient(),
+        feature=SCORING_CHAIN_EVAL_FEATURE,
+    )
+
+
+def test_load_extraction_to_scoring_cases_points_at_real_jd_extraction_short_and_long_cases() -> (
+    None
+):
+    """Hostile/hostile_held_out are deliberately out of scope (candidate 4's
+    question, not candidate 2's -- see the module docstring), so every case
+    here must reference a real short/long jd_extraction case, and there
+    should be one entry per such case, no more, no fewer."""
+    extraction_cases = {c.id: c for c in load_cases(JD_EXTRACTION_CASES_PATH)}
+    short_and_long_ids = {
+        cid for cid, c in extraction_cases.items() if c.group in ("short", "long")
+    }
+    cases = load_extraction_to_scoring_cases()
+    assert {c.extraction_case_id for c in cases} == short_and_long_ids
+    assert len(cases) == len(short_and_long_ids)
+    for case in cases:
+        assert case.group == extraction_cases[case.extraction_case_id].group
+
+
+def test_run_extraction_to_scoring_evals_against_real_extraction_and_stub_scoring() -> None:
+    """The committed jd_extraction recording is real model output; the stub
+    scorer returns a constant 0 for both the gold and the recorded
+    extraction, so every delta is 0 -- the harness working correctly against
+    an unconfigured scorer, same shape as the other suites' stub behavior."""
+    summary = run_extraction_to_scoring_evals(_real_extraction_replay, _score_via_stub_chain)
+    assert summary.total == 33
+    assert len(summary.scored) == 33
+    assert summary.errored == []
+    assert summary.mean_abs_delta == 0.0
+    assert summary.max_abs_delta == 0.0
+    for result in summary.results:
+        assert result.gold_score == 0
+        assert result.recorded_score == 0
+        assert result.delta == 0.0
+
+
+def test_run_extraction_to_scoring_evals_reports_the_real_gap_between_gold_and_recorded() -> None:
+    """A scorer that returns a different score depending on which extraction it
+    was handed should show up as a nonzero delta -- this is the actual
+    measurement the suite exists to take. Gold is always built internally
+    from jd_extraction's own `expected` dict (never real titles marked
+    "recorded-marker"); `extract_fn` supplies only the recorded side."""
+
+    def score_by_title(extracted: ExtractedJD, raw_jd_text: str, profile: Profile) -> FitResult:
+        score = 40.0 if extracted.title == "recorded-marker" else 60.0
+        return FitResult(score=score, rationale="stub")
+
+    def recorded_marked_extraction(raw_jd: str) -> ExtractedJD:
+        return ExtractedJD(title="recorded-marker", level="senior", responsibilities_summary="x")
+
+    summary = run_extraction_to_scoring_evals(recorded_marked_extraction, score_by_title)
+    assert summary.total == 33
+    # gold never has title "recorded-marker" (it's built from the real
+    # fixtures' `expected`), so gold always scores 60 and recorded always
+    # scores 40 -- every delta is -20, pinning delta = recorded - gold.
+    assert all(r.gold_score == 60.0 for r in summary.results)
+    assert all(r.recorded_score == 40.0 for r in summary.results)
+    assert all(r.delta == -20.0 for r in summary.results)
+
+
+def test_run_extraction_to_scoring_evals_unknown_extraction_case_id_is_a_case_error() -> None:
+    from jscc.paths import PACKAGE_ROOT
+
+    cases_path = PACKAGE_ROOT / "evals" / "extraction_to_scoring" / "cases.json"
+    original = load_extraction_to_scoring_cases(cases_path)
+    assert original  # sanity: the real file has entries
+
+    bad = [ExtractionToScoringEvalCase(id="chain-bogus", extraction_case_id="case-does-not-exist")]
+
+    import json
+    import tempfile
+    from pathlib import Path as _Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _Path(tmp) / "cases.json"
+        path.write_text(json.dumps([c.model_dump() for c in bad]), encoding="utf-8")
+        summary = run_extraction_to_scoring_evals(
+            _real_extraction_replay, _score_via_stub_chain, cases_path=path
+        )
+
+    assert summary.total == 1
+    assert len(summary.errored) == 1
+    assert "case-does-not-exist" in summary.errored[0].error
+
+
+def test_run_extraction_to_scoring_evals_ordinary_errors_still_count_as_case_errors() -> None:
+    def broken(extracted, raw_jd_text, profile) -> FitResult:
+        raise ValueError("model returned nonsense")
+
+    summary = run_extraction_to_scoring_evals(_real_extraction_replay, broken)
+    assert summary.total == 33
+    assert len(summary.errored) == 33
+    assert summary.scored == []
     assert all(r.error for r in summary.results)
+
+
+def test_format_extraction_to_scoring_summary_reports_deltas_and_errors() -> None:
+    summary = run_extraction_to_scoring_evals(_real_extraction_replay, _score_via_stub_chain)
+    text = format_extraction_to_scoring_summary(summary)
+    assert "33/33 cases scored" in text
+    assert "mean |delta|" in text
+    assert "max |delta|" in text
+    assert "chain-01-senior-backend-remote-with-comp" in text
+    assert summary.errored == []

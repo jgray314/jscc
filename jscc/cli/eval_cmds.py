@@ -12,7 +12,9 @@ from ..composition import COMPOSITION_EVAL_FEATURE, compose_followup
 from ..evals import (
     COMPOSITION_PASS_THRESHOLD,
     COMPOSITION_RECORDING_PATH,
+    EXTRACTION_TO_SCORING_RECORDING_PATH,
     FIT_SCORING_RECORDING_PATH,
+    JD_EXTRACTION_RECORDING_PATH,
     PASS_THRESHOLD,
     ROUTING_PASS_THRESHOLD,
     ROUTING_RECORDING_PATH,
@@ -21,9 +23,11 @@ from ..evals import (
     ReplayClient,
     composition_gate,
     format_eval_summary,
+    format_extraction_to_scoring_summary,
     load_recording,
     routing_gate,
     run_composition_evals,
+    run_extraction_to_scoring_evals,
     run_fit_scoring_evals,
     run_jd_extraction_evals,
     run_routing_evals,
@@ -39,7 +43,7 @@ from ..llm_client import (
 )
 from ..mode import DEFAULT_DATA_DIR
 from ..routing import ROUTING_EVAL_FEATURE, route_followup
-from ..scoring import SCORING_EVAL_FEATURE, score_fit
+from ..scoring import SCORING_CHAIN_EVAL_FEATURE, SCORING_EVAL_FEATURE, score_fit
 from ._app import cli
 from ._common import (
     EXIT_UNEXPECTED,
@@ -458,4 +462,115 @@ def eval_composition(
     for failure in failures:
         echo(failure, err=True)
     if failures:
+        sys.exit(EXIT_UNEXPECTED)
+
+
+@eval_group.command("extraction_to_scoring")
+@click.option(
+    "--data-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_DATA_DIR,
+    show_default=True,
+    help="Directory holding mode DBs. Eval runs are metered to the llm_calls ledger.",
+)
+@click.option(
+    "--record",
+    "record",
+    is_flag=True,
+    default=False,
+    help="Capture each live scoring response to evals/extraction_to_scoring/recorded.json.",
+)
+@click.option(
+    "--replay",
+    "replay",
+    is_flag=True,
+    default=False,
+    help="Serve recorded scoring responses instead of calling the model. No key, no spend.",
+)
+@click.option(
+    "--manual",
+    "manual",
+    is_flag=True,
+    default=False,
+    help=(
+        "Capture via a human pasting each prompt into Claude.ai chat instead "
+        "of a live API call (no ANTHROPIC_API_KEY needed). Implies --record."
+    ),
+)
+def eval_extraction_to_scoring(data_dir: Path, record: bool, replay: bool, manual: bool) -> None:
+    """Run the extraction-to-scoring chain suite (33 cases) -- candidate 2 of
+    jscc-extraction-error-propagation-probe.md.
+
+    For each `jd_extraction` short/long case, scores both the gold extraction
+    and the already-recorded real extraction against the same profile and raw
+    text, and reports how far apart the two scores land. --record/--replay/
+    --manual govern the *scoring* half only, the same options `eval
+    fit_scoring` exposes; the extraction half always replays `jd_extraction`'s
+    own committed recording (`evals/jd_extraction/recorded.json`) rather than
+    running a fresh extraction, since this suite measures what a captured
+    extraction round already produced.
+
+    No pass/fail bar: this reports a delta distribution, not a gate. See
+    `evals/README.md`'s "extraction_to_scoring" section for why.
+
+    Calls are recorded to the `llm_calls` ledger under the
+    `scoring_chain_eval` feature (D5), separate from both `scoring` and
+    `scoring_eval` traffic.
+    """
+    if replay and (record or manual):
+        raise click.UsageError("--replay is mutually exclusive with --record/--manual")
+    record = record or manual
+
+    client = None
+    if replay:
+        recorded = load_recording(EXTRACTION_TO_SCORING_RECORDING_PATH)
+        if not recorded:
+            echo("no recordings yet; run once with --record against a live key", err=True)
+            sys.exit(EXIT_USAGE)
+        client = ReplayClient(recorded, suite="extraction_to_scoring")
+    elif record:
+        inner = _recordable(ManualCaptureClient() if manual else default_scoring_client())
+        client = RecordingClient(
+            inner,
+            on_captured=lambda key, text: save_recording(
+                {key: text}, EXTRACTION_TO_SCORING_RECORDING_PATH
+            ),
+        )
+
+    extraction_recorded = load_recording(JD_EXTRACTION_RECORDING_PATH)
+    if not extraction_recorded:
+        echo(
+            "no jd_extraction recordings on disk (evals/jd_extraction/recorded.json); "
+            "this suite chains against that suite's own committed recording, so there is "
+            "nothing to score yet.",
+            err=True,
+        )
+        sys.exit(EXIT_USAGE)
+    extraction_client = ReplayClient(extraction_recorded, suite="jd_extraction")
+
+    mode = _resolve_mode_or_exit()
+    conn = _open_or_exit(mode, data_dir)
+    try:
+        summary = run_extraction_to_scoring_evals(
+            lambda raw: extract_jd(
+                raw, conn=conn, client=extraction_client, feature=EXTRACTION_EVAL_FEATURE
+            ),
+            lambda extracted, raw_jd_text, profile: score_fit(
+                extracted,
+                raw_jd_text,
+                profile,
+                conn=conn,
+                client=client,
+                feature=SCORING_CHAIN_EVAL_FEATURE,
+            ),
+        )
+    finally:
+        conn.close()
+
+    if record and client is not None:
+        save_recording(client.captured, EXTRACTION_TO_SCORING_RECORDING_PATH)
+        echo(f"recorded {len(client.captured)} responses")
+
+    echo(format_extraction_to_scoring_summary(summary))
+    if summary.errored:
         sys.exit(EXIT_UNEXPECTED)

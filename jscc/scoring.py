@@ -90,6 +90,12 @@ def _build_user_payload(
 # Separate ledger features for production and eval traffic, as in extraction.
 SCORING_FEATURE = "scoring"
 SCORING_EVAL_FEATURE = "scoring_eval"
+# The extraction_to_scoring suite (jscc-extraction-error-propagation-probe.md,
+# candidate 2) calls score_fit twice per case -- once for the gold extraction,
+# once for the recorded one -- to measure how far a real extraction miss moves
+# the score. Its own feature keeps that capture round off both scoring_eval's
+# and scoring's cost figures.
+SCORING_CHAIN_EVAL_FEATURE = "scoring_chain_eval"
 
 
 def score_fit(
@@ -121,7 +127,7 @@ def score_fit(
         client=client,
         conn=conn,
         feature=feature,
-        features=(SCORING_FEATURE, SCORING_EVAL_FEATURE),
+        features=(SCORING_FEATURE, SCORING_EVAL_FEATURE, SCORING_CHAIN_EVAL_FEATURE),
         parse_error=ScoringParseError,
     )
     return _parse_response(response.text)

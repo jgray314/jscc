@@ -1,0 +1,167 @@
+[
+  {
+    "id": "chain-01-senior-backend-remote-with-comp",
+    "extraction_case_id": "case-01-senior-backend-remote-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-02-staff-ml-hybrid-no-comp",
+    "extraction_case_id": "case-02-staff-ml-hybrid-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-03-junior-frontend-onsite",
+    "extraction_case_id": "case-03-junior-frontend-onsite",
+    "group": "short"
+  },
+  {
+    "id": "chain-04-principal-platform-remote-with-comp",
+    "extraction_case_id": "case-04-principal-platform-remote-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-05-mid-data-hybrid-no-comp",
+    "extraction_case_id": "case-05-mid-data-hybrid-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-06-director-eng-remote-with-comp",
+    "extraction_case_id": "case-06-director-eng-remote-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-07-senior-sre-onsite-no-comp",
+    "extraction_case_id": "case-07-senior-sre-onsite-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-08-mid-fullstack-remote-with-comp",
+    "extraction_case_id": "case-08-mid-fullstack-remote-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-09-staff-security-hybrid-with-comp",
+    "extraction_case_id": "case-09-staff-security-hybrid-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-10-junior-data-remote-no-comp",
+    "extraction_case_id": "case-10-junior-data-remote-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-11-senior-mobile-onsite-with-comp",
+    "extraction_case_id": "case-11-senior-mobile-onsite-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-12-mid-devops-hybrid-no-comp",
+    "extraction_case_id": "case-12-mid-devops-hybrid-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-13-principal-data-remote-no-comp",
+    "extraction_case_id": "case-13-principal-data-remote-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-14-senior-eng-manager-hybrid-with-comp",
+    "extraction_case_id": "case-14-senior-eng-manager-hybrid-with-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-15-mid-qa-onsite-no-comp",
+    "extraction_case_id": "case-15-mid-qa-onsite-no-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-16-mid-backend-remote-single-comp-figure",
+    "extraction_case_id": "case-16-mid-backend-remote-single-comp-figure",
+    "group": "short"
+  },
+  {
+    "id": "chain-17-senior-infra-hybrid-competitive-comp",
+    "extraction_case_id": "case-17-senior-infra-hybrid-competitive-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-18-mid-platform-onsite-multi-location",
+    "extraction_case_id": "case-18-mid-platform-onsite-multi-location",
+    "group": "short"
+  },
+  {
+    "id": "chain-19-founding-backend-remote-no-named-skills",
+    "extraction_case_id": "case-19-founding-backend-remote-no-named-skills",
+    "group": "short"
+  },
+  {
+    "id": "chain-20-mid-security-no-remote-policy-stated",
+    "extraction_case_id": "case-20-mid-security-no-remote-policy-stated",
+    "group": "short"
+  },
+  {
+    "id": "chain-21-senior-sre-onsite-international-location",
+    "extraction_case_id": "case-21-senior-sre-onsite-international-location",
+    "group": "short"
+  },
+  {
+    "id": "chain-22-mid-data-hybrid-prose-skills",
+    "extraction_case_id": "case-22-mid-data-hybrid-prose-skills",
+    "group": "short"
+  },
+  {
+    "id": "chain-23-mid-swe-remote-terse-minimal-info",
+    "extraction_case_id": "case-23-mid-swe-remote-terse-minimal-info",
+    "group": "short"
+  },
+  {
+    "id": "chain-24-mid-backend-remote-numeral-level-title",
+    "extraction_case_id": "case-24-mid-backend-remote-numeral-level-title",
+    "group": "short"
+  },
+  {
+    "id": "chain-25-mid-contract-backend-onsite-hourly-comp",
+    "extraction_case_id": "case-25-mid-contract-backend-onsite-hourly-comp",
+    "group": "short"
+  },
+  {
+    "id": "chain-26-em-infra-remote-longform",
+    "extraction_case_id": "case-26-em-infra-remote-longform",
+    "group": "long"
+  },
+  {
+    "id": "chain-27-staff-field-engineer-onsite-longform-no-remote-policy-stated",
+    "extraction_case_id": "case-27-staff-field-engineer-onsite-longform-no-remote-policy-stated",
+    "group": "long"
+  },
+  {
+    "id": "chain-28-senior-data-eng-hybrid-longform-competitive-comp",
+    "extraction_case_id": "case-28-senior-data-eng-hybrid-longform-competitive-comp",
+    "group": "long"
+  },
+  {
+    "id": "chain-29-principal-security-remote-longform-no-comp-stated",
+    "extraction_case_id": "case-29-principal-security-remote-longform-no-comp-stated",
+    "group": "long"
+  },
+  {
+    "id": "chain-30-em-platform-onsite-longform-single-comp-figure",
+    "extraction_case_id": "case-30-em-platform-onsite-longform-single-comp-figure",
+    "group": "long"
+  },
+  {
+    "id": "chain-31-staff-mle-remote-longform-multi-country",
+    "extraction_case_id": "case-31-staff-mle-remote-longform-multi-country",
+    "group": "long"
+  },
+  {
+    "id": "chain-32-senior-backend-hybrid-longform-international-location",
+    "extraction_case_id": "case-32-senior-backend-hybrid-longform-international-location",
+    "group": "long"
+  },
+  {
+    "id": "chain-33-director-eng-remote-longform-no-named-skills",
+    "extraction_case_id": "case-33-director-eng-remote-longform-no-named-skills",
+    "group": "long"
+  }
+]

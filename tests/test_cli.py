@@ -2275,6 +2275,102 @@ def test_eval_composition_replay_is_exclusive_with_record(
     assert result.exit_code == 2
 
 
+# ---- eval extraction_to_scoring (post-v1 item 2) --------------------------------
+
+
+def test_eval_extraction_to_scoring_records_calls_under_its_own_feature_label(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    result = runner.invoke(cli, ["eval", "extraction_to_scoring", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output  # report-only, no pass/fail bar
+    assert "33/33 cases scored" in result.output
+
+    from jscc.mode import Mode
+    from jscc.storage import list_llm_calls, open_for_mode
+
+    conn = open_for_mode(Mode.synthetic, tmp_path)
+    calls = list_llm_calls(conn)
+    conn.close()
+
+    # 33 cases x 2 scoring calls each (gold, recorded), plus 33 extraction
+    # replays -- each a $0 ledger row under extraction_eval, the same feature
+    # `eval jd_extraction --replay` uses, since this suite reuses that replay
+    # rather than a fresh extraction call.
+    assert len(calls) == 99
+    by_feature: dict[str, int] = {}
+    for c in calls:
+        by_feature[c.feature] = by_feature.get(c.feature, 0) + 1
+    assert by_feature == {"scoring_chain_eval": 66, "extraction_eval": 33}
+    assert all(c.cost_usd == 0 for c in calls if c.feature == "extraction_eval")
+
+
+def test_eval_extraction_to_scoring_manual_prompts_for_each_case_and_records_the_pasted_responses(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+
+    recording_path = tmp_path / "extraction_to_scoring_recorded.json"
+    monkeypatch.setattr("jscc.cli.eval_cmds.EXTRACTION_TO_SCORING_RECORDING_PATH", recording_path)
+
+    canned_response = '{"score": 50, "rationale": "manual capture test response."}\nEND\n'
+    result = runner.invoke(
+        cli,
+        ["eval", "extraction_to_scoring", "--manual", "--data-dir", str(tmp_path)],
+        input=canned_response * 66,
+    )
+    assert result.exit_code == 0, result.output
+    assert "MODEL:" in result.output
+    assert "SYSTEM PROMPT" in result.output
+
+    import json
+
+    saved = json.loads(recording_path.read_text(encoding="utf-8"))
+    assert len(saved) == 66  # one prompt hash per (case, gold/recorded) payload
+
+
+def test_eval_extraction_to_scoring_replay_without_recordings_is_a_usage_error(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.EXTRACTION_TO_SCORING_RECORDING_PATH", tmp_path / "missing.json"
+    )
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(
+        cli, ["eval", "extraction_to_scoring", "--replay", "--data-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 2
+    assert "no recordings" in result.output
+
+
+def test_eval_extraction_to_scoring_replay_is_exclusive_with_record(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    result = runner.invoke(cli, ["eval", "extraction_to_scoring", "--replay", "--record"])
+    assert result.exit_code == 2
+
+
+def test_eval_extraction_to_scoring_refuses_when_jd_extraction_has_no_recording(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """This suite chains against jd_extraction's own committed recording, not
+    a fresh extraction call -- if that recording is missing there is nothing
+    to chain, and the command should say so rather than error case-by-case."""
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    monkeypatch.setattr(
+        "jscc.cli.eval_cmds.JD_EXTRACTION_RECORDING_PATH", tmp_path / "missing.json"
+    )
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    result = runner.invoke(cli, ["eval", "extraction_to_scoring", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 2
+    assert "jd_extraction" in result.output
+
+
 def test_real_mode_ingest_without_a_key_refuses_before_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

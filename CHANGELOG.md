@@ -13,6 +13,16 @@ next fold happens whenever a future phase's own gate closes.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## Post-v1 follow-up, item 2: extraction-to-scoring chain suite (2026-09-28)
+
+`jscc-extraction-error-propagation-probe.md` candidate 2: the other three eval suites each grade one LLM stage in isolation, so a real extraction miss never had anywhere to be *seen* — `fit_scoring`'s fixtures embed a hand-authored `extracted_jd` per case, not the extractor's actual output. A new suite, `evals/extraction_to_scoring`, closes that gap for the one route the probe found well-insulated but never measured end to end: 33 cases (one per `jd_extraction` short/long case; hostile cases stay out of scope, deferred to candidate 4) each score both the gold extraction and `jd_extraction`'s already-recorded real extraction against the same profile and raw text, and report the gap.
+
+Two scoping decisions, talked through before building: hostile/hostile_held_out cases excluded (chaining an injection through scoring is a different question than this suite answers), and deliberately no pass/fail gate — the probe's own goal was "turn this into a measured, replayable number," not a fifth CI bar, and a delta threshold picked before any real round exists would be invented to have a number. `python -m jscc eval extraction_to_scoring` reports a delta distribution instead; a band-crossing gate is the natural next step once a real capture round gives it something to calibrate against.
+
+`jscc/evals.py` gained `ExtractionToScoringEvalCase`/`ExtractionToScoringCaseResult`/`ExtractionToScoringSummary`, `run_extraction_to_scoring_evals` (takes both an `extract_fn` and a `score_fn`, keeping the same decoupled-from-the-stage-modules shape every other suite's runner has), and `format_extraction_to_scoring_summary`. `jscc/scoring.py` gained its own ledger feature, `scoring_chain_eval`, separate from `scoring` and `scoring_eval`. The CLI's `--record`/`--replay`/`--manual` govern the scoring half only; the extraction half always replays `jd_extraction`'s own committed recording rather than a fresh call, since this suite measures what a captured round already produced.
+
+Status: harness built and tested, no capture round yet (against the unconfigured stub scorer, gold and recorded both score 0, so every delta is 0 — the harness working, not a finding). `evals/extraction_to_scoring/recorded.json` doesn't exist until a real `--record`/`--manual` round runs. 11 new tests across `tests/test_evals.py` and `tests/test_cli.py`. 787 tests, ruff and format clean.
+
 ## Post-v1 follow-up, item 1: title/company confirmation on ingest (2026-09-28)
 
 Extraction-error-propagation planning (`jscc-extraction-error-propagation-probe.md`) named composition's un-insulated route as the priority follow-up: `Application.title`/`company` reach the composer with no raw text alongside them, unlike scoring, so a wrong extracted title or company was trusted as fact with nothing to check it against. Option B (blocking confirmation) was chosen over a silent flag (the exact anti-pattern `docs/lessons-learned.md` lesson 1 names) and over reusing the DLQ (a fetch-failure queue, not a shape for "extraction ran fine, confirm one field").

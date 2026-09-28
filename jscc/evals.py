@@ -19,7 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .config import Profile
+from .config import Profile, load_profile
 from .llm_client import STUB_CLIENTS, LLMResponse
 from .models import Application, DraftEmail, ExtractedJD, FitResult, Interaction, RoutingDecision
 from .paths import PACKAGE_ROOT
@@ -33,6 +33,11 @@ ROUTING_CASES_PATH = PACKAGE_ROOT / "evals" / "routing" / "cases.json"
 ROUTING_RECORDING_PATH = PACKAGE_ROOT / "evals" / "routing" / "recorded.json"
 COMPOSITION_CASES_PATH = PACKAGE_ROOT / "evals" / "composition" / "cases.json"
 COMPOSITION_RECORDING_PATH = PACKAGE_ROOT / "evals" / "composition" / "recorded.json"
+EXTRACTION_TO_SCORING_CASES_PATH = PACKAGE_ROOT / "evals" / "extraction_to_scoring" / "cases.json"
+EXTRACTION_TO_SCORING_RECORDING_PATH = (
+    PACKAGE_ROOT / "evals" / "extraction_to_scoring" / "recorded.json"
+)
+PROFILE_EXAMPLE_PATH = PACKAGE_ROOT / "config" / "profile.example.yaml"
 
 # Routing is held to a higher combined bar (85%, not the 80% PASS_THRESHOLD
 # jd_extraction/fit_scoring use) *and* a separate zero-tolerance bar on
@@ -1045,3 +1050,169 @@ def composition_gate(summary: EvalSummary, min_pass_rate: float) -> list[str]:
             f"detail, an automatic fail regardless of the pass rate: {', '.join(invented)}"
         )
     return failures
+
+
+# --- extraction_to_scoring ----------------------------------------------------
+#
+# Candidate 2 of jscc-extraction-error-propagation-probe.md (2026-09-24): the
+# other three suites each grade one stage in isolation, so a wrong extraction
+# never has anywhere to be seen -- `fit_scoring`'s fixtures embed a
+# hand-authored `extracted_jd` per case, not the extractor's actual output.
+# This suite closes that gap for the one route the probe found un-insulated
+# (composition trusts extracted title/company with no raw text alongside it;
+# scoring is handed both). For each of the 33 `jd_extraction` short/long
+# cases (hostile and hostile_held_out are out of scope -- chaining an
+# injection attempt through scoring is candidate 4's question, not this
+# one), it scores the *gold* extraction (`jd_extraction`'s own `expected`
+# dict) and the *recorded* extraction (`jd_extraction`'s already-committed
+# recording, replayed -- never re-run live) against the same profile and
+# raw text, and reports how far the two scores land from each other.
+#
+# Deliberately no pass/fail gate. The probe's own goal was "turn this into a
+# measured, replayable number," not a fifth CI bar, and a delta or
+# band-crossing threshold picked before any real round exists would be a
+# number invented to have a number, the same overfit risk the composition
+# grader's own threshold recalibrations were careful to name explicitly (see
+# `evals/README.md`, "Recalibrating a validation check's own thresholds").
+# `format_extraction_to_scoring_summary` reports the distribution; a gate can
+# be added once a captured round gives it something real to calibrate
+# against.
+
+
+class ExtractionToScoringEvalCase(BaseModel):
+    id: str
+    # Points at a case id in JD_EXTRACTION_CASES_PATH. The raw JD text, gold
+    # extraction, and recorded extraction are all looked up from there at
+    # eval time rather than copied in -- one source of truth per fixture.
+    extraction_case_id: str
+    # Mirrors the referenced jd_extraction case's own group ("short"/"long").
+    group: str = "short"
+
+
+def load_extraction_to_scoring_cases(
+    path: Path = EXTRACTION_TO_SCORING_CASES_PATH,
+) -> list[ExtractionToScoringEvalCase]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [ExtractionToScoringEvalCase(**item) for item in raw]
+
+
+class ExtractionToScoringCaseResult(BaseModel):
+    case_id: str
+    group: str = "short"
+    gold_score: float | None = None
+    recorded_score: float | None = None
+    # recorded_score - gold_score. Positive means the real extraction scored
+    # the posting more favorably than a perfect extraction would have.
+    delta: float | None = None
+    error: str | None = None
+
+
+class ExtractionToScoringSummary(BaseModel):
+    total: int
+    results: list[ExtractionToScoringCaseResult]
+
+    @property
+    def scored(self) -> list[ExtractionToScoringCaseResult]:
+        return [r for r in self.results if r.error is None]
+
+    @property
+    def errored(self) -> list[ExtractionToScoringCaseResult]:
+        return [r for r in self.results if r.error is not None]
+
+    @property
+    def mean_abs_delta(self) -> float | None:
+        deltas = [abs(r.delta) for r in self.scored if r.delta is not None]
+        return sum(deltas) / len(deltas) if deltas else None
+
+    @property
+    def max_abs_delta(self) -> float | None:
+        deltas = [abs(r.delta) for r in self.scored if r.delta is not None]
+        return max(deltas) if deltas else None
+
+
+def _gold_extracted_jd(expected: dict[str, Any]) -> ExtractedJD:
+    """Build a gold `ExtractedJD` from a `jd_extraction` case's `expected`
+    dict. `must_have_skills` entries there may themselves be a list of
+    accepted-wording alternatives (see evals/README.md, "Expected skills
+    accept the posting's own wording") -- a grading convenience, not a valid
+    `ExtractedJD` shape, so each alternative-group is collapsed to its first
+    entry, the canonical wording the fixture was written against."""
+    skills = expected.get("must_have_skills", [])
+    flattened = [s[0] if isinstance(s, list) else s for s in skills]
+    return ExtractedJD(**{**expected, "must_have_skills": flattened})
+
+
+def run_extraction_to_scoring_evals(
+    extract_fn: Callable[[str], ExtractedJD],
+    score_fn: Callable[[ExtractedJD, str, Profile], FitResult],
+    *,
+    cases_path: Path = EXTRACTION_TO_SCORING_CASES_PATH,
+    extraction_cases_path: Path = JD_EXTRACTION_CASES_PATH,
+    profile_path: Path = PROFILE_EXAMPLE_PATH,
+) -> ExtractionToScoringSummary:
+    """Score each case's gold and recorded extraction against one shared
+    profile (`profile_path`, the public example profile every `fit_scoring`
+    core case shares) and report the gap between the two scores.
+
+    `extract_fn` is expected to replay `jd_extraction`'s own committed
+    recording (a fresh live extraction is a different, unrelated question
+    from the one this suite measures); `score_fn` is this suite's own
+    record/replay/manual client, wired by the CLI the same way
+    `run_fit_scoring_evals`'s `score_fn` is.
+    """
+    extraction_cases = {c.id: c for c in load_cases(extraction_cases_path)}
+    profile = load_profile(profile_path)
+
+    results: list[ExtractionToScoringCaseResult] = []
+    for case in load_extraction_to_scoring_cases(cases_path):
+        base = extraction_cases.get(case.extraction_case_id)
+        if base is None:
+            results.append(
+                ExtractionToScoringCaseResult(
+                    case_id=case.id,
+                    group=case.group,
+                    error=f"unknown jd_extraction case id {case.extraction_case_id!r}",
+                )
+            )
+            continue
+        try:
+            gold = _gold_extracted_jd(base.expected)
+            recorded = extract_fn(base.raw_jd)
+            gold_result = score_fn(gold, base.raw_jd, profile)
+            recorded_result = score_fn(recorded, base.raw_jd, profile)
+        except (SanitizerRefusal, LLMSendError):
+            raise
+        except Exception as e:  # RecordingMissing, malformed fixtures, scorer stub errors, etc.
+            results.append(
+                ExtractionToScoringCaseResult(case_id=case.id, group=case.group, error=str(e))
+            )
+            continue
+        results.append(
+            ExtractionToScoringCaseResult(
+                case_id=case.id,
+                group=case.group,
+                gold_score=gold_result.score,
+                recorded_score=recorded_result.score,
+                delta=recorded_result.score - gold_result.score,
+            )
+        )
+    return ExtractionToScoringSummary(total=len(results), results=results)
+
+
+def format_extraction_to_scoring_summary(summary: ExtractionToScoringSummary) -> str:
+    lines = [f"{len(summary.scored)}/{summary.total} cases scored"]
+    if summary.errored:
+        lines.append(f"{len(summary.errored)} case(s) errored (see below)")
+    if summary.mean_abs_delta is not None:
+        lines.append(f"mean |delta| {summary.mean_abs_delta:.1f} points")
+        lines.append(f"max |delta| {summary.max_abs_delta:.1f} points")
+    lines.append("")
+    for result in summary.results:
+        if result.error:
+            lines.append(f"  [ERROR] {result.case_id}: {result.error}")
+            continue
+        lines.append(
+            f"  {result.case_id}: gold={result.gold_score:.0f} "
+            f"recorded={result.recorded_score:.0f} delta={result.delta:+.1f}"
+        )
+    return "\n".join(lines)
