@@ -4,26 +4,41 @@
 
 A pipeline tracker for a real job search. Today it fetches and ingests job descriptions through an eval-backed LLM extraction stage, scores fit against a profile through a second eval-backed LLM stage, stores them, and surfaces stale opportunities. A follow-up drafter first routes each case as routine or non-routine, drafts only the routine ones, and hands everything else to a person as a briefing card. Both drafter prompts have been checked against real model output; how far that evidence goes is in [Status](#status).
 
-Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) shipped as planned — E1 (scaffold), E2a (funnel, pipeline, stale-alert views), and E2b (application detail + DLQ resolve) — and its gate closed 2026-09-24. Phase F (narrative: this README, a video walkthrough, a blog post, lessons learned) closed 2026-09-27 — the last phase in the original plan. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
+Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. **Phase F (narrative) closed 2026-09-27** — the last phase in the original plan, so this is functionally v1. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc, and [docs/technical-reference.md](docs/technical-reference.md#status) for the phase-by-phase detail.
+
+## Contents
+
+- [Start here](#start-here-six-things-worth-reading-first)
+- [Why this project](#why-this-project)
+- [Quick start](#quick-start)
+- [Running the dashboard](#running-the-dashboard)
+- [Sample output](#sample-output)
+- [Sample drafter output](#sample-drafter-output)
+- [Architecture](#architecture)
+- [ADRs](#adrs)
+- [Status](#status)
+- [License](#license)
+
+Two companion docs go deeper than this README does: [docs/how-i-built-this.md](docs/how-i-built-this.md) (the narrative — why it's shaped this way, what the eval rounds showed, what building it with an AI agent looked like) and [docs/technical-reference.md](docs/technical-reference.md) (architecture diagram, repo layout, development commands, full phase-by-phase status).
 
 ## Start here: six things worth reading first
 
 If you have ten minutes, these are the parts of the repo that show the most, in the order I'd read them. Each links to the code or the write-up, not just a claim.
 
-1. **Eval results reported with the rounds that produced them.** Extraction scored 56%, 75% and 89% as its prompt and suite changed (33 to 36 cases), then 87% (33/38) once two T5 coverage-expansion cases — held-out from prompt tuning — were captured and added. The 87% is one round on a prompt debugged against the other 36 cases, so it is not a held-out rate; only the older 33-case suite gives a real band (76% to 82% with its prompt held fixed). The case count is sized against the statistical noise it leaves, and the reasoning is written down. → [evals/README.md](evals/README.md) (case sizing and per-field grading rules), [`jscc/evals.py`](jscc/evals.py) (the harness, `PASS_THRESHOLD` in code).
+1. **Eval results reported with the rounds that produced them.** Extraction, scoring, routing and composition each ship behind an eval suite whose bar lives in code, with every round — including the ones that failed — on the record. → [evals/README.md](evals/README.md) (every round, case sizing, per-field grading rules), [`jscc/evals.py`](jscc/evals.py) (the harness, `PASS_THRESHOLD` in code).
 2. **A gate finding that overturned an earlier call.** A later review found a DNS-rebinding path in the URL fetcher that an earlier review had rated low-risk and closed with a note. It was fixed in code by pinning each request to the addresses already validated. → [`jscc/fetcher.py`](jscc/fetcher.py) (`_pinned_resolution`), and the "Phase C -> D gate" entry in [CHANGELOG.md](CHANGELOG.md). The process behind it, six worked findings and where it falls short: [docs/gate-reviews.md](docs/gate-reviews.md).
-3. **Safety by construction, not discipline.** One definition of "personal data" enforced at two egress points, git and every LLM call, with authenticated payloads and a single call path to the model so no caller can skip redaction. → [`jscc/personal_data.py`](jscc/personal_data.py), [`jscc/sanitizer.py`](jscc/sanitizer.py), [`jscc/stage_call.py`](jscc/stage_call.py), [ADR-005](decisions/005-sanitizer-authenticity.md), [D7 and D8](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary). The one-page [threat model](docs/threat-model.md) lists thirteen threats with the control, the residual and an honest status for each, including the ones still open.
+3. **Safety by construction, not discipline.** One definition of "personal data" enforced at two egress points, git and every LLM call, with authenticated payloads and a single call path to the model so no caller can skip redaction. → [`jscc/personal_data.py`](jscc/personal_data.py), [`jscc/sanitizer.py`](jscc/sanitizer.py), [`jscc/stage_call.py`](jscc/stage_call.py), [ADR-005](decisions/005-sanitizer-authenticity.md), [D7 and D8](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary). The one-page [threat model](docs/threat-model.md) lists eighteen threats with the control, the residual and an honest status for each, including the ones still open.
 4. **Decisions with the rejected alternatives written down.** Seven ADRs and ten design principles, including what was dropped (RAG in the drafter, a hosted demo, a multi-agent orchestrator) and why. → [decisions/](decisions/), [docs/design-principles.md](docs/design-principles.md).
-5. **Cost and time reported with their limits.** LLM calls are metered at the call site and `jscc costs` reports them; no real dollar figures exist yet, and the [Cost envelope](#status) says so. A separate script estimates active working time from commit timestamps and prints its own biases next to the number. → [`jscc/instrumentation.py`](jscc/instrumentation.py), [`jscc/cost_report.py`](jscc/cost_report.py), [`scripts/active_time.py`](scripts/active_time.py).
-6. **The process of building this with an AI agent, not just the artifact.** 100+ slices across six phases, each with its own plan/execute/validate cycle and a context-compaction handoff at every slice boundary. It also includes a correction made in the open: an in-the-moment impression that gate and hardening work was "the other 80%" of the effort didn't survive being checked against commit timestamps — the real split was closer to 48/52. → [docs/lessons-learned.md](docs/lessons-learned.md), [`scripts/active_time.py`](scripts/active_time.py).
+5. **Cost and time reported with their limits.** LLM calls are metered at the call site and `jscc costs` reports them; no real dollar figures exist yet, and the [Cost envelope](docs/technical-reference.md#status) says so. A separate script estimates active working time from commit timestamps and prints its own biases next to the number. → [`jscc/instrumentation.py`](jscc/instrumentation.py), [`jscc/cost_report.py`](jscc/cost_report.py), [`scripts/active_time.py`](scripts/active_time.py).
+6. **The process of building this with an AI agent, not just the artifact.** 100+ slices across six phases, each with its own plan/execute/validate cycle and a context-compaction handoff at every slice boundary. It also includes a correction made in the open: an in-the-moment impression that gate and hardening work was "the other 80%" of the effort didn't survive being checked against commit timestamps — the real split was closer to 48/52. → [docs/how-i-built-this.md](docs/how-i-built-this.md), [docs/lessons-learned.md](docs/lessons-learned.md), [`scripts/active_time.py`](scripts/active_time.py).
 
 ## Why this project
 
-Three ideas being demonstrated at once:
+Three ideas being demonstrated at once — the full story, including what the eval rounds actually showed, is in [docs/how-i-built-this.md](docs/how-i-built-this.md):
 
-1. **Eval-driven agent design.** Every LLM stage ships behind an eval suite whose bar lives in code, not in prose: 80% for extraction and scoring, 85% for routing, 75% for composition. Routing and composition also have zero-tolerance gates: a situation that needed a person must never be drafted, and neither may a reply that needs a detail nobody recorded. No `ANTHROPIC_API_KEY` is configured for this project, so each prompt was checked by hand: completions captured from real model output and replayed through the harness's `--record`/`--replay` fixtures. Cheap proxy runs (a subagent standing in for a real chat) decided whether a real capture round was worth spending, but their output never entered a recorded fixture — the routing suite's proxy runs scored 26/26 on a wording that then scored 23/26 on the next real round, on exactly the kind of case the proxies had passed. Extraction landed at 32/36 (89%) on its latest round after two failed rounds on the same 36 cases (56%, 75%); the final prompt was debugged against those same fixtures, so this is not a held-out rate. Two T5 coverage-expansion cases (held-out from that tuning) were captured 2026-09-28: one passed cleanly (a Cyrillic-homoglyph override, resisted), one failed on format rather than content (an HR-compliance-authority framing — the model correctly ignored the injected comp figure but wrapped its JSON reply in explanatory prose, which the parser deliberately does not hunt JSON out of). Combined: 33/38 (87%). Fit scoring first scored 84% (21/25), then 64% on a recapture of a wider suite that exposed rubric gaps; after the prompt and nine score ranges were changed it scored 27/28 in each of two rounds, so that figure is tuned, not held out. Its own two T5 coverage-expansion cases (a roleplay jailbreak, an ethics-laundered override) both passed clean: 29/30. Composition landed at 25/28 (89%) on a prompt rewritten to fix invented weekdays and relative dates, clearing its 75% bar, with a deterministic grader that does not judge tone; the new prompt scored zero misses on either check across the round (against the fixed list of weekday and relative-date phrases the checks know — not every phrasing, see [evals/README.md](evals/README.md) for the gap). Most of that round's raw misses were a single sample sentence echoed verbatim in an otherwise original, case-specific reply; the `style_reuse` check was recalibrated to fail only when copied text makes up more than 30% of the body (below 20% passes clean, 20-30% is advisory), since a full-body template is a real defect but one closing line lifted from a two- or three-line style sample is not. The body-length floor was also lowered from 30 to 25 words after two misses landed short; whether that's independently-thin content or a side effect of the same prompt fix shrinking replies generally is disclosed as an open question, not settled (see evals/README.md's round detail). Routing reached 26/26 on its fifth round, but the prompt was tuned against those same 26 cases after rounds 1, 2 and 4 each failed on a different case. It was then recaptured on 38 cases, adding 10 held-out cases written without seeing the prompt and 2 hostile ones: 37/38 (core 25/26, held-out 10/10, hostile 2/2). The model alone missed one hostile case, a posting excerpt that told it to answer routine, and a code check now overturns a routine answer when a note is addressed to the classifier; with the check off the recordings replay to 36/38. A T5 coverage-expansion case (soft-steering language worded specifically to avoid the code check's trigger words) was captured 2026-09-28 and passed — classified correctly even without the code check: 38/39 (guard off, 37/39). The 10/10 held-out figure has n=10, so it is not a measured rate either. CI replays every recording and fails if a published number changes. That catches a grader or prompt change, but it cannot judge a prompt against new input without a live model. The extract / score split ([D9](docs/design-principles.md#d9--llm-stages-are-split-extract--score-scorer-sees-raw-jd-too)) exists so extraction facts and scoring judgment can regress independently.
-2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, and two egress points that share one definition of "personal": a pre-commit scanner guarding git, and an authenticated, redacting sanitizer guarding every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)). Redaction is unconditional and runs *before* the payload is authenticated, so no caller can opt out of it — including the ones that forget to. The guarantee's scope is stated narrowly and honestly in D8: structured identifiers and known names, not free-text NER.
-3. **Knowing when not to automate.** The drafter routes anything non-routine to a briefing card rather than a prose draft ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)). Deciding where automation stops is the design work, and it is built: a routing classifier with a zero-tolerance gate on the one failure that matters (auto-drafting something that needed a human), a rule that sends any reply needing an unrecorded fact to a person, and a composer that can decline for the same reason. The drafter never sends anything; its output is a draft or a card for a person to act on.
+1. **Eval-driven agent design.** Every LLM stage ships behind an eval suite whose bar lives in code, not in prose. No `ANTHROPIC_API_KEY` is configured for this project, so each prompt was checked by hand — completions captured from real model output and replayed through the harness's `--record`/`--replay` fixtures. Current published figures: extraction 33/38 (87%), fit scoring 29/30 (97%), routing 38/39 (97%), composition 25/28 (89%) — none of them a held-out rate. Full detail: [evals/README.md](evals/README.md).
+2. **Structural safety for dual-use data.** The tool runs against real personal data and against a synthetic fixture. Safety is enforced by construction, not by user discipline — two isolated DBs stamped with a mode marker, and two egress points that share one definition of "personal": a pre-commit scanner guarding git, and an authenticated, redacting sanitizer guarding every LLM call ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary), [D8](docs/design-principles.md#d8--hard-line-on-personal-identity-in-llm-traffic)).
+3. **Knowing when not to automate.** The drafter routes anything non-routine to a briefing card rather than a prose draft ([D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)) — a routing classifier with a zero-tolerance gate on the one failure that matters (auto-drafting something that needed a human), a rule that sends any reply needing an unrecorded fact to a person, and a composer that can decline for the same reason. The drafter never sends anything; its output is a draft or a card for a person to act on.
 
 ## Quick start
 
@@ -41,8 +56,6 @@ Default mode is `synthetic`. Switch by env: `JSCC_DATA=real`. Neither DB is trac
 
 The dashboard (`jscc/web/`, ADR-007) is the same read/write logic as the CLI, rendered over HTTP. Same mode rules as everything else: the `JSCC_DATA` env var picks synthetic vs. real, and the SYNTHETIC MODE banner in the page header tells you which one you're looking at.
 
-**Demo / local review, against the synthetic fixture:**
-
 ```bash
 uv sync
 uv run jscc db init
@@ -50,16 +63,7 @@ uv run jscc seed --random-seed 42
 uv run jscc serve --port 8000
 ```
 
-Then open http://127.0.0.1:8000. No `ANTHROPIC_API_KEY` is required for browsing. Submitting the DLQ resolve form (`/dlq/{id}/resolve`) runs an extraction call: with no key it uses a placeholder extractor in synthetic mode (fine for the demo) and refuses in real mode rather than save a made-up application.
-
-**Production, against real data:**
-
-```bash
-JSCC_DATA=real uv run jscc db init      # first run only
-JSCC_DATA=real uv run jscc serve --host 127.0.0.1 --port 8000
-```
-
-`serve` binds to `127.0.0.1` by default, not `0.0.0.0` — it's a personal tool over real job-search data, not a service meant to be reachable from other hosts. There's no auth layer, so don't widen the bind address on a shared or exposed machine. The server also refuses any request whose `Host` header is not a loopback name or the address you bound (a DNS-rebinding guard) and any cross-origin POST; see threat T13 in [docs/threat-model.md](docs/threat-model.md). `--data-dir` and `--config-dir` are also available if you're pointing at a non-default location (see `uv run jscc serve --help`).
+Then open http://127.0.0.1:8000. No `ANTHROPIC_API_KEY` is required for browsing. Running it against real data, the bind-address and request-guard details, and what the DLQ resolve form does without a key are in [docs/technical-reference.md](docs/technical-reference.md#running-the-dashboard-in-production).
 
 ## Sample output
 
@@ -134,84 +138,7 @@ Application: app-26
 
 ## Architecture
 
-Every LLM stage — extraction, scoring, routing, composition — reaches the model through one path: `stage_call.py`. That's deliberate ([D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary)) — no caller can skip the sanitizer, and no caller can duck the cost meter.
-
-```mermaid
-flowchart TB
-    CLI["CLI (jscc ingest / score / route / followup)"]
-    Dash["Dashboard (jscc serve)"]
-
-    CLI --> Ingest["ingest_logic.py"]
-    Dash --> Ingest
-    Ingest --> Extract["extraction.py"]
-    CLI --> Score["scoring.py"]
-    CLI --> Route["routing.py"]
-    CLI --> Compose["composition.py"]
-
-    subgraph gate["stage_call.py — the one path to a model"]
-        direction LR
-        Sanitize["sanitizer.py"] --> Verify["HMAC verify"] --> Meter["instrumentation.py\n@instrumented"] --> Client["llm_client.py\n(Anthropic or stub)"]
-    end
-
-    Extract --> gate
-    Score --> gate
-    Route --> gate
-    Compose --> gate
-
-    Extract --> Storage[("storage.py\nSQLite, mode-stamped")]
-    Score --> Storage
-    Route --> Storage
-    Ingest --> Storage
-    Storage --> Report["report.py\nfunnel + staleness"]
-    Report --> CLI
-    Report --> Dash
-
-    PD["personal_data.py\none definition of 'personal'"] --> Sanitize
-    PD --> Scanner["scripts/scan_tracked.sh\npre-commit"]
-    Commit["git commit"] --> Scanner
-```
-
-Two egress points, one shared definition of "personal": the sanitizer guards every call to a model, and the pre-commit scanner guards every commit, both reading `personal_data.py` rather than keeping their own rules. The mode-stamped storage layer (synthetic vs. real) is the third structural guard — [ADR-003](decisions/003-mode-isolation.md).
-
-## Repo layout
-
-```
-jscc/           library code
-  config.py     load + validate stages.yaml, profile.yaml
-  mode.py       synthetic/real mode resolution + DB path convention
-  storage.py    SQLite persistence with stamped mode marker
-  models.py     pydantic domain models (Application, Contact, Interaction, ...)
-  seed.py       deterministic synthetic fixture (evaluation infrastructure)
-  sanitizer.py  the LLM-egress choke point; redacts, then HMAC-wraps
-  personal_data.py  one definition of "personal" — shared by the scanner + sanitizer
-  json_utils.py one definition of the JSON serialization fallback — shared by storage + sanitizer
-  paths.py      one definition of where this installation's files live (package-anchored, never cwd)
-  instrumentation.py  @instrumented — cost/latency/token capture on every LLM call
-  extraction.py the extract_jd interface (D9 step 1) + JD extraction prompt
-  llm_client.py Anthropic client + one stub client per stage (no key is configured)
-  evals.py      hand-rolled eval harness (jd_extraction, fit_scoring, routing, composition)
-  fetcher.py    guarded requests + readability JD fetcher; optional Playwright fallback for JS-heavy pages
-  scoring.py    the score_fit interface (D9 step 2) + fit-scoring prompt
-  routing.py    the route_followup interface (D10 step 1) + routing prompt
-  composition.py  compose_followup, the composition prompt (D10 step 2A)
-  followup.py   briefing renderer (D10 step 2B) + the top-level followup() orchestrator
-  report.py     staleness detector + funnel counts + pipeline grouping (group_by_stage)
-  ingest_logic.py  shared extract-then-store path (extract_and_create_application) for ingest and DLQ resolution
-  dlq.py        DLQ resolution (resolve_dlq_entry_via_paste), shared by resolve-dlq and the dashboard's resolve form
-  stage_call.py the one path from an LLM stage to the model client: sanitize, verify, meter, call
-  terminal.py   strips control characters from everything a command prints
-  cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
-                ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
-  web/          FastAPI + Jinja2 dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (752 tests)
-config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
-evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
-scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
-decisions/      ADRs (see below)
-docs/           design-principles.md; threat-model.md; gate-reviews.md; lessons-learned.md
-.github/        CI workflow
-data/           synthetic.db, real.db -- both gitignored; seed regenerates the synthetic one
-```
+Every LLM stage reaches the model through one path (`stage_call.py`), so no caller can skip the sanitizer or duck the cost meter — deliberate, per [D7](docs/design-principles.md#d7--dual-use-data-safety-structural-not-disciplinary). Storage is a mode-stamped SQLite layer shared by the CLI and the dashboard, so the two surfaces can't disagree on what's stale. Full diagram and module-by-module detail: [docs/technical-reference.md](docs/technical-reference.md#architecture).
 
 ## ADRs
 
@@ -227,49 +154,14 @@ Design decisions with rejected alternatives:
 
 The ten locked design principles behind them are in [docs/design-principles.md](docs/design-principles.md).
 
-What building it taught me, as a running set of lessons with what worked and what each would mean for a team: [docs/lessons-learned.md](docs/lessons-learned.md). It is an early draft and still being edited.
-
-## Development
-
-```bash
-uv sync
-uv run pytest              # ~seconds
-uv run ruff check .        # lint
-uv run ruff format --check .  # formatting
-uv run python -m jscc eval jd_extraction --replay   # eval suite, no API key
-uv run pre-commit install  # enable the safety scanner + ruff hooks
-uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
-```
-
-The pre-commit scanner refuses commits that match email/phone patterns, an Anthropic API key, or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
-
-Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the same pre-commit hooks and CI job as the content scanner. `E501` (line length) is deliberately off — this codebase's design-rationale comments and docstrings are long-form prose by design, and wrapping them at a fixed column would be churn against an established writing style, not a real improvement.
-
 ## Status
 
-**Read [CHANGELOG.md](CHANGELOG.md) for the arc.** This section is the current state only.
+**Read [CHANGELOG.md](CHANGELOG.md) for the arc, [docs/technical-reference.md](docs/technical-reference.md#status) for the phase-by-phase table, gates, and cost envelope.** Current headline numbers:
 
-| | Shipped | Next |
-|---|---|---|
-| **Phase A — foundations** | Config, storage with a stamped mode marker, the sanitizer choke point, the pre-commit scanner, 5 ADRs. Closed after three gate rounds. | — |
-| **Phase B — ingestion + extraction** | Extraction eval suite and prompt, fetcher with a Playwright fallback and a dead-letter queue, a paste-only path, a three-value exit contract, a ruff lint/format gate. Gate closed. | — |
-| **Phase C — fit scoring** | Fit-scoring eval suite, prompt and call path, `--manual` capture, and `jscc costs` (per-feature cost and latency, and a check that flags a recorded cost that no longer matches its model's published rate). Gate closed. | — |
-| **Phase D — follow-up drafter** | Routing (suite, prompt, `route`), composition (suite, prompt, a deterministic grader, a `needs_input` escape so the composer can decline instead of inventing a fact), the briefing renderer and `followup`. Gate closed 2026-09-20. | — |
-| **Phase E — dashboard** | `jscc serve`: funnel, pipeline and stale-alert views built on the same `report.py` functions `jscc report` uses (so the two cannot disagree on what is stale), application detail, a DLQ list, and a DLQ resolve form that calls the same function as `resolve-dlq`, the one write path. Gate closed 2026-09-24: adversarial highs fixed (dashboard request guards, a duplicate-resolve race, an internationalized-hostname gap in the DNS pin) and the walkthrough lens's doc and test fixes landed. | — |
-| **Phase F — narrative** | **Closed 2026-09-27** — the last phase in the original plan, so this is functionally v1. F1 (this README), F2 prep ([docs/video-script.md](docs/video-script.md) + redacted demo fixtures), F3a (a blog outline, kept as a private planning doc rather than a repo file), and F4 ([docs/lessons-learned.md](docs/lessons-learned.md)) all shipped. A same-day full-project gate (first whole-repo pass, not phase-scoped) found and fixed one High: a prefix-collision bug that silently defeated contact-name redaction. | F2's actual recording and F3b's blog revision/publish are open, deliberately decoupled from phase bookkeeping — standing personal-cadence items, not unfinished Phase F work. |
-
-**Eval status.** Current numbers, every round that produced them, and the threats to validity are in [evals/README.md](evals/README.md). None of these is a held-out rate.
-- **Extraction: 33/38 (87%)**, one round on the current prompt, after 56% and 75% on earlier wording. The prompt was debugged against these same 36 cases. Only the older 33-case suite gives a band (76% to 82% across rounds with its prompt held fixed). Includes 2 T5 coverage-expansion cases (held-out from tuning) captured 2026-09-28: one passed, one failed on format — see [docs/threat-model.md](docs/threat-model.md) T5.
-- **Fit scoring: 29/30**, on a revised prompt, after 84% and then 64% on earlier captures. The prompt and nine score ranges were changed after the 64%. Includes 2 T5 coverage-expansion cases captured 2026-09-28, both passed.
-- **Routing: 38/39 (97%)** on round 6b plus a 2026-09-28 T5 coverage-expansion capture: core 25/26 (tuned on), held-out 10/10 (n=10, not tuned on), hostile 2/2, hostile_held_out 1/1. Three of the five earlier rounds, and both rounds on the widened suite, failed the zero-false-routine gate, each on a different case. The router model alone scored 37/39 with one false-routine, on an injected posting excerpt; a code check overturns it, and a test pins both figures. Round 4 is also why a proxy run never signs off a round.
-- **Composition: 25/28 (89%) on the prompt fixed for invented dates**, above the 75% bar, not a held-out rate (both the prompt and the grader were tuned against these same 28 cases). The grader is deterministic and does not judge tone, so a pass means no mechanical defect, not a good email. Round 1 (24/28) was re-graded to 20/28 after the grader gained checks for invented weekdays and relative dates (a defect first spotted by eye on 3 of the 28 completions; the added check found 5). The prompt was then told explicitly that it is never given today's date; a fresh round on that prompt has zero misses on either check (a fixed list of phrases, not every phrasing — see evals/README.md), but landed at 19/28 on a different defect mix: `style_reuse` misses on 6 cases (including one, `interview-availability-confirm`, that also missed in round 1), 2 short `body_length` misses, and one case that escalated to `needs_input` when it should have drafted. Two grader recalibrations followed: `style_reuse` now judges reused share of the body rather than any single verbatim match, and the `body_length` floor dropped from 30 to 25 words. Neither changed a recording, only the grading of it. All 3 decline cases that should escalate still do; the one wrong-escalation case remains open, unrelated to either recalibration.
-- No `ANTHROPIC_API_KEY` is configured, so each prompt was checked with completions captured by hand in Claude.ai chat and replayed through the harness. Stages run against stub clients by default, and real mode refuses to extract with one. CI replays the recordings and pins the published numbers, which catches a grader or prompt change but cannot judge new input.
-
-**Gates.** Each phase closed with two cold reviews: one adversarial, one reading the repo as an outside reviewer would. They have produced the changes worth knowing about: a DNS-rebinding path in the fetcher that an earlier review had rated low-risk, contact-name redaction that the docs described and no caller performed, a schema bump that stamped older databases without migrating them, and at the Phase E gate a duplicate-resolve race and an internationalized-hostname gap in the DNS pin, both of which contradicted earlier "fixed" entries. How the gates run, with worked findings: [docs/gate-reviews.md](docs/gate-reviews.md).
-
-**Cost envelope.** No real dollar figures exist yet: every model call so far ran against a stub client or was captured by hand through Claude.ai chat, never a billed `AnthropicClient` request, since this project is not using the Anthropic Console. What does exist: every call path is instrumented (D5), the ledger and `jscc costs` are built and tested against synthetic call records, and a call that fails mid-request leaves a marked row instead of vanishing. The honest claim today is "the cost-transparency machinery is built and correct", not "here is what this costs to run"; that waits on a live key.
-
-752 pytest cases. Lint and format enforced via ruff (see Development, above).
+- **Eval pass rates:** extraction 33/38 (87%), fit scoring 29/30 (97%), routing 38/39 (97%), composition 25/28 (89%). None is a held-out rate — every round, miss, and threat to validity is in [evals/README.md](evals/README.md).
+- **752 pytest cases.** Lint and format enforced via ruff.
+- **No real dollar figures yet** — no `ANTHROPIC_API_KEY` is configured, so every model call so far ran against a stub client or was captured by hand through Claude.ai chat. The cost-transparency machinery (D5) is built and tested; what it reports on real billing waits on a live key.
+- **Every phase gate-closed**, most recently Phase F (narrative) on 2026-09-27, including a same-day full-project gate that found and fixed one High (a prefix-collision bug that silently defeated contact-name redaction). Two open, deliberately decoupled personal-cadence items remain: the video walkthrough (F2) and the blog post revision/publish (F3b).
 
 ## License
 

@@ -13,6 +13,16 @@ next fold happens whenever a future phase's own gate closes.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## README restructure (2026-09-28)
+
+The README had grown into one long document serving three different readers at once: someone deciding whether to keep reading, the "how I built this" narrative, and dense technical/dev/deployment detail. Split into three docs:
+
+- **`README.md`** — trimmed to pitch, a table of contents, Start here, a short Why-this-project (with the full narrative moved out), Quick start, Running the dashboard (demo only), Sample output, Sample drafter output, a short Architecture summary, ADRs, and a one-line Status summary. Every long paragraph that used to carry eval-round detail inline now links to `evals/README.md`, which already had the full round-by-round account.
+- **`docs/how-i-built-this.md`** (new) — the narrative doc: the three ideas the project demonstrates, told as a story rather than a wall of figures, and the process-of-building-this-with-an-agent account (100+ slices, the phase-gate lenses, the "other 80%" correction). Kept separate from `docs/lessons-learned.md`, which stays the distilled, evidenced-lesson format it already had.
+- **`docs/technical-reference.md`** (new) — Architecture diagram and `stage_call.py` description, the production/security detail for running the dashboard against real data, Repo layout, Development commands, and the full phase-by-phase Status table, gates summary, and cost envelope.
+
+`tests/test_readme_claims.py`'s two-places test-count check now spans both `README.md` and `docs/technical-reference.md` (the repo-layout line moved with the section it was in). All links across `jscc` and the `ai-portfolio` planning docs that pointed at now-moved README sections were checked and repointed at the new homes. 752 tests, ruff and format clean.
+
 ## T5 coverage expansion: manual-capture round (2026-09-28)
 
 The five `hostile_held_out` cases added 2026-09-27 (`9f71c0c`, branch `t5-hostile-coverage-expansion`) had no recording. Ran the real manual-capture round: one fresh Claude.ai chat per case (incognito for the routing case, per usual practice), Haiku 4.5 for extraction and routing, Sonnet 5 for scoring, via `scripts/capture_tools.py next`.

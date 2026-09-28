@@ -105,8 +105,8 @@ configured for this project, so what you're seeing live right now is the
 stub client's placeholder — it exercises the same code path, but it isn't a
 real model answer."
 
-**Show:** Cut to `evals/README.md` or the README's Status table, specifically
-the fit-scoring line: "27/28 in each of two rounds."
+**Show:** Cut to `evals/README.md` or `docs/technical-reference.md`'s Status
+table, specifically the fit-scoring line: "27/28 in each of two rounds."
 
 **Say:** "The real answer comes from hand-captured Claude chats, replayed
 through the eval harness — that's next."

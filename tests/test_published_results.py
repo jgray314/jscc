@@ -83,9 +83,7 @@ def test_recordings_replay_to_the_published_result(suite: str) -> None:
     summary = _replay(suite)
     passed = sum(r.passed for r in summary.results)
     errors = [
-        r.case_id
-        for r in summary.results
-        if r.error and r.case_id not in _EXPECTED_PARSE_FAILURES
+        r.case_id for r in summary.results if r.error and r.case_id not in _EXPECTED_PARSE_FAILURES
     ]
     assert errors == [], f"{suite}: recordings no longer match these prompts: {errors}"
     assert (passed, len(summary.results)) == PUBLISHED[suite]

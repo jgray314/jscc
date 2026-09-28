@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 README = Path(__file__).resolve().parents[1] / "README.md"
+TECHNICAL_REFERENCE = Path(__file__).resolve().parents[1] / "docs" / "technical-reference.md"
 _COUNT_RE = re.compile(r"(\d+) pytest cases\.")
 
 
@@ -44,17 +45,21 @@ def test_readme_reports_the_real_test_count(request: pytest.FixtureRequest) -> N
     claimed = int(match.group(1))
     assert claimed == collected, (
         f"README claims {claimed} pytest cases; the suite collected {collected}. "
-        "Update both places in README.md (the repo-layout line and the Status "
-        "line) rather than only the one that failed."
+        "Update both places (the README's Status line and the repo-layout line "
+        "in docs/technical-reference.md) rather than only the one that failed."
     )
 
 
 def test_the_two_readme_counts_agree() -> None:
-    """The count appears twice. Fixing one and not the other is the near miss."""
-    text = README.read_text(encoding="utf-8")
-    layout = re.search(r"pytest suite \((\d+) tests\)", text)
-    status = _COUNT_RE.search(text)
-    assert layout and status, "one of the two README test-count lines is missing"
+    """The count appears twice, split across the two docs since the restructure.
+
+    Fixing one and not the other is the near miss.
+    """
+    layout = re.search(
+        r"pytest suite \((\d+) tests\)", TECHNICAL_REFERENCE.read_text(encoding="utf-8")
+    )
+    status = _COUNT_RE.search(README.read_text(encoding="utf-8"))
+    assert layout and status, "one of the two test-count lines is missing"
     assert layout.group(1) == status.group(1)
 
 
