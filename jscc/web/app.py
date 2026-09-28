@@ -25,7 +25,6 @@ domain); the Origin check refuses a cross-site form post.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from collections.abc import Iterable
 from datetime import datetime
@@ -40,7 +39,6 @@ from pydantic import ValidationError
 from ..config import LoadError, StagesConfig, load_stages
 from ..dlq import DLQResolveOutcome, resolve_dlq_entry_via_paste
 from ..mode import DEFAULT_DATA_DIR, InvalidModeError, Mode, resolve_mode
-from ..models import ExtractedJD
 from ..paths import PACKAGE_ROOT
 from ..report import detect_stale, funnel_counts, group_by_stage
 from ..storage import (
@@ -271,12 +269,16 @@ def create_app(
         paste_text: str = Form(...),
         company: str = Form(default=""),
         title: str = Form(default=""),
-        # Set only on the confirm screen's own resubmit (see needs_confirmation
-        # below): the extraction from the first call, round-tripped through a
-        # hidden field so the second call can skip re-extracting -- a second
-        # model call would risk a different extraction than the one the human
-        # just confirmed, not just cost a second call.
-        extracted_json: str = Form(default=""),
+        # Set only by the confirm screen's own resubmit (see needs_confirmation
+        # below). A bare marker, not the extraction itself: the extraction a
+        # resubmit replays comes from this server's own record
+        # (`use_pending_extraction`, jscc/dlq.py), keyed by entry_id, never
+        # from anything the request sends. A client-supplied "here is what
+        # extraction said" field would let a single crafted POST skip
+        # verification entirely with a fabricated title/company -- exactly
+        # the gap this whole feature exists to close, just moved one layer
+        # out.
+        confirming: str = Form(default=""),
         mode: Mode = Depends(get_mode),
         conn: sqlite3.Connection = Depends(get_conn),
     ):
@@ -286,22 +288,8 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"no DLQ entry with id {entry_id}")
         if not paste_text.strip():
             raise HTTPException(status_code=400, detail="paste_text must not be empty")
-
-        extracted_override = None
-        if extracted_json:
-            if not title.strip():
-                raise HTTPException(status_code=400, detail="title must not be empty")
-            # The raw extraction, unmodified -- extracted_jd should keep
-            # recording what extraction actually said, not the human's
-            # correction. The confirm screen's title/company inputs (below)
-            # carry the correction instead, exactly like a proactive
-            # --title/--company override does on the one-step path. The
-            # inputs are pre-filled with the extracted values and are always
-            # sent, edited or not -- an untouched field still counts as
-            # confirmation, per the option-B decision that a clean
-            # extraction is one step and a flagged one blocks on
-            # confirmation, not on making an edit.
-            extracted_override = ExtractedJD(**json.loads(extracted_json))
+        if confirming and not title.strip():
+            raise HTTPException(status_code=400, detail="title must not be empty")
 
         result = resolve_dlq_entry_via_paste(
             conn,
@@ -310,7 +298,7 @@ def create_app(
             company=company.strip() or None,
             title=title.strip() or None,
             refuse_stub=mode is Mode.real,
-            extracted_override=extracted_override,
+            use_pending_extraction=bool(confirming),
         )
         if result.outcome is DLQResolveOutcome.needs_confirmation:
             return templates.TemplateResponse(
@@ -326,7 +314,6 @@ def create_app(
                     "submitted_company": company,
                     "submitted_title": title,
                     "confirm": result,
-                    "confirm_extracted_json": json.dumps(result.extracted.model_dump()),
                 },
             )
         return templates.TemplateResponse(

@@ -34,7 +34,7 @@
   <form method="post" action="/dlq/{{ entry.id }}/resolve"
         onsubmit="this.querySelector('button').disabled = true">
     <input type="hidden" name="paste_text" value="{{ submitted_paste_text }}">
-    <input type="hidden" name="extracted_json" value='{{ confirm_extracted_json }}'>
+    <input type="hidden" name="confirming" value="1">
     <p>
       <label for="title">Title{{ " (not found in the pasted text)" if "title" in confirm.unverified_fields else "" }}</label><br>
       <input id="title" name="title" type="text" value="{{ confirm.extracted.title }}" required>

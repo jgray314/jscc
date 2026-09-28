@@ -54,7 +54,7 @@ JSCC_DATA=real uv run jscc serve --host 127.0.0.1 --port 8000
 
 `serve` binds to `127.0.0.1` by default, not `0.0.0.0` — it's a personal tool over real job-search data, not a service meant to be reachable from other hosts. There's no auth layer, so don't widen the bind address on a shared or exposed machine. The server also refuses any request whose `Host` header is not a loopback name or the address you bound (a DNS-rebinding guard) and any cross-origin POST; see threat T13 in [threat-model.md](threat-model.md). `--data-dir` and `--config-dir` are also available if you're pointing at a non-default location (see `uv run jscc serve --help`).
 
-Submitting the DLQ resolve form (`/dlq/{id}/resolve`) runs an extraction call: with no `ANTHROPIC_API_KEY` it uses a placeholder extractor in synthetic mode (fine for a demo) and refuses in real mode rather than save a made-up application.
+Submitting the DLQ resolve form (`/dlq/{id}/resolve`) runs an extraction call: with no `ANTHROPIC_API_KEY` it uses a placeholder extractor in synthetic mode (fine for a demo) and refuses in real mode rather than save a made-up application. If the extracted title or company doesn't verify against the pasted text, the form is a two-step confirm instead of a one-step create: the page re-renders a review screen instead of creating anything, and only that screen's own resubmit does. The extraction a resubmit replays is looked up server-side by DLQ entry id, never trusted from the request itself -- see `jscc/dlq.py`'s `use_pending_extraction`.
 
 ## Repo layout
 
@@ -86,7 +86,7 @@ jscc/           library code
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
   web/          FastAPI + Jinja2 dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (773 tests)
+tests/          pytest suite (776 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
@@ -150,4 +150,4 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet: every model call so far ran against a stub client or was captured by hand through Claude.ai chat, never a billed `AnthropicClient` request, since this project is not using the Anthropic Console. What does exist: every call path is instrumented (D5), the ledger and `jscc costs` are built and tested against synthetic call records, and a call that fails mid-request leaves a marked row instead of vanishing. The honest claim today is "the cost-transparency machinery is built and correct", not "here is what this costs to run"; that waits on a live key.
 
-773 pytest cases. Lint and format enforced via ruff (see Development, above).
+776 pytest cases. Lint and format enforced via ruff (see Development, above).

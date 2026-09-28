@@ -128,9 +128,13 @@ def unverified_fields(
     stored downstream.
 
     An override is a deliberate correction, not a claim to verify: the user
-    already typed it, so there is nothing to check it against. `company` is
-    checked only when extraction actually named one -- a null company is an
-    absence, not a wrong claim, and is handled by `fallback_company` instead.
+    already typed it, so there is nothing to check it against. Both fields
+    are checked only when extraction actually named something -- an empty
+    title or a null company is an absence, not a wrong claim (an empty
+    string is trivially "found" in any text besides, so skipping it here is
+    not just symmetry with `company`; the substring check has nothing to
+    say about an absence either way). `fallback_title`/`fallback_company`
+    handle the absence case downstream.
 
     A short title (one or two words) can trivially appear as a substring of
     almost any text; this check is weakest exactly where a wrong title is
@@ -140,6 +144,7 @@ def unverified_fields(
     fields: set[str] = set()
     if (
         title_override is None
+        and extracted.title
         and _normalize_for_verification(extracted.title) not in normalized_raw
     ):
         fields.add("title")

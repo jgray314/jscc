@@ -129,12 +129,20 @@ def test_needs_confirmation_when_title_does_not_verify(
     assert entry.resolution == Resolution.unresolved
 
 
-def test_extracted_override_replays_the_confirmed_extraction_without_a_second_call(
+def test_extracted_override_creates_with_the_correction(
     conn, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`extracted_override` is dlq.py's trusted, same-process replay path
+    (the CLI's interactive confirm never crosses a network hop, unlike the
+    dashboard's -- see `use_pending_extraction` and
+    `test_a_crafted_confirming_flag...` in test_web.py for the untrusted
+    path's own guarantee). The "no second model call" property this
+    mechanism exists for is proven directly -- a client whose `complete`
+    raises on a second invocation -- by
+    `test_ingest_logic.py::test_extracted_override_skips_reextraction_and_verification`;
+    this test only checks the observable outcome (what gets stored), not
+    that mechanism, so its name says exactly that and nothing more."""
     import json
-
-    from jscc.models import ExtractedJD
 
     payload = {
         "title": "Staff Backend Engineer",
@@ -161,12 +169,6 @@ def test_extracted_override_replays_the_confirmed_extraction_without_a_second_ca
     first = resolve_dlq_entry_via_paste(conn, entry_id, "a jd with no title in it")
     assert first.outcome is DLQResolveOutcome.needs_confirmation
 
-    # Simulate a human correcting the title on the confirm screen, then a
-    # second call that must not re-extract (the client would raise if
-    # `complete` were called again -- it isn't monkeypatched to fail here
-    # only because ExtractOutcome.needs_confirmation already proved the
-    # first call ran; `extracted_override` is what the confirm resubmit
-    # actually exercises, at the ingest_logic layer's own dedicated test).
     corrected = first.extracted.model_copy(update={"title": "Corrected Title"})
     second = resolve_dlq_entry_via_paste(
         conn, entry_id, "a jd with no title in it", extracted_override=corrected
@@ -177,7 +179,6 @@ def test_extracted_override_replays_the_confirmed_extraction_without_a_second_ca
     assert apps[0].title == "Corrected Title"
     entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
     assert entry.resolution == Resolution.manual_paste
-    assert isinstance(corrected, ExtractedJD)
 
 
 def test_is_idempotent(conn) -> None:

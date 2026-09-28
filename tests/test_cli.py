@@ -1642,7 +1642,10 @@ def test_ingest_from_stdin_exits_usage_when_title_does_not_verify(
 ) -> None:
     """No stdin left to prompt on, and neither --title nor --company covers
     it: this is unresolvable from here, the same shape as the existing
-    stdin/--update case above the ingest command's duplicate check."""
+    stdin/--update case above the ingest command's duplicate check. Also
+    checks the message names the real consequence (the pasted text itself
+    is gone, since a verification mismatch creates no DLQ entry to retry
+    from), not just that confirmation failed."""
     import json
 
     from jscc.cli import EXIT_USAGE
@@ -1651,7 +1654,8 @@ def test_ingest_from_stdin_exits_usage_when_title_does_not_verify(
     result = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)))
 
     assert result.exit_code == EXIT_USAGE, result.output
-    assert "re-run with --title" in result.output
+    assert "Re-run with the JD text and --title" in result.output
+    assert "pasted text is gone" in result.output
     apps, entries = _rows(tmp_path)
     assert apps == []
     assert entries == []

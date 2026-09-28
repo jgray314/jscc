@@ -302,14 +302,22 @@ def _confirm_extraction(
     -- the same non-interactive escape hatch `--update` uses for the
     duplicate check above, and for the same reason: nothing is left to
     prompt on, so the caller must already have supplied `--title`/
-    `--company`, or this is unresolvable from here.
+    `--company`, or this is unresolvable from here. Unlike a fetch failure
+    or a parse error, this exit creates no DLQ entry -- a mismatch is not
+    treated as this project's fetch-failure queue (see the CHANGELOG entry
+    for why) -- so the pasted JD text itself is gone too, not just the
+    confirmation step; if it came from an ephemeral source (a clipboard
+    tool, a one-shot pipe), there is nothing to retry from but the original
+    source. The exit message says so, not just "stdin already consumed".
     """
     unverified = extract_result.unverified_fields
     extracted = extract_result.extracted
     if read_from_stdin:
         echo(
-            f"extracted {', '.join(sorted(unverified))} not found in the source text; "
-            "re-run with --title/--company to confirm or correct it (stdin already consumed)",
+            f"extracted {', '.join(sorted(unverified))} not found in the source text, and "
+            "nothing was saved -- unlike a fetch or parse failure, this does not go to the "
+            "DLQ, so the pasted text is gone, not just this confirmation step. Re-run with "
+            "the JD text and --title/--company to confirm or correct it.",
             err=True,
         )
         sys.exit(EXIT_USAGE)

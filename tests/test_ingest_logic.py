@@ -67,6 +67,19 @@ def test_a_null_company_is_an_absence_not_a_claim_to_verify() -> None:
     assert unverified_fields(extracted, raw, title_override=None, company_override=None) == set()
 
 
+def test_an_empty_title_is_an_absence_not_a_claim_to_verify() -> None:
+    """Mirrors the null-company case: an empty string is trivially "found"
+    as a substring of any text, so without this guard an empty title would
+    silently never be flagged -- not a data-corruption bug (the downstream
+    `title_override or extracted.title or fallback_title or "(untitled)"`
+    precedence already treats "" as falsy), but an absence should read as
+    an absence, the same as company's, not as a coincidentally-passing
+    verification."""
+    extracted = _extracted(title="", company="Acme Corp")
+    raw = "Acme Corp is hiring for a role."
+    assert unverified_fields(extracted, raw, title_override=None, company_override=None) == set()
+
+
 def test_an_override_pre_empts_verification_of_its_own_field_only() -> None:
     extracted = _extracted(title="Staff Backend Engineer", company="Acme Corp")
     raw = "a job description"

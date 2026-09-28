@@ -87,6 +87,32 @@ def _entry_lock(entry_id: str) -> threading.Lock:
         return _ENTRY_LOCKS.setdefault(entry_id, threading.Lock())
 
 
+# What extraction actually returned, held server-side between a
+# needs_confirmation response and a caller's confirm-and-resubmit, keyed by
+# entry_id. This is the trust boundary a client-supplied extraction blob
+# cannot be: `resolve_dlq_entry_via_paste`'s `use_pending_extraction` looks
+# here, not at anything the caller sends over the wire, so a resubmit can
+# only replay what THIS server actually extracted for THIS entry -- a
+# crafted request with a fabricated extraction has nothing to pop and falls
+# through to a real (and therefore re-verified) extraction attempt instead.
+# Popped on use, so a resubmit only ever consumes one pending extraction
+# once; an abandoned confirm screen leaves a stray entry until the process
+# restarts, the same acceptable-for-a-short-lived-personal-tool tradeoff
+# `_ENTRY_LOCKS` already makes by never shrinking either.
+_PENDING_EXTRACTIONS: dict[str, ExtractedJD] = {}
+_PENDING_EXTRACTIONS_GUARD = threading.Lock()
+
+
+def _store_pending_extraction(entry_id: str, extracted: ExtractedJD) -> None:
+    with _PENDING_EXTRACTIONS_GUARD:
+        _PENDING_EXTRACTIONS[entry_id] = extracted
+
+
+def _pop_pending_extraction(entry_id: str) -> ExtractedJD | None:
+    with _PENDING_EXTRACTIONS_GUARD:
+        return _PENDING_EXTRACTIONS.pop(entry_id, None)
+
+
 def resolve_dlq_entry_via_paste(
     conn: sqlite3.Connection,
     entry_id: str,
@@ -96,6 +122,7 @@ def resolve_dlq_entry_via_paste(
     title: str | None = None,
     refuse_stub: bool = False,
     extracted_override: ExtractedJD | None = None,
+    use_pending_extraction: bool = False,
 ) -> DLQResolveResult:
     """Resolve one DLQ entry by pasting the JD text manually. Creates the
     Application the original fetch couldn't, then marks the entry resolved.
@@ -108,9 +135,16 @@ def resolve_dlq_entry_via_paste(
 
     If extraction's title/company doesn't verify against `paste_text` and
     neither `title` nor `company` covers it, nothing is created: the result
-    is `needs_confirmation`, carrying the extraction back for a caller to
-    show a human. `extracted_override` is how a second call replays that
-    confirmed extraction back in -- see `extract_and_create_application`.
+    is `needs_confirmation`, and the extraction is held server-side, keyed
+    by `entry_id` (`_PENDING_EXTRACTIONS`) -- not just returned to the
+    caller -- because the caller here can be an untrusted HTTP request.
+    `extracted_override` (a trusted, same-process replay -- the CLI's
+    interactive confirm, which never crosses a network hop) and
+    `use_pending_extraction` (an untrusted caller's confirm-and-resubmit,
+    which looks up this server's own record instead of trusting anything
+    the request sent) are two different trust levels, not two spellings of
+    the same thing; see `extract_and_create_application` for where
+    `extracted_override` is actually consumed.
     """
     with _entry_lock(entry_id):
         return _resolve_locked(
@@ -121,6 +155,7 @@ def resolve_dlq_entry_via_paste(
             title=title,
             refuse_stub=refuse_stub,
             extracted_override=extracted_override,
+            use_pending_extraction=use_pending_extraction,
         )
 
 
@@ -133,7 +168,17 @@ def _resolve_locked(
     title: str | None,
     refuse_stub: bool,
     extracted_override: ExtractedJD | None,
+    use_pending_extraction: bool = False,
 ) -> DLQResolveResult:
+    if use_pending_extraction and extracted_override is None:
+        extracted_override = _pop_pending_extraction(entry_id)
+        # No pending extraction (spoofed request, expired process, or the
+        # entry moved on) is not an error: falling through to a real
+        # extraction attempt re-runs `unverified_fields` on it like any
+        # other call, which is the safe behavior -- never skip verification
+        # on the strength of an untrusted "trust me, I confirmed" flag
+        # alone.
+
     entries = list_dlq_entries(conn, unresolved_only=False)
     entry = next((e for e in entries if e.id == entry_id), None)
     if entry is None:
@@ -207,8 +252,10 @@ def _resolve_locked(
     if extract_result.outcome is ExtractOutcome.needs_confirmation:
         # Nothing was created -- extraction ran, but its title or company
         # didn't verify against the pasted text. The entry stays unresolved;
-        # a caller re-runs with `title`/`company` or `extracted_override`
-        # once a human has confirmed or corrected it.
+        # a caller re-runs with `title`/`company` and either `extracted_override`
+        # (trusted, same-process) or `use_pending_extraction=True` (untrusted,
+        # looks up what's stored here) once a human has confirmed or corrected it.
+        _store_pending_extraction(entry_id, extract_result.extracted)
         return DLQResolveResult(
             outcome=DLQResolveOutcome.needs_confirmation,
             entry_id=entry_id,

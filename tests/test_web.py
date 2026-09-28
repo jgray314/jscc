@@ -487,9 +487,11 @@ def test_dlq_resolve_post_renders_a_confirm_screen_instead_of_creating(
 def test_dlq_resolve_confirm_resubmit_creates_with_the_corrected_title(
     dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import json
-    import re
-
+    """The confirm screen's resubmit carries only a `confirming` marker and
+    the (possibly edited) title/company -- the extraction itself is looked
+    up server-side by entry_id (`_PENDING_EXTRACTIONS`), never trusted from
+    the request. See the no-prior-round test below for what happens without
+    that server-side record."""
     data_dir, entry_id = dlq_data_dir
     monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
     app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
@@ -499,10 +501,7 @@ def test_dlq_resolve_confirm_resubmit_creates_with_the_corrected_title(
         f"/dlq/{entry_id}/resolve",
         data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
     )
-    match = re.search(r'name="extracted_json" value=\'(.*?)\'', first.text)
-    assert match, first.text
-    extracted_json = match.group(1).replace("&#34;", '"')
-    assert json.loads(extracted_json)["title"] == "Staff Backend Engineer"
+    assert "not found verbatim" in first.text
 
     second = client.post(
         f"/dlq/{entry_id}/resolve",
@@ -510,7 +509,7 @@ def test_dlq_resolve_confirm_resubmit_creates_with_the_corrected_title(
             "paste_text": "a jd with no title in it",
             "company": "",
             "title": "Corrected Title",
-            "extracted_json": extracted_json,
+            "confirming": "1",
         },
     )
 
@@ -526,24 +525,13 @@ def test_dlq_resolve_confirm_resubmit_creates_with_the_corrected_title(
 def test_dlq_resolve_confirm_resubmit_rejects_an_empty_title(
     dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import json
-
     data_dir, entry_id = dlq_data_dir
     monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
     app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
     client = _client(app)
-
-    extracted_json = json.dumps(
-        {
-            "title": "Staff Backend Engineer",
-            "company": None,
-            "level": "staff",
-            "comp_band": None,
-            "location": None,
-            "remote_policy": None,
-            "must_have_skills": [],
-            "responsibilities_summary": "s",
-        }
+    client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
     )
 
     response = client.post(
@@ -552,12 +540,108 @@ def test_dlq_resolve_confirm_resubmit_rejects_an_empty_title(
             "paste_text": "a jd with no title in it",
             "company": "",
             "title": "   ",
-            "extracted_json": extracted_json,
+            "confirming": "1",
         },
     )
 
     assert response.status_code == 400
     assert _apps(data_dir) == []
+
+
+def test_a_crafted_confirming_flag_with_no_prior_round_cannot_fabricate_the_extraction(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gate-review Critical finding's regression test. Before the fix,
+    the confirm-resubmit trusted a client-supplied JSON blob as "what
+    extraction said" with no server-side record to check it against -- a
+    single crafted POST (no prior `needs_confirmation` round at all) could
+    fabricate the entire `extracted_jd` record: level, comp_band,
+    must_have_skills, responsibilities_summary, none of which any
+    legitimate override mechanism ever touches. The `title` field itself is
+    a legitimate override (same as `--title`) and is expected to still work
+    here -- that isn't the bug. The bug would be `extracted_jd` reflecting
+    something other than a real extraction call. `confirming=1` with
+    nothing pending for this entry_id now has nothing to pop
+    (`_PENDING_EXTRACTIONS`), so it falls through to a real `extract_jd`
+    call like any other request -- there is no longer any input that lets a
+    caller assert what extraction returned without extraction having
+    actually returned it."""
+    data_dir, entry_id = dlq_data_dir
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    response = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "a jd with no title in it",
+            "company": "",
+            "title": "Attacker-Supplied Title",
+            "confirming": "1",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Created application" in response.text
+    apps = _apps(data_dir)
+    assert len(apps) == 1
+    # The title override legitimately took effect (same mechanism as
+    # `--title`) -- but everything else in extracted_jd is what the real,
+    # server-side extraction call actually returned, not anything the
+    # request could dictate.
+    assert apps[0].title == "Attacker-Supplied Title"
+    assert apps[0].extracted_jd == {
+        "title": "Staff Backend Engineer",
+        "company": None,
+        "level": "staff",
+        "comp_band": None,
+        "location": None,
+        "remote_policy": None,
+        "must_have_skills": [],
+        "responsibilities_summary": "s",
+    }
+
+
+def test_two_tabs_confirming_the_same_entry_the_second_gets_already_resolved(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The two-step confirm flow reuses `resolve_dlq_entry_via_paste`'s
+    existing per-entry lock and idempotency guard end to end, including the
+    new `use_pending_extraction` path -- a second confirm-resubmit for an
+    entry the first one already resolved must not create a duplicate."""
+    data_dir, entry_id = dlq_data_dir
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+    client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
+    )
+
+    first_tab = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "a jd with no title in it",
+            "company": "",
+            "title": "Confirmed in tab A",
+            "confirming": "1",
+        },
+    )
+    second_tab = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "a jd with no title in it",
+            "company": "",
+            "title": "Confirmed in tab B",
+            "confirming": "1",
+        },
+    )
+
+    assert "Created application" in first_tab.text
+    assert "already resolved" in second_tab.text
+    apps = _apps(data_dir)
+    assert len(apps) == 1
+    assert apps[0].title == "Confirmed in tab A"
 
 
 def test_dlq_resolve_post_with_a_verified_title_still_creates_in_one_step(
