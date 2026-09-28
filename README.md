@@ -159,7 +159,7 @@ The ten locked design principles behind them are in [docs/design-principles.md](
 **Read [CHANGELOG.md](CHANGELOG.md) for the arc, [docs/technical-reference.md](docs/technical-reference.md#status) for the phase-by-phase table, gates, and cost envelope.** Current headline numbers:
 
 - **Eval pass rates:** extraction 33/38 (87%), fit scoring 29/30 (97%), routing 38/39 (97%), composition 25/28 (89%). None is a held-out rate — every round, miss, and threat to validity is in [evals/README.md](evals/README.md).
-- **752 pytest cases.** Lint and format enforced via ruff.
+- **773 pytest cases.** Lint and format enforced via ruff.
 - **No real dollar figures yet** — no `ANTHROPIC_API_KEY` is configured, so every model call so far ran against a stub client or was captured by hand through Claude.ai chat. The cost-transparency machinery (D5) is built and tested; what it reports on real billing waits on a live key.
 - **Every phase gate-closed**, most recently Phase F (narrative) on 2026-09-27, including a same-day full-project gate that found and fixed one High (a prefix-collision bug that silently defeated contact-name redaction). Two open, deliberately decoupled personal-cadence items remain: the video walkthrough (F2) and the blog post revision/publish (F3b).
 

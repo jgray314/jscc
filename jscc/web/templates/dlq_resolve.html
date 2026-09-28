@@ -25,12 +25,40 @@
     {% endif %}
   {% endif %}
 
-  {% if not result or result.outcome != outcome.created %}
+  {% if confirm %}
+  <p class="outcome-error">
+    Extracted {{ confirm.unverified_fields | sort | join(", ") }} not found verbatim in the
+    pasted text below -- composition would otherwise trust {{ "it" if confirm.unverified_fields | length == 1 else "them" }}
+    as fact with nothing to check against. Confirm or correct before this is created.
+  </p>
+  <form method="post" action="/dlq/{{ entry.id }}/resolve"
+        onsubmit="this.querySelector('button').disabled = true">
+    <input type="hidden" name="paste_text" value="{{ submitted_paste_text }}">
+    <input type="hidden" name="extracted_json" value='{{ confirm_extracted_json }}'>
+    <p>
+      <label for="title">Title{{ " (not found in the pasted text)" if "title" in confirm.unverified_fields else "" }}</label><br>
+      <input id="title" name="title" type="text" value="{{ confirm.extracted.title }}" required>
+    </p>
+    <p>
+      <label for="company">Company{{ " (not found in the pasted text)" if "company" in confirm.unverified_fields else "" }}</label><br>
+      <input id="company" name="company" type="text" value="{{ confirm.extracted.company or "" }}">
+    </p>
+    <details>
+      <summary>Pasted JD text (for reference)</summary>
+      <pre>{{ submitted_paste_text }}</pre>
+    </details>
+    <button type="submit">Confirm and create</button>
+  </form>
+  {% elif not result or result.outcome != outcome.created %}
   <form method="post" action="/dlq/{{ entry.id }}/resolve"
         onsubmit="this.querySelector('button').disabled = true">
     <p>
       <label for="paste_text">Pasted JD text</label><br>
       <textarea id="paste_text" name="paste_text" rows="12" required>{{ submitted_paste_text or "" }}</textarea>
+    </p>
+    <p>
+      <label for="title">Title override (optional)</label><br>
+      <input id="title" name="title" type="text" value="{{ submitted_title or "" }}">
     </p>
     <p>
       <label for="company">Company override (optional)</label><br>

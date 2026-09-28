@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 import anthropic
@@ -25,12 +25,13 @@ from .extraction import ExtractionParseError
 from .ingest_logic import (
     PASTED_SOURCE,
     STUB_IN_REAL_MODE_MESSAGE,
+    ExtractOutcome,
     company_from_url,
     extract_and_create_application,
     find_duplicate_application,
 )
 from .llm_client import StubExtractionClient, UnknownModelPricingError, default_client
-from .models import FailureMode, FetchStatus, Resolution
+from .models import ExtractedJD, FailureMode, FetchStatus, Resolution
 from .storage import delete_application, list_dlq_entries
 from .storage import resolve_dlq_entry as _store_resolution
 
@@ -51,6 +52,7 @@ _DLQ_RESOLVED_FETCH_STATUS: dict[FailureMode, FetchStatus] = {
 
 class DLQResolveOutcome(StrEnum):
     created = "created"
+    needs_confirmation = "needs_confirmation"
     already_resolved = "already_resolved"
     duplicate = "duplicate"
     extraction_failed = "extraction_failed"
@@ -66,6 +68,9 @@ class DLQResolveResult:
     application_id: str | None = None
     detail: str | None = None
     prior_resolution: Resolution | None = None
+    # Set only on needs_confirmation -- see extract_and_create_application.
+    extracted: ExtractedJD | None = None
+    unverified_fields: frozenset[str] = field(default_factory=frozenset)
 
 
 # One lock per entry, held from the "still unresolved?" read to the write that
@@ -88,7 +93,9 @@ def resolve_dlq_entry_via_paste(
     paste_text: str,
     *,
     company: str | None = None,
+    title: str | None = None,
     refuse_stub: bool = False,
+    extracted_override: ExtractedJD | None = None,
 ) -> DLQResolveResult:
     """Resolve one DLQ entry by pasting the JD text manually. Creates the
     Application the original fetch couldn't, then marks the entry resolved.
@@ -98,9 +105,23 @@ def resolve_dlq_entry_via_paste(
     placeholder extractor is refused before anything is written (real mode). Concurrent callers are serialized per
     entry, and the final write is a compare-and-set, so the guarantee holds
     while the model call is in flight, not only between sequential runs.
+
+    If extraction's title/company doesn't verify against `paste_text` and
+    neither `title` nor `company` covers it, nothing is created: the result
+    is `needs_confirmation`, carrying the extraction back for a caller to
+    show a human. `extracted_override` is how a second call replays that
+    confirmed extraction back in -- see `extract_and_create_application`.
     """
     with _entry_lock(entry_id):
-        return _resolve_locked(conn, entry_id, paste_text, company=company, refuse_stub=refuse_stub)
+        return _resolve_locked(
+            conn,
+            entry_id,
+            paste_text,
+            company=company,
+            title=title,
+            refuse_stub=refuse_stub,
+            extracted_override=extracted_override,
+        )
 
 
 def _resolve_locked(
@@ -109,7 +130,9 @@ def _resolve_locked(
     paste_text: str,
     *,
     company: str | None,
+    title: str | None,
     refuse_stub: bool,
+    extracted_override: ExtractedJD | None,
 ) -> DLQResolveResult:
     entries = list_dlq_entries(conn, unresolved_only=False)
     entry = next((e for e in entries if e.id == entry_id), None)
@@ -154,14 +177,16 @@ def _resolve_locked(
         "(pasted)" if entry.source_url == PASTED_SOURCE else company_from_url(entry.source_url)
     )
     try:
-        app_id, _app = extract_and_create_application(
+        extract_result = extract_and_create_application(
             conn,
             raw_text=paste_text,
             source_url=None if entry.source_url == PASTED_SOURCE else entry.source_url,
             company_override=company,
+            title_override=title,
             fallback_company=fallback_company_val,
             fallback_title=None,
             fetch_status=_DLQ_RESOLVED_FETCH_STATUS.get(entry.failure_mode, FetchStatus.manual),
+            extracted_override=extracted_override,
         )
     except ExtractionParseError as e:
         # No new DLQ entry here -- one already exists and stays unresolved,
@@ -178,6 +203,19 @@ def _resolve_locked(
         return DLQResolveResult(
             outcome=DLQResolveOutcome.config_error, entry_id=entry_id, detail=str(e)
         )
+
+    if extract_result.outcome is ExtractOutcome.needs_confirmation:
+        # Nothing was created -- extraction ran, but its title or company
+        # didn't verify against the pasted text. The entry stays unresolved;
+        # a caller re-runs with `title`/`company` or `extracted_override`
+        # once a human has confirmed or corrected it.
+        return DLQResolveResult(
+            outcome=DLQResolveOutcome.needs_confirmation,
+            entry_id=entry_id,
+            extracted=extract_result.extracted,
+            unverified_fields=extract_result.unverified_fields,
+        )
+    app_id = extract_result.application_id
 
     if not _store_resolution(
         conn, entry_id, Resolution.manual_paste, application_id=app_id, only_if_unresolved=True

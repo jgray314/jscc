@@ -1502,7 +1502,22 @@ def test_ingest_stores_every_extracted_field_not_just_the_title(
         "must_have_skills": ["Python", "PostgreSQL"],
         "responsibilities_summary": "Owns the ingestion pipeline.",
     }
-    result = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)))
+    # --title pre-empts the title/company verification check (see
+    # unverified_fields): the payload's title never appears in the stub
+    # pasted text below, which this test isn't exercising.
+    argv = [
+        "ingest",
+        "--paste",
+        "--company",
+        "C",
+        "--title",
+        payload["title"],
+        "--data-dir",
+        str(tmp_path),
+    ]
+    result = _ingest_with_client(
+        runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)), argv=argv
+    )
     assert result.exit_code == 0, result.output
 
     apps, _entries = _rows(tmp_path)
@@ -1577,13 +1592,198 @@ def test_resolve_dlq_also_stores_the_extracted_fields(
     monkeypatch.setattr(
         "jscc.extraction.default_client", lambda: _CannedClient(json.dumps(payload))
     )
+    # --title pre-empts the title/company verification check: the payload's
+    # title never appears in "a jd", which this test isn't exercising.
     result = runner.invoke(
         cli,
-        ["resolve-dlq", entries[0].id, "--paste-text", "a jd", "--data-dir", str(tmp_path)],
+        [
+            "resolve-dlq",
+            entries[0].id,
+            "--paste-text",
+            "a jd",
+            "--title",
+            payload["title"],
+            "--data-dir",
+            str(tmp_path),
+        ],
     )
     assert result.exit_code == 0, result.output
     apps, _entries = _rows(tmp_path)
     assert apps[0].extracted_jd == payload
+
+
+# ---- title/company verification (extraction-error-propagation follow-up) ---
+#
+# Composition trusts Application.title/company with no raw text alongside it
+# to catch a wrong one; unlike scoring, extraction gets no second look. These
+# exercise the CLI's two shapes for confirming a mismatch: an interactive
+# prompt when stdin is free (--url, --file, resolve-dlq's --paste-text), and
+# a non-interactive exit asking for --title/--company when it isn't (ingest
+# --paste reading raw stdin).
+
+
+def _mismatched_payload(**overrides) -> dict:
+    payload = {
+        "title": "Staff Backend Engineer",
+        "company": None,
+        "level": "staff",
+        "comp_band": None,
+        "location": None,
+        "remote_policy": None,
+        "must_have_skills": [],
+        "responsibilities_summary": "s",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_ingest_from_stdin_exits_usage_when_title_does_not_verify(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No stdin left to prompt on, and neither --title nor --company covers
+    it: this is unresolvable from here, the same shape as the existing
+    stdin/--update case above the ingest command's duplicate check."""
+    import json
+
+    from jscc.cli import EXIT_USAGE
+
+    payload = _mismatched_payload()
+    result = _ingest_with_client(runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)))
+
+    assert result.exit_code == EXIT_USAGE, result.output
+    assert "re-run with --title" in result.output
+    apps, entries = _rows(tmp_path)
+    assert apps == []
+    assert entries == []
+
+
+def test_ingest_from_file_prompts_to_confirm_a_mismatched_title(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--file (unlike bare --paste from stdin) leaves stdin free, so a
+    mismatch is resolved with an interactive prompt instead of an exit."""
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(
+        "jscc.extraction.default_client",
+        lambda: _CannedClient(json.dumps(_mismatched_payload())),
+    )
+    jd_file = tmp_path / "jd.txt"
+    jd_file.write_text("a job description with no title in it", encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        ["ingest", "--file", str(jd_file), "--company", "C", "--data-dir", str(tmp_path)],
+        input="Confirmed Title\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert len(apps) == 1
+    assert apps[0].title == "Confirmed Title"
+    # extracted_jd keeps recording what extraction actually said, not the
+    # human's correction -- the same contract title_override already has.
+    assert apps[0].extracted_jd["title"] == "Staff Backend Engineer"
+
+
+def test_ingest_from_file_confirming_with_the_extracted_value_still_creates(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pressing enter at the prompt (accepting the shown default) is still a
+    confirmation, not a rejection -- the prompt's default is the extracted
+    value itself."""
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(
+        "jscc.extraction.default_client",
+        lambda: _CannedClient(json.dumps(_mismatched_payload())),
+    )
+    jd_file = tmp_path / "jd.txt"
+    jd_file.write_text("a job description with no title in it", encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        ["ingest", "--file", str(jd_file), "--company", "C", "--data-dir", str(tmp_path)],
+        input="\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert apps[0].title == "Staff Backend Engineer"
+
+
+def test_ingest_title_flag_pre_empts_even_the_non_interactive_stdin_path(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--title` covers the mismatch before verification ever runs, so the
+    stdin path -- which would otherwise have no prompt to fall back to --
+    creates in one call instead of exiting EXIT_USAGE."""
+    import json
+
+    payload = _mismatched_payload()
+    argv = [
+        "ingest",
+        "--paste",
+        "--title",
+        "Pre-supplied Title",
+        "--company",
+        "C",
+        "--data-dir",
+        str(tmp_path),
+    ]
+    result = _ingest_with_client(
+        runner, tmp_path, monkeypatch, _CannedClient(json.dumps(payload)), argv=argv
+    )
+
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert apps[0].title == "Pre-supplied Title"
+
+
+def test_resolve_dlq_prompts_to_confirm_a_mismatched_title(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """resolve-dlq's --paste-text is a CLI option, not stdin, so a terminal
+    is always free to prompt on -- there is no non-interactive escape hatch
+    to test here, unlike ingest --paste."""
+    import json
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr("jscc.fetcher._resolve_host", lambda host: ["93.184.216.34"])
+    from unittest.mock import Mock
+
+    blocked = Mock()
+    blocked.status_code = 403
+    blocked.headers = {}
+    blocked.encoding = "utf-8"
+    blocked.is_redirect = False
+    blocked.iter_content = lambda chunk_size=None: iter([])
+    blocked.close = Mock()
+    monkeypatch.setattr("jscc.fetcher._http_get", lambda *a, **kw: blocked)
+    runner.invoke(
+        cli, ["ingest", "--url", "https://example.com/jobs/20", "--data-dir", str(tmp_path)]
+    )
+    _apps, entries = _rows(tmp_path)
+
+    monkeypatch.setattr(
+        "jscc.extraction.default_client",
+        lambda: _CannedClient(json.dumps(_mismatched_payload())),
+    )
+    result = runner.invoke(
+        cli,
+        ["resolve-dlq", entries[0].id, "--paste-text", "a jd", "--data-dir", str(tmp_path)],
+        input="Confirmed Title\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    apps, _entries = _rows(tmp_path)
+    assert apps[0].title == "Confirmed Title"
+    assert apps[0].extracted_jd["title"] == "Staff Backend Engineer"
 
 
 # ---- exit-code contract ----------------------------------------------------

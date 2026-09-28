@@ -25,6 +25,7 @@ from jscc.models import (
     FetchStatus,
     Interaction,
     InteractionType,
+    Resolution,
 )
 from jscc.seed import seed_synthetic
 from jscc.storage import (
@@ -33,6 +34,7 @@ from jscc.storage import (
     create_dlq_entry,
     create_interaction,
     list_applications,
+    list_dlq_entries,
     open_for_mode,
 )
 from jscc.web import create_app
@@ -419,6 +421,162 @@ def test_dlq_resolve_post_rejects_empty_paste_text(dlq_data_dir: tuple[Path, str
     response = client.post(f"/dlq/{entry_id}/resolve", data={"paste_text": "   ", "company": ""})
 
     assert response.status_code == 400
+
+
+# ---- title/company verification (extraction-error-propagation follow-up) ---
+#
+# Composition trusts Application.title/company with no raw text alongside it
+# to catch a wrong one; the dashboard's confirm screen is option B's two-step
+# form -- a clean extraction still resolves in one POST, a flagged one
+# re-renders a review screen instead of creating anything, and only the
+# confirm screen's own resubmit (carrying the extraction back in a hidden
+# field) creates.
+
+
+class _MismatchedTitleClient:
+    def complete(self, *, model: str, system: str, user: str):
+        import json
+
+        from jscc.llm_client import LLMResponse
+
+        payload = {
+            "title": "Staff Backend Engineer",
+            "company": None,
+            "level": "staff",
+            "comp_band": None,
+            "location": None,
+            "remote_policy": None,
+            "must_have_skills": [],
+            "responsibilities_summary": "s",
+        }
+        return LLMResponse(
+            text=json.dumps(payload),
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=0.001,
+            stop_reason="end_turn",
+        )
+
+
+def test_dlq_resolve_post_renders_a_confirm_screen_instead_of_creating(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_dir, entry_id = dlq_data_dir
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    response = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
+    )
+
+    assert response.status_code == 200
+    assert "Created application" not in response.text
+    assert "not found verbatim" in response.text
+    assert 'value="Staff Backend Engineer"' in response.text
+    assert _apps(data_dir) == []
+    conn = open_for_mode(Mode.synthetic, data_dir)
+    try:
+        entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
+    finally:
+        conn.close()
+    assert entry.resolution == Resolution.unresolved
+
+
+def test_dlq_resolve_confirm_resubmit_creates_with_the_corrected_title(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import re
+
+    data_dir, entry_id = dlq_data_dir
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    first = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
+    )
+    match = re.search(r'name="extracted_json" value=\'(.*?)\'', first.text)
+    assert match, first.text
+    extracted_json = match.group(1).replace("&#34;", '"')
+    assert json.loads(extracted_json)["title"] == "Staff Backend Engineer"
+
+    second = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "a jd with no title in it",
+            "company": "",
+            "title": "Corrected Title",
+            "extracted_json": extracted_json,
+        },
+    )
+
+    assert second.status_code == 200
+    assert "Created application" in second.text
+    apps = _apps(data_dir)
+    assert len(apps) == 1
+    assert apps[0].title == "Corrected Title"
+    # extracted_jd keeps recording what extraction actually said.
+    assert apps[0].extracted_jd["title"] == "Staff Backend Engineer"
+
+
+def test_dlq_resolve_confirm_resubmit_rejects_an_empty_title(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    data_dir, entry_id = dlq_data_dir
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _MismatchedTitleClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    extracted_json = json.dumps(
+        {
+            "title": "Staff Backend Engineer",
+            "company": None,
+            "level": "staff",
+            "comp_band": None,
+            "location": None,
+            "remote_policy": None,
+            "must_have_skills": [],
+            "responsibilities_summary": "s",
+        }
+    )
+
+    response = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "a jd with no title in it",
+            "company": "",
+            "title": "   ",
+            "extracted_json": extracted_json,
+        },
+    )
+
+    assert response.status_code == 400
+    assert _apps(data_dir) == []
+
+
+def test_dlq_resolve_post_with_a_verified_title_still_creates_in_one_step(
+    dlq_data_dir: tuple[Path, str],
+) -> None:
+    """The common path -- extraction's title/company actually appear in the
+    pasted text -- is unaffected: one POST, one Application, no confirm
+    screen in between."""
+    data_dir, entry_id = dlq_data_dir
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    response = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "Senior Engineer at Rift Cloud. " * 20, "company": ""},
+    )
+
+    assert response.status_code == 200
+    assert "Created application" in response.text
 
 
 # ---- Request guards (Phase E gate L1-1, L1-2, L1-6, L1-7, L1-9) ---------------

@@ -21,6 +21,7 @@ from ..fetcher import fetch_jd
 from ..ingest_logic import (
     PASTED_SOURCE,
     STUB_IN_REAL_MODE_MESSAGE,
+    ExtractOutcome,
     company_from_url,
     extract_and_create_application,
     find_duplicate_application,
@@ -71,6 +72,14 @@ from ._common import (
     help="Company name for a pasted JD (no URL to infer it from). Defaults to '(pasted)'.",
 )
 @click.option(
+    "--title",
+    default=None,
+    help=(
+        "Title override -- also pre-empts the title/company verification "
+        "check (see 'Confirming extracted title/company', below)."
+    ),
+)
+@click.option(
     "--update",
     is_flag=True,
     default=False,
@@ -100,6 +109,7 @@ def ingest(
     paste: bool,
     paste_file: Path | None,
     company: str | None,
+    title: str | None,
     update: bool,
     data_dir: Path,
     config_dir: Path,
@@ -118,6 +128,15 @@ def ingest(
 
     Re-ingesting a URL or exact pasted text already on file does not silently create a second Application: it notifies you and
     asks before reprocessing into the existing one, or skips with `--update`.
+
+    Confirming extracted title/company: composition trusts these two fields
+    with no raw text alongside them to catch a wrong one, so if extraction's
+    title or company doesn't appear in the source text, nothing is created
+    yet. With a URL or `--file` (stdin is free), you're prompted to confirm
+    or correct it interactively. Reading pasted text from stdin has no
+    stdin left to prompt on, so that path requires `--title`/`--company` to
+    already cover the mismatch, the same way it requires `--update` instead
+    of an interactive confirm for a duplicate.
     """
     if url and (paste or paste_file):
         raise click.UsageError("--url and --paste/--file are mutually exclusive")
@@ -157,6 +176,13 @@ def ingest(
             fallback_title = None
             fetch_status_val = FetchStatus.manual
 
+        # stdin is free to prompt on with a URL or --file; reading pasted
+        # text straight from stdin already consumed it, so that path needs
+        # a flag instead of a prompt wherever confirmation would otherwise
+        # be interactive -- the duplicate check below, and title/company
+        # verification further down.
+        read_from_stdin = not url and not paste_file
+
         # Re-ingesting the same URL, or the same pasted
         # text, used to silently create a second Application every time.
         # Decided: notify and confirm before reprocessing into the existing
@@ -170,7 +196,6 @@ def ingest(
                 f"{'URL' if source_url else 'pasted text'}: "
                 f"{existing.id} ({existing.title!r}, created {existing.created_at.isoformat()})"
             )
-            read_from_stdin = not url and not paste_file
             if read_from_stdin:
                 echo("re-run with --update to reprocess and overwrite it", err=True)
                 sys.exit(EXIT_USAGE)
@@ -179,16 +204,36 @@ def ingest(
                 return
 
         try:
-            app_id, app = extract_and_create_application(
+            extract_result = extract_and_create_application(
                 conn,
                 raw_text=raw_text,
                 source_url=source_url,
                 company_override=company,
+                title_override=title,
                 fallback_company=fallback_company_val,
                 fallback_title=fallback_title,
                 fetch_status=fetch_status_val,
                 update_id=existing.id if existing is not None else None,
             )
+            if extract_result.outcome is ExtractOutcome.needs_confirmation:
+                confirmed_title, confirmed_company = _confirm_extraction(
+                    extract_result,
+                    title_override=title,
+                    company_override=company,
+                    read_from_stdin=read_from_stdin,
+                )
+                extract_result = extract_and_create_application(
+                    conn,
+                    raw_text=raw_text,
+                    source_url=source_url,
+                    company_override=confirmed_company,
+                    title_override=confirmed_title,
+                    fallback_company=fallback_company_val,
+                    fallback_title=fallback_title,
+                    fetch_status=fetch_status_val,
+                    update_id=existing.id if existing is not None else None,
+                    extracted_override=extract_result.extracted,
+                )
         except ExtractionParseError as e:
             # A model that wraps its JSON in prose or a ``` fence is the
             # normal case, not an exotic one. "Produces an Application or a
@@ -229,9 +274,54 @@ def ingest(
             echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
         verb = "updated" if existing is not None else "created"
-        echo(f"{verb} application {app_id}: {app.title}")
+        echo(
+            f"{verb} application {extract_result.application_id}: {extract_result.application.title}"
+        )
     finally:
         conn.close()
+
+
+def _confirm_extraction(
+    extract_result,
+    *,
+    title_override: str | None,
+    company_override: str | None,
+    read_from_stdin: bool,
+) -> tuple[str | None, str | None]:
+    """Get a human's confirm-or-correct on a `needs_confirmation` result and
+    return the `(title_override, company_override)` to retry with, alongside
+    `extracted_override=extract_result.extracted` (the raw extraction,
+    unmodified -- the retry call's `extracted_jd` should record what
+    extraction actually said, not the human's correction, the same way
+    `title_override` never touches it on the one-call path).
+
+    `title_override`/`company_override` in, unchanged, when that field
+    wasn't flagged (nothing to confirm there); a prompted value when it was.
+
+    Exits (EXIT_USAGE) rather than prompting when stdin is already consumed
+    -- the same non-interactive escape hatch `--update` uses for the
+    duplicate check above, and for the same reason: nothing is left to
+    prompt on, so the caller must already have supplied `--title`/
+    `--company`, or this is unresolvable from here.
+    """
+    unverified = extract_result.unverified_fields
+    extracted = extract_result.extracted
+    if read_from_stdin:
+        echo(
+            f"extracted {', '.join(sorted(unverified))} not found in the source text; "
+            "re-run with --title/--company to confirm or correct it (stdin already consumed)",
+            err=True,
+        )
+        sys.exit(EXIT_USAGE)
+    echo(
+        f"extracted {', '.join(sorted(unverified))} not found in the source text -- "
+        "confirm or correct:"
+    )
+    if "title" in unverified:
+        title_override = click.prompt("Title", default=extracted.title)
+    if "company" in unverified:
+        company_override = click.prompt("Company", default=extracted.company or "") or None
+    return title_override, company_override
 
 
 @cli.group("dlq")
@@ -280,26 +370,52 @@ def dlq_list(data_dir: Path, show_all: bool) -> None:
     help=("Company name override, with the same precedence as ingest --paste's."),
 )
 @click.option(
+    "--title",
+    default=None,
+    help="Title override, with the same precedence as ingest --title's.",
+)
+@click.option(
     "--data-dir",
     type=click.Path(path_type=Path),
     default=DEFAULT_DATA_DIR,
     show_default=True,
     help="Directory holding mode DBs.",
 )
-def resolve_dlq(entry_id: str, paste_text: str, company: str | None, data_dir: Path) -> None:
+def resolve_dlq(
+    entry_id: str, paste_text: str, company: str | None, title: str | None, data_dir: Path
+) -> None:
     """Resolve a DLQ entry by pasting the JD text manually (D6 escape hatch).
 
     Creates the Application the original fetch couldn't, then marks the
     entry resolved. Same resolution function (`jscc/dlq.py`) the dashboard's
     resolve form (Slice E2b) calls -- this command only translates its typed
     result into click's exit-code contract.
+
+    `--paste-text` is a CLI option, not stdin, so unlike `ingest --paste`
+    there is always a terminal free to prompt on: if extraction's title or
+    company doesn't verify against the pasted text and `--title`/`--company`
+    doesn't already cover it, you're prompted to confirm or correct it
+    before anything is created.
     """
     mode = _resolve_mode_or_exit()
     conn = _open_or_exit(mode, data_dir)
     try:
         result = resolve_dlq_entry_via_paste(
-            conn, entry_id, paste_text, company=company, refuse_stub=mode is Mode.real
+            conn, entry_id, paste_text, company=company, title=title, refuse_stub=mode is Mode.real
         )
+        if result.outcome is DLQResolveOutcome.needs_confirmation:
+            confirmed_title, confirmed_company = _confirm_extraction(
+                result, title_override=title, company_override=company, read_from_stdin=False
+            )
+            result = resolve_dlq_entry_via_paste(
+                conn,
+                entry_id,
+                paste_text,
+                company=confirmed_company,
+                title=confirmed_title,
+                refuse_stub=mode is Mode.real,
+                extracted_override=result.extracted,
+            )
     finally:
         conn.close()
 

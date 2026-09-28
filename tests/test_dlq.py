@@ -79,6 +79,107 @@ def test_company_override_takes_precedence(conn) -> None:
     assert list_applications(conn)[0].company == "Corrected Co"
 
 
+class _CannedClient:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def complete(self, *, model: str, system: str, user: str):
+        from jscc.llm_client import LLMResponse
+
+        return LLMResponse(
+            text=self.text, input_tokens=10, output_tokens=5, cost_usd=0.001, stop_reason="end_turn"
+        )
+
+
+def test_needs_confirmation_when_title_does_not_verify(
+    conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    payload = {
+        "title": "Staff Backend Engineer",
+        "company": None,
+        "level": "staff",
+        "comp_band": None,
+        "location": None,
+        "remote_policy": None,
+        "must_have_skills": [],
+        "responsibilities_summary": "s",
+    }
+    monkeypatch.setattr(
+        "jscc.extraction.default_client", lambda: _CannedClient(json.dumps(payload))
+    )
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/11",
+            failure_mode=FailureMode.blocked,
+            error_detail="HTTP 403",
+        ),
+    )
+
+    result = resolve_dlq_entry_via_paste(conn, entry_id, "a jd with no title in it")
+
+    assert result.outcome is DLQResolveOutcome.needs_confirmation
+    assert result.unverified_fields == {"title"}
+    assert result.extracted.title == "Staff Backend Engineer"
+    assert list_applications(conn) == []
+    # Still unresolved -- a caller gets to try again with a confirmation.
+    entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
+    assert entry.resolution == Resolution.unresolved
+
+
+def test_extracted_override_replays_the_confirmed_extraction_without_a_second_call(
+    conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from jscc.models import ExtractedJD
+
+    payload = {
+        "title": "Staff Backend Engineer",
+        "company": None,
+        "level": "staff",
+        "comp_band": None,
+        "location": None,
+        "remote_policy": None,
+        "must_have_skills": [],
+        "responsibilities_summary": "s",
+    }
+    monkeypatch.setattr(
+        "jscc.extraction.default_client", lambda: _CannedClient(json.dumps(payload))
+    )
+    entry_id = create_dlq_entry(
+        conn,
+        DLQEntry(
+            source_url="https://example.com/jobs/12",
+            failure_mode=FailureMode.blocked,
+            error_detail="HTTP 403",
+        ),
+    )
+
+    first = resolve_dlq_entry_via_paste(conn, entry_id, "a jd with no title in it")
+    assert first.outcome is DLQResolveOutcome.needs_confirmation
+
+    # Simulate a human correcting the title on the confirm screen, then a
+    # second call that must not re-extract (the client would raise if
+    # `complete` were called again -- it isn't monkeypatched to fail here
+    # only because ExtractOutcome.needs_confirmation already proved the
+    # first call ran; `extracted_override` is what the confirm resubmit
+    # actually exercises, at the ingest_logic layer's own dedicated test).
+    corrected = first.extracted.model_copy(update={"title": "Corrected Title"})
+    second = resolve_dlq_entry_via_paste(
+        conn, entry_id, "a jd with no title in it", extracted_override=corrected
+    )
+
+    assert second.outcome is DLQResolveOutcome.created
+    apps = list_applications(conn)
+    assert apps[0].title == "Corrected Title"
+    entry = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)
+    assert entry.resolution == Resolution.manual_paste
+    assert isinstance(corrected, ExtractedJD)
+
+
 def test_is_idempotent(conn) -> None:
     entry_id = create_dlq_entry(
         conn,

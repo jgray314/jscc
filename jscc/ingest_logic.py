@@ -11,12 +11,14 @@ reverse, so there is exactly one place this logic lives.
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass, field
+from enum import StrEnum
 from urllib.parse import urlparse
 
 from .extraction import extract_jd
 from .llm_client import StubExtractionClient, default_client
 from .mode import Mode
-from .models import Application, FetchStatus
+from .models import Application, ExtractedJD, FetchStatus
 from .storage import (
     create_application,
     get_application,
@@ -80,6 +82,76 @@ def find_duplicate_application(
     return next((a for a in apps if a.source_url is None and a.source_raw == raw_text), None)
 
 
+class ExtractOutcome(StrEnum):
+    created = "created"
+    needs_confirmation = "needs_confirmation"
+
+
+@dataclass
+class ExtractResult:
+    outcome: ExtractOutcome
+    application_id: str | None = None
+    application: Application | None = None
+    # Set only on needs_confirmation: what extraction returned, and which of
+    # its title/company a caller must confirm or correct before anything is
+    # stored -- see unverified_fields.
+    extracted: ExtractedJD | None = None
+    unverified_fields: frozenset[str] = field(default_factory=frozenset)
+
+
+def _normalize_for_verification(text: str) -> str:
+    """Casefold and collapse whitespace/hyphens/slashes -- formatting noise
+    a verbatim check should forgive, not content. Deliberately its own
+    function rather than a shared import from `evals.py`: that module's
+    `_normalize` answers "do two values match", this answers "does this
+    value appear in this text", and eval code is a leaf consumer of
+    production code, not the reverse."""
+    text = str(text).replace("-", " ").replace("/", " ")
+    return " ".join(text.split()).casefold()
+
+
+def unverified_fields(
+    extracted: ExtractedJD,
+    raw_text: str,
+    *,
+    title_override: str | None,
+    company_override: str | None,
+) -> frozenset[str]:
+    """Which of extraction's title/company do not appear (normalized) in the
+    source text it was extracted from.
+
+    Composition trusts `Application.title`/`company` as ground truth with no
+    raw text alongside it to catch a wrong one, unlike scoring, which gets
+    both (see the extraction-error-propagation probe). This is the check
+    that stands in for that missing insulation, at the one point -- ingest --
+    where a human is available to confirm or correct before anything is
+    stored downstream.
+
+    An override is a deliberate correction, not a claim to verify: the user
+    already typed it, so there is nothing to check it against. `company` is
+    checked only when extraction actually named one -- a null company is an
+    absence, not a wrong claim, and is handled by `fallback_company` instead.
+
+    A short title (one or two words) can trivially appear as a substring of
+    almost any text; this check is weakest exactly where a wrong title is
+    hardest to state precisely, a known limitation, not a bug.
+    """
+    normalized_raw = _normalize_for_verification(raw_text)
+    fields: set[str] = set()
+    if (
+        title_override is None
+        and _normalize_for_verification(extracted.title) not in normalized_raw
+    ):
+        fields.add("title")
+    if (
+        company_override is None
+        and extracted.company
+        and _normalize_for_verification(extracted.company) not in normalized_raw
+    ):
+        fields.add("company")
+    return frozenset(fields)
+
+
 def extract_and_create_application(
     conn: sqlite3.Connection,
     *,
@@ -90,7 +162,9 @@ def extract_and_create_application(
     fallback_title: str | None,
     fetch_status: FetchStatus = FetchStatus.ok,
     update_id: str | None = None,
-) -> tuple[str, Application]:
+    title_override: str | None = None,
+    extracted_override: ExtractedJD | None = None,
+) -> ExtractResult:
     """Shared extract-then-store path for `ingest` (URL and `--paste`) and
     `resolve-dlq` -- the DoD for Slice B4 requires the paste path produce the
     same Application shape as the URL path, so both funnel through here.
@@ -99,7 +173,9 @@ def extract_and_create_application(
     `--company` explicitly -- that's a deliberate correction and wins over
     anything inferred), then `ExtractedJD.company` (extraction found a name
     in the JD text itself), then `fallback_company` (a URL-domain guess or
-    "(pasted)", used only when extraction comes back null).
+    "(pasted)", used only when extraction comes back null). `title_override`
+    has the same relationship to `title` that `company_override` has to
+    `company` -- a deliberate correction, checked first.
 
     `fetch_status` defaults to `ok` for the URL path, which really did fetch
     cleanly; callers on the paste and DLQ-resolution paths pass the status
@@ -109,13 +185,36 @@ def extract_and_create_application(
     existing Application's fields instead of creating a new one -- `stage`
     is deliberately left untouched, since a reprocess is a correction to the
     extracted record, not a reset of pipeline progress.
+
+    If neither override covers a title/company extraction did not find
+    verbatim in `raw_text` (`unverified_fields`), nothing is stored: the call
+    returns `ExtractOutcome.needs_confirmation` with the extraction attached,
+    and the caller is responsible for getting a human to confirm or correct
+    it before calling again. `extracted_override`, when given, skips
+    extraction entirely and skips this check -- it is how a caller replays
+    that confirmed (and possibly corrected) `ExtractedJD` back in on the
+    second call, without a second model call or a second chance at
+    extraction drift between what the human saw and what gets stored.
     """
-    extracted = extract_jd(raw_text, conn=conn)
+    if extracted_override is not None:
+        extracted = extracted_override
+    else:
+        extracted = extract_jd(raw_text, conn=conn)
+        unverified = unverified_fields(
+            extracted, raw_text, title_override=title_override, company_override=company_override
+        )
+        if unverified:
+            return ExtractResult(
+                outcome=ExtractOutcome.needs_confirmation,
+                extracted=extracted,
+                unverified_fields=unverified,
+            )
+
     fields = dict(
         source_url=source_url,
         source_raw=raw_text,
         fetch_status=fetch_status,
-        title=extracted.title or fallback_title or "(untitled)",
+        title=title_override or extracted.title or fallback_title or "(untitled)",
         company=company_override or extracted.company or fallback_company,
         # The whole extraction, not just the field the title comes from: D9
         # splits extract from score because the intermediate output has
@@ -124,7 +223,11 @@ def extract_and_create_application(
     )
     if update_id is not None:
         update_application(conn, update_id, **fields)
-        return update_id, get_application(conn, update_id)
+        return ExtractResult(
+            outcome=ExtractOutcome.created,
+            application_id=update_id,
+            application=get_application(conn, update_id),
+        )
     app = Application(**fields, stage=FIRST_STAGE)
     app_id = create_application(conn, app)
-    return app_id, app
+    return ExtractResult(outcome=ExtractOutcome.created, application_id=app_id, application=app)
