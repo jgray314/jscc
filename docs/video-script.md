@@ -47,7 +47,7 @@ window at a plain 1280×800 or similar so nothing overflows off-frame.
 ## 0:00–0:20 — Open
 
 **Show:** README.md at the top, scrolled to the one-line pitch and the
-"Start here: five things worth reading first" list. Don't scroll further.
+"Start here: six things worth reading first" list. Don't scroll further.
 
 **Say:** "This is JSCC — a job search pipeline tracker with two LLM stages:
 extraction and fit scoring, plus a follow-up drafter that only drafts the

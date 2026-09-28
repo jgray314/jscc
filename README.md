@@ -6,7 +6,7 @@ A pipeline tracker for a real job search. Today it fetches and ingests job descr
 
 Part of the [ai-portfolio](https://github.com/jgray314/ai-portfolio) index. Phase A (foundations) and Phase B (ingestion + extraction) are shipped and gate-closed; Phase C (fit scoring) shipped and gate-closed as of 2026-09-12. Phase D (follow-up drafter) shipped and went through its gate on 2026-09-20; the fixes from that gate have landed. Phase E (a dashboard) shipped as planned — E1 (scaffold), E2a (funnel, pipeline, stale-alert views), and E2b (application detail + DLQ resolve) — and its gate closed 2026-09-24. Phase F (narrative: this README, a video walkthrough, a blog post, lessons learned) closed 2026-09-27 — the last phase in the original plan. See [CHANGELOG.md](CHANGELOG.md) for the slice-by-slice arc.
 
-## Start here: five things worth reading first
+## Start here: six things worth reading first
 
 If you have ten minutes, these are the parts of the repo that show the most, in the order I'd read them. Each links to the code or the write-up, not just a claim.
 
