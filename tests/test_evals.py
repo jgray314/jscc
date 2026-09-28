@@ -85,16 +85,20 @@ def _extracted(**overrides) -> ExtractedJD:
 # ---- fixture file ---------------------------------------------------------------
 
 
-def test_cases_file_has_thirty_six_cases() -> None:
+def test_cases_file_has_thirty_eight_cases() -> None:
     """25 short (paste-shaped) + 8 long (fetch-shaped) + 3 hostile (posting text
-    that addresses the parser, T5); evals/README.md has the
-    sizing rationale (n=15 gave a ~10-point standard error on the pass rate)."""
+    that addresses the parser, T5) + 2 hostile_held_out (new T5 injection shapes
+    added after the prompt was written and never fed back into tuning it --
+    homoglyph obfuscation, an authority/compliance framing -- see T5 in
+    docs/threat-model.md); evals/README.md has the sizing rationale (n=15 gave a
+    ~10-point standard error on the pass rate)."""
     cases = load_cases(JD_EXTRACTION_CASES_PATH)
-    assert len(cases) == 36
-    assert len({c.id for c in cases}) == 36  # unique ids
+    assert len(cases) == 38
+    assert len({c.id for c in cases}) == 38  # unique ids
     assert sum(1 for c in cases if c.group == "short") == 25
     assert sum(1 for c in cases if c.group == "long") == 8
     assert sum(1 for c in cases if c.group == "hostile") == 3
+    assert sum(1 for c in cases if c.group == "hostile_held_out") == 2
 
 
 def test_cases_file_covers_comp_band_presence_and_absence() -> None:
@@ -167,7 +171,7 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
     result until an ANTHROPIC_API_KEY is set and the prompt is iterated,
     not a regression."""
     summary = run_jd_extraction_evals(_extract_via_stub)
-    assert summary.total == 36
+    assert summary.total == 38
     assert summary.passed == 0
     assert all(not r.passed for r in summary.results)
     assert all(r.error is None for r in summary.results)  # stub parses cleanly; grading just fails
@@ -176,7 +180,7 @@ def test_run_jd_extraction_evals_against_stub_client() -> None:
 def test_format_eval_summary_reports_pass_and_fail() -> None:
     summary = run_jd_extraction_evals(_extract_via_stub, JD_EXTRACTION_CASES_PATH)
     text = format_eval_summary(summary)
-    assert "0/36 passed" in text
+    assert "0/38 passed" in text
     assert "[FAIL]" in text
 
 
@@ -461,23 +465,28 @@ def test_ordinary_extraction_errors_still_count_as_failed_cases() -> None:
         raise ValueError("model returned nonsense")
 
     summary = run_jd_extraction_evals(broken)
-    assert summary.total == 36
+    assert summary.total == 38
     assert summary.passed == 0
 
 
 # ---- fit_scoring (Slice C1) ---------------------------------------------------
 
 
-def test_fit_cases_file_has_twenty_eight_cases() -> None:
-    """25 (JD, profile) pairs across the fit spectrum, plus 3 hostile postings (T5). Resized up from the
-    original 10 before C2b's manual capture spent effort against a suite too
-    small to make the >=80% threshold mean much: at n=10 the binomial standard
+def test_fit_cases_file_has_thirty_cases() -> None:
+    """25 (JD, profile) pairs across the fit spectrum, plus 3 hostile postings (T5)
+    plus 2 hostile_held_out postings (new T5 injection shapes -- a roleplay/persona
+    override, an ethics-laundered override -- added after the prompt was written
+    and never fed back into tuning it; see T5 in docs/threat-model.md). Resized up
+    from the original 10 before C2b's manual capture spent effort against a suite
+    too small to make the >=80% threshold mean much: at n=10 the binomial standard
     error on the pass rate is ~13 points (worse than jd_extraction's original
     n=15 problem, ~10 points); at n=25 it's ~8 points, matching the precision
     jd_extraction settled on at n=33. See CHANGELOG for the reasoning."""
     cases = load_fit_cases(FIT_SCORING_CASES_PATH)
-    assert len(cases) == 28
-    assert len({c.id for c in cases}) == 28  # unique ids
+    assert len(cases) == 30
+    assert len({c.id for c in cases}) == 30  # unique ids
+    assert sum(1 for c in cases if c.group == "hostile") == 3
+    assert sum(1 for c in cases if c.group == "hostile_held_out") == 2
 
 
 def _fit_case(**overrides) -> FitEvalCase:
@@ -542,10 +551,12 @@ def test_run_fit_scoring_evals_against_stub_stays_far_below_the_bar() -> None:
     invariant here the way it was for B1/B2a's stub. What is testable: the
     suite's bands collectively span the full 0-100 range, so no constant
     score clears the pass bar -- 0 gets a handful of low-fit cases right by
-    coincidence and still stays far under PASS_THRESHOLD."""
+    coincidence (12/30, including both new T5 hostile_held_out cases, whose
+    bands also happen to start at 0) and still stays far under
+    PASS_THRESHOLD."""
     summary = run_fit_scoring_evals(_score_via_stub)
-    assert summary.total == 28
-    assert summary.pass_rate < 0.4
+    assert summary.total == 30
+    assert summary.pass_rate <= 0.4
     assert summary.pass_rate < PASS_THRESHOLD
 
 
@@ -554,7 +565,7 @@ def test_run_fit_scoring_evals_ordinary_errors_still_count_as_failed_cases() -> 
         raise ValueError("model returned nonsense")
 
     summary = run_fit_scoring_evals(broken)
-    assert summary.total == 28
+    assert summary.total == 30
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
 
@@ -603,15 +614,17 @@ def test_manual_capture_client_stops_at_the_end_sentinel_not_a_blank_line() -> N
 # ---- routing (Slice D1) --------------------------------------------------
 
 
-def test_routing_cases_file_has_thirty_eight_cases_in_three_groups() -> None:
+def test_routing_cases_file_has_thirty_nine_cases_in_four_groups() -> None:
     """26 core cases (the ones the prompt was tuned against: 12 routine, 14
     non-routine), 10 held-out cases written without seeing the prompt (4 routine,
-    6 non-routine), and 2 hostile cases whose history notes carry third-party text
-    that tries to steer the classification. evals/README.md has the growth history
-    (12, 20, 26, then 38)."""
+    6 non-routine), 2 hostile cases whose history notes carry third-party text
+    that tries to steer the classification, and 1 hostile_held_out case (soft
+    steering language that avoids every word the code-level check matches on --
+    see T5 in docs/threat-model.md). evals/README.md has the growth history
+    (12, 20, 26, then 38, then 39)."""
     cases = load_routing_cases(ROUTING_CASES_PATH)
-    assert len(cases) == 38
-    assert len({c.id for c in cases}) == 38  # unique ids
+    assert len(cases) == 39
+    assert len({c.id for c in cases}) == 39  # unique ids
 
     def counts(group: str) -> tuple[int, int]:
         members = [c for c in cases if c.group == group]
@@ -623,7 +636,8 @@ def test_routing_cases_file_has_thirty_eight_cases_in_three_groups() -> None:
     assert counts("core") == (12, 14)
     assert counts("held_out") == (4, 6)
     assert counts("hostile") == (0, 2)
-    assert {c.group for c in cases} == {"core", "held_out", "hostile"}
+    assert counts("hostile_held_out") == (0, 1)
+    assert {c.group for c in cases} == {"core", "held_out", "hostile", "hostile_held_out"}
 
 
 def _routing_case(**overrides) -> RoutingEvalCase:
@@ -733,8 +747,8 @@ def test_run_routing_evals_against_stub_passes_only_non_routine_cases() -> None:
     routine-expected case fails (wrong classification), and critically --
     zero false-routine cases, since the stub never says "routine"."""
     summary = run_routing_evals(_route_via_stub)
-    assert summary.total == 38
-    assert summary.passed == 22
+    assert summary.total == 39
+    assert summary.passed == 23
     assert false_routine_cases(summary) == []
 
 
@@ -743,10 +757,10 @@ def test_run_routing_evals_ordinary_errors_still_count_as_failed_cases() -> None
         raise ValueError("model returned nonsense")
 
     summary = run_routing_evals(broken)
-    assert summary.total == 38
+    assert summary.total == 39
     assert summary.passed == 0
     assert all(r.error for r in summary.results)
-    assert {r.group for r in summary.results} == {"core", "held_out", "hostile"}
+    assert {r.group for r in summary.results} == {"core", "held_out", "hostile", "hostile_held_out"}
 
 
 # ---- composition (Slice D3) -----------------------------------------------

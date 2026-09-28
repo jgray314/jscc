@@ -140,11 +140,23 @@ def test_proxy_grade_reports_failures_and_writes_no_recording(tmp_path: Path) ->
     assert "ADVISORY ONLY" in report
 
 
+# T5 coverage-expansion cases (see docs/threat-model.md T5) were captured
+# 2026-09-28. All four suites now replay clean on a committed tree.
+_PENDING_CAPTURE = {
+    "jd_extraction": [],
+    "fit_scoring": [],
+    "routing": [],
+    "composition": [],
+}
+
+
 @pytest.mark.parametrize("suite", capture_tools.SUITES)
 def test_recapture_cost_is_zero_for_the_committed_recordings(suite: str) -> None:
-    """Every committed suite replays in CI, so on a clean tree nothing needs capture."""
+    """Every committed suite replays in CI, so on a clean tree nothing needs capture,
+    except the suites carrying a T5 coverage-expansion case still awaiting its first
+    manual-capture round (see `_PENDING_CAPTURE` above)."""
     missing, orphaned = capture_tools.recapture_cost(suite)
-    assert missing == []
+    assert missing == _PENDING_CAPTURE[suite]
     assert orphaned == 0
 
 
