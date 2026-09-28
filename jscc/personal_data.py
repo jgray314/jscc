@@ -253,6 +253,17 @@ def redact(
     the gap), but the `[contact:recruiter]` tag `name_roles` exists to
     produce was silently lost instead. Running name substitution first means
     a term inside an already-tagged name has nothing left to match.
+
+    Fixed 2026-09-28 (independent-review gate round, ChatGPT finding): the
+    `role` half of `name_roles` is spliced straight into the replacement token
+    and was never itself run through the credential/email/phone rules. Every
+    live caller builds `role` from `Contact.role`, a closed enum
+    (`jscc/models.py`'s `ContactRole`), so nothing reachable today can put an
+    email or phone number there -- but `redact()`'s own signature accepts any
+    string, and a control that only holds because no current caller violates
+    it is exactly the "depends on remembering" shape this module exists to
+    avoid elsewhere. The role value is now sanitized the same way the rest of
+    the text is before it is spliced in.
     """
     if not text:
         return text
@@ -269,7 +280,10 @@ def redact(
     # ordering dependency: a name can only be partially consumed by one that
     # is not itself a substring of it.
     for name, role in sorted((name_roles or {}).items(), key=lambda item: -len(item[0])):
-        out = _replace_case_insensitive(out, name, f"[contact:{role}]")
+        safe_role = CREDENTIAL_RE.sub(CREDENTIAL_TOKEN, str(role))
+        safe_role = EMAIL_RE.sub(EMAIL_TOKEN, safe_role)
+        safe_role = _redact_phones(safe_role)
+        out = _replace_case_insensitive(out, name, f"[contact:{safe_role}]")
     for term in danger_terms:
         out = _replace_case_insensitive(out, term, DANGER_TOKEN)
     return out

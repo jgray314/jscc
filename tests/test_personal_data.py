@@ -147,6 +147,23 @@ def test_name_role_survives_a_prefix_collision_with_another_contact() -> None:
     assert "[contact:hiring_manager]" in out
 
 
+def test_name_roles_value_is_sanitized_before_substitution() -> None:
+    """Independent-review finding (ChatGPT gate round, 2026-09-28): the role
+    token spliced into `[contact:{role}]` was never itself passed through the
+    email/phone/credential rules. `Contact.role` is a closed enum today (see
+    jscc/models.py's ContactRole), so no live caller can reach this, but
+    `redact()`'s own signature accepts any string as a role and the function
+    should not depend on every future caller respecting a constraint it does
+    not enforce -- the same "control that depends on remembering is not a
+    control" reasoning D7 M5 is built on elsewhere in this module."""
+    out = redact(
+        "Spoke with Dana Reyes today.",
+        name_roles={"Dana Reyes": RECRUITER_EMAIL},
+    )
+    assert RECRUITER_EMAIL not in out
+    assert "[contact:[redacted-email]]" in out
+
+
 def test_redacts_all_three_classes_in_one_pass() -> None:
     text = f"Dana Reyes, {RECRUITER_EMAIL}, {RECRUITER_PHONE}, via ExampleCorp"
     out = redact(text, danger_terms=["examplecorp"], name_roles={"Dana Reyes": "recruiter"})

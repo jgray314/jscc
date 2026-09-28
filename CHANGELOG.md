@@ -13,6 +13,26 @@ next fold happens whenever a future phase's own gate closes.
 Slice names (A1, B2b, C2a, D4c...) are build steps. They are unrelated to the
 design principles D1 to D10 in `docs/design-principles.md`.
 
+## Independent review, first non-Claude reviewer (2026-09-28)
+
+A scoped cold read of the three structural-safety claims (LLM-egress redaction, real/synthetic mode isolation, fetcher SSRF guarding) by ChatGPT, using the same manual-capture pattern as the eval suites: the code was pasted with no design docs or prior findings, and the reply was reconciled back against `docs/gate-reviews.md`. Full writeup: `docs/gate-reviews.md` finding 7.
+
+Most findings confirmed residuals this project had already found and disclosed itself (the Playwright fetch fallback's SSRF gap, the sanitizer's `model`-key exemption, the redaction detector's stated scope boundary) — real independent confirmation, not new information. One finding was genuinely new and fixed same-day.
+
+### Fixed: `name_roles` role token spliced in unsanitized
+
+`redact()` in `jscc/personal_data.py` substituted a contact's role directly into `[contact:{role}]` without running the role value through the credential/email/phone rules the rest of the text gets. `Contact.role` is a closed enum in every live caller (`ContactRole` in `jscc/models.py`), so nothing in this codebase can reach it today, but the function's own signature accepts any string — a control that only holds because no current caller violates it is exactly the shape D7 M5 exists to avoid elsewhere. Fixed by sanitizing the role value the same way before splicing it in. Verified by inversion (regression test fails with the fix reverted).
+
+### Fixed: nested `model` key still bypassed redaction at any depth
+
+`jscc/sanitizer.py`'s `_CONTROL_KEYS` exemption had carried a `TODO (documented residual, not fixed)` comment since it was written, naming this exact shape: a key literally named `model` skipped redaction regardless of nesting depth, so `{"user": {"posting": {"model": <email>}}}` let the email through. The independent review rediscovered it with a concrete example rather than a real payload exploiting it — no live payload nests anything under `model` today — but the fix was cheap enough, and now independently confirmed twice, that it no longer made sense to leave as documented-not-fixed. `_redact_tree` now takes an explicit `depth` and only exempts a `model`-named key at depth 1 (the top-level control field's own value). Verified by inversion.
+
+### Re-scoped, not fixed: `send_to_llm`'s return type
+
+Read as "any caller can mutate the returned dict and resend without re-verifying." True of the return type in isolation, but the only production caller (`stage_call.call_stage`, enforced by `tests/test_llm_egress.py`) uses the dict immediately in the same stack frame. The gap is real at the API-contract level and is already this project's own T8 residual and ADR-005's stated trigger ("an authenticated argument type is the stronger fix... only if the number of callers grows"). No new action; existing trigger stands.
+
+`docs/threat-model.md`'s T1 row and closing "Limits" line updated to reflect the fix and the one cross-model round run so far. 752 tests (2 new regression tests), ruff/format/scanner clean.
+
 ## Full-project gate (2026-09-27)
 
 Two cold-read lenses (adversarial, outside-reviewer walkthrough) across the whole repo, not scoped to one phase's delta — the first review at this scope since individual phase gates began. Full findings and disposition: `jscc-phase-b-rerun-gate.md` in the private planning docs.

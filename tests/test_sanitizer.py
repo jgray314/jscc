@@ -297,6 +297,19 @@ def test_name_roles_substitution_reaches_the_payload() -> None:
     assert "[contact:recruiter]" in out.data["user"]
 
 
+def test_nested_model_key_is_still_redacted() -> None:
+    """Independent-review finding (ChatGPT gate round, 2026-09-28), confirming
+    the documented TODO in sanitizer.py: `_CONTROL_KEYS` used to exempt any
+    string under a key literally named "model", at ANY nesting depth, not just
+    the top-level control field. A payload shaped like
+    {"user": {"posting": {"model": <email>}}} let the email through unredacted.
+    Only the top-level "model" field (the API's own model id) is app-authored
+    control data; a same-named key anywhere else is ordinary content."""
+    out = sanitize_for_llm({"model": "m", "system": "s", "user": {"posting": {"model": _EMAIL}}})
+    assert out.data["model"] == "m"  # top-level control field still exempt
+    assert _EMAIL not in str(out.data["user"])
+
+
 def test_redaction_does_not_disturb_clean_payloads() -> None:
     payload = {"user": "Senior Engineer, Python, remote-first team.", "n": 3}
     out = sanitize_for_llm(payload)

@@ -134,13 +134,18 @@ def _utcnow_iso() -> str:
 # small as possible: `system` is app-authored too but is left in scope, since
 # redacting it is a no-op today and a carve-out is how holes start.
 #
-# TODO (documented residual, not fixed): the exemption applies at *any*
-# nesting depth, including list elements under a control key -- `_redact_tree`
-# passes the parent `key` straight through recursive calls without resetting
-# it. A phone number nested under a `model` key would survive. No live
-# payload nests anything under `model` today, so there is nothing to exploit,
-# but the carve-out is broader than the comment above describes it.
+# Fixed 2026-09-28 (independent-review gate round, ChatGPT finding, confirmed
+# against a concrete example): the exemption used to apply at *any* nesting
+# depth, because `_redact_tree` checked `key in _CONTROL_KEYS` regardless of
+# how deep the recursion was. A payload shaped like
+# {"user": {"posting": {"model": <email>}}} let the email through unredacted —
+# the same shape the prior comment described as unreachable ("no live payload
+# nests anything under `model` today"), independently rediscovered rather than
+# exploited against real data. `_redact_tree` now takes an explicit `depth`
+# and only exempts a `model`-named key at depth 1: the top-level control
+# field's own value, not a same-named key anywhere inside a nested structure.
 _CONTROL_KEYS = frozenset({"model"})
+_CONTROL_KEY_DEPTH = 1
 
 # Record ids are app-generated UUIDs, and roughly one in several carries a digit
 # run the phone heuristic matches, which rewrote the id the model is asked about.
@@ -152,14 +157,31 @@ _UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 
 
 def _redact_tree(
-    value: Any, key: str | None, danger_terms: list[str], name_roles: Mapping[str, str] | None
+    value: Any,
+    key: str | None,
+    danger_terms: list[str],
+    name_roles: Mapping[str, str] | None,
+    *,
+    depth: int = 0,
 ) -> Any:
-    """Walk a JSON-native snapshot, rewriting every in-scope string."""
+    """Walk a JSON-native snapshot, rewriting every in-scope string.
+
+    `depth` counts recursion steps from the payload's own top level (depth 0).
+    A key's *name* alone is reused at every level a JSON document can nest to
+    — `_CONTROL_KEYS` must not exempt a same-named key wherever it turns up,
+    only the one at depth 1 (a direct value of the top-level payload dict,
+    where the app's own control fields live). `_ID_KEYS` stays depth-independent
+    on purpose: it is gated on the value being UUID-shaped, not just the key
+    name, so it cannot mask a phone number or a name at any depth.
+    """
     if isinstance(value, dict):
-        return {k: _redact_tree(v, k, danger_terms, name_roles) for k, v in value.items()}
+        return {
+            k: _redact_tree(v, k, danger_terms, name_roles, depth=depth + 1)
+            for k, v in value.items()
+        }
     if isinstance(value, list):
-        return [_redact_tree(v, key, danger_terms, name_roles) for v in value]
-    if isinstance(value, str) and key not in _CONTROL_KEYS:
+        return [_redact_tree(v, key, danger_terms, name_roles, depth=depth + 1) for v in value]
+    if isinstance(value, str) and not (depth == _CONTROL_KEY_DEPTH and key in _CONTROL_KEYS):
         if key in _ID_KEYS and _UUID_RE.fullmatch(value):
             return value
         return redact(value, danger_terms=danger_terms, name_roles=name_roles)
