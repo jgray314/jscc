@@ -95,22 +95,42 @@ def _entry_lock(entry_id: str) -> threading.Lock:
 # only replay what THIS server actually extracted for THIS entry -- a
 # crafted request with a fabricated extraction has nothing to pop and falls
 # through to a real (and therefore re-verified) extraction attempt instead.
+#
+# The paste_text that produced the extraction is held alongside it, not just
+# the extraction itself. The confirm-resubmit round-trips paste_text over a
+# second, independent HTTP request -- nothing before this forced it to be
+# the same text the extraction was actually run against. Popping on
+# entry_id alone let a resubmit pair THIS entry's pending extraction with
+# ANY paste_text the second request happened to carry, silently storing an
+# Application whose source_raw and extracted_jd described two different
+# postings (gate finding H-1, 2026-09-29). Comparing the resubmitted text
+# against what's stored closes that: a mismatch is treated exactly like "no
+# pending extraction" -- fall through to a real, re-verified extraction on
+# whatever text actually arrived, the same safe default `use_pending_extraction`
+# already takes for a spoofed or expired entry_id.
+#
 # Popped on use, so a resubmit only ever consumes one pending extraction
 # once; an abandoned confirm screen leaves a stray entry until the process
 # restarts, the same acceptable-for-a-short-lived-personal-tool tradeoff
 # `_ENTRY_LOCKS` already makes by never shrinking either.
-_PENDING_EXTRACTIONS: dict[str, ExtractedJD] = {}
+_PENDING_EXTRACTIONS: dict[str, tuple[ExtractedJD, str]] = {}
 _PENDING_EXTRACTIONS_GUARD = threading.Lock()
 
 
-def _store_pending_extraction(entry_id: str, extracted: ExtractedJD) -> None:
+def _store_pending_extraction(entry_id: str, extracted: ExtractedJD, paste_text: str) -> None:
     with _PENDING_EXTRACTIONS_GUARD:
-        _PENDING_EXTRACTIONS[entry_id] = extracted
+        _PENDING_EXTRACTIONS[entry_id] = (extracted, paste_text)
 
 
-def _pop_pending_extraction(entry_id: str) -> ExtractedJD | None:
+def _pop_pending_extraction(entry_id: str, paste_text: str) -> ExtractedJD | None:
     with _PENDING_EXTRACTIONS_GUARD:
-        return _PENDING_EXTRACTIONS.pop(entry_id, None)
+        pending = _PENDING_EXTRACTIONS.pop(entry_id, None)
+    if pending is None:
+        return None
+    extracted, stored_paste_text = pending
+    if stored_paste_text != paste_text:
+        return None
+    return extracted
 
 
 def resolve_dlq_entry_via_paste(
@@ -171,9 +191,11 @@ def _resolve_locked(
     use_pending_extraction: bool = False,
 ) -> DLQResolveResult:
     if use_pending_extraction and extracted_override is None:
-        extracted_override = _pop_pending_extraction(entry_id)
-        # No pending extraction (spoofed request, expired process, or the
-        # entry moved on) is not an error: falling through to a real
+        extracted_override = _pop_pending_extraction(entry_id, paste_text)
+        # No pending extraction (spoofed request, expired process, the
+        # entry moved on, or -- gate finding H-1 -- the resubmitted
+        # paste_text doesn't match what the pending extraction was actually
+        # run against) is not an error: falling through to a real
         # extraction attempt re-runs `unverified_fields` on it like any
         # other call, which is the safe behavior -- never skip verification
         # on the strength of an untrusted "trust me, I confirmed" flag
@@ -255,7 +277,7 @@ def _resolve_locked(
         # a caller re-runs with `title`/`company` and either `extracted_override`
         # (trusted, same-process) or `use_pending_extraction=True` (untrusted,
         # looks up what's stored here) once a human has confirmed or corrected it.
-        _store_pending_extraction(entry_id, extract_result.extracted)
+        _store_pending_extraction(entry_id, extract_result.extracted, paste_text)
         return DLQResolveResult(
             outcome=DLQResolveOutcome.needs_confirmation,
             entry_id=entry_id,

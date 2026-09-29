@@ -602,6 +602,62 @@ def test_a_crafted_confirming_flag_with_no_prior_round_cannot_fabricate_the_extr
     }
 
 
+def test_confirm_resubmit_with_different_paste_text_does_not_reuse_the_stale_pending_extraction(
+    dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate finding H-1's regression test (2026-09-29). Before the fix,
+    `use_pending_extraction` popped whatever extraction was pending for
+    `entry_id` and paired it with WHATEVER `paste_text` this request
+    happened to carry -- two independent HTTP requests, nothing forcing
+    them to agree. A resubmit with `confirming=1` and a completely
+    different posting's text would still silently create an Application
+    whose `extracted_jd` described the FIRST posting while `source_raw`
+    held the SECOND. After the fix, a paste_text mismatch is treated the
+    same as no pending extraction at all: it falls through to a real,
+    re-verified extraction on the text that actually arrived."""
+    data_dir, entry_id = dlq_data_dir
+
+    class _CountingClient:
+        calls = 0
+
+        def complete(self, *, model, system, user):
+            _CountingClient.calls += 1
+            return _MismatchedTitleClient().complete(model=model, system=system, user=user)
+
+    monkeypatch.setattr("jscc.extraction.default_client", lambda: _CountingClient())
+    app = create_app(data_dir=data_dir, config_dir=CONFIG_DIR)
+    client = _client(app)
+
+    first = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={"paste_text": "a jd with no title in it", "company": "", "title": ""},
+    )
+    assert "not found verbatim" in first.text
+    assert _CountingClient.calls == 1
+
+    # Resubmit with confirming=1, a title override (required whenever
+    # confirming=1) but a DIFFERENT paste_text -- the pending extraction was
+    # run against the original text, not this one. If it were reused
+    # anyway, no second extraction call would happen. It must: a paste_text
+    # mismatch is treated as no pending extraction at all.
+    second = client.post(
+        f"/dlq/{entry_id}/resolve",
+        data={
+            "paste_text": "an entirely unrelated second posting's text",
+            "company": "",
+            "title": "Corrected Title",
+            "confirming": "1",
+        },
+    )
+
+    assert second.status_code == 200
+    assert "Created application" in second.text
+    assert _CountingClient.calls == 2
+    apps = _apps(data_dir)
+    assert len(apps) == 1
+    assert apps[0].source_raw == "an entirely unrelated second posting's text"
+
+
 def test_two_tabs_confirming_the_same_entry_the_second_gets_already_resolved(
     dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

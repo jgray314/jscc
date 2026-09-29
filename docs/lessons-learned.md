@@ -78,7 +78,7 @@ This style of project work has a bit of the Civilization (game) "one more turn" 
 
 - **Anything about a team.** No adoption, change management, review load, junior development or onboarding. Each "for a team" line above is a guess I'd want to test.
 - **Production behaviour.** There is no live traffic and no API key configured, so there are no real cost or latency figures.
-- **Independent review.** The gate reviewers were all one model family, and no human outside the project has reviewed the work.
+- **Independent review, beyond one round.** Every phase-boundary gate reviewer was one model family. One scoped cross-model round (ChatGPT, 2026-09-28, three files) has been run; it mostly confirmed residuals this project had already disclosed, and closed two fixes. That is not a standing practice, and no human outside the project has reviewed the work.
 - **A ladder for AI autonomy.** I have not written down what specifically earned each step-up in how much I let the AI run unattended — that's still an unevidenced impression, unlike the estimation lesson above, which I checked before publishing.
 
 ## Still to come

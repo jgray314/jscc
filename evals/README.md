@@ -17,7 +17,7 @@ What each committed `recorded.json` replays to. `tests/test_published_results.py
 
 All recordings are real model output captured by hand through Claude.ai chat, one fresh chat per case; none is proxy output. A single round is a first data point, not a demonstrated range. Dates in this file are UTC; commit timestamps in `git log` are local (Pacific), so a late-evening capture can carry the next day's date here.
 
-`extraction_to_scoring` isn't in the table above: it reports a score-delta distribution, not a pass rate, so it doesn't fit this table's (Result/Bar/Evidence) shape, and `tests/test_published_results.py` doesn't replay it for the same reason -- there's no `(passed, total)` to pin. The harness is built and tested against the stub scorer; no capture round has run yet. See its own section below.
+`extraction_to_scoring` isn't in the table above: it reports a score-delta distribution, not a pass rate, so it doesn't fit this table's (Result/Bar/Evidence) shape, and `tests/test_published_results.py` doesn't replay it for the same reason -- there's no `(passed, total)` to pin. Captured 2026-09-29 -- the round used 66 real scoring calls, mean |delta| 3.5, max |delta| 12.0. See its own section below.
 
 ## Threats to validity
 

@@ -86,9 +86,9 @@ jscc/           library code
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
   web/          FastAPI + Jinja2 dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (787 tests)
+tests/          pytest suite (788 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
-evals/          eval suites (jd_extraction, fit_scoring, routing, composition); evals/README.md
+evals/          eval suites (jd_extraction, fit_scoring, routing, composition, extraction_to_scoring); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
 decisions/      ADRs (see below)
 docs/           design-principles.md; threat-model.md; gate-reviews.md; lessons-learned.md; how-i-built-this.md; technical-reference.md (this file)
@@ -138,6 +138,7 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 | **Phase D — follow-up drafter** | Routing (suite, prompt, `route`), composition (suite, prompt, a deterministic grader, a `needs_input` escape so the composer can decline instead of inventing a fact), the briefing renderer and `followup`. Gate closed 2026-09-20. | — |
 | **Phase E — dashboard** | `jscc serve`: funnel, pipeline and stale-alert views built on the same `report.py` functions `jscc report` uses (so the two cannot disagree on what is stale), application detail, a DLQ list, and a DLQ resolve form that calls the same function as `resolve-dlq`, the one write path. Gate closed 2026-09-24: adversarial highs fixed (dashboard request guards, a duplicate-resolve race, an internationalized-hostname gap in the DNS pin) and the walkthrough lens's doc and test fixes landed. | — |
 | **Phase F — narrative** | **Closed 2026-09-27** — the last phase in the original plan, so this is functionally v1. F1 (the README), F2 prep ([docs/video-script.md](video-script.md) + redacted demo fixtures), F3a (a blog outline, kept as a private planning doc rather than a repo file), and F4 ([lessons-learned.md](lessons-learned.md)) all shipped. A same-day full-project gate (first whole-repo pass, not phase-scoped) found and fixed one High: a prefix-collision bug that silently defeated contact-name redaction. | F2's actual recording and F3b's blog revision/publish are open, deliberately decoupled from phase bookkeeping — standing personal-cadence items, not unfinished Phase F work. |
+| **Post-v1 follow-up** | A confirm-before-create step when extraction's title/company doesn't verify against the pasted text (CLI and dashboard), gate-reviewed same day with a Critical trust-boundary fix (a client-supplied extraction blob trusted with nothing server-side to check it against) and a second such fix from a later cold pass (a client-supplied `paste_text` on the same confirm-resubmit flow, paired with a stale pending extraction with nothing tying the two together). A fifth eval suite, `evals/extraction_to_scoring`, chains a real recorded extraction into scoring to measure how far an extraction error actually moves the downstream fit score — captured 2026-09-29, no pass/fail gate by design. See [gate-reviews.md](gate-reviews.md) and [evals/README.md](../evals/README.md#extraction_to_scoring). | Candidates 3–5 from the extraction-error-propagation probe (noise-floor repeats, injection carried through extraction, typing the closed vocabularies) remain backlog, not scheduled. |
 
 **Eval status.** Current numbers, every round that produced them, and the threats to validity are in [evals/README.md](../evals/README.md); none of them is a held-out rate. Headline figures only, for orientation:
 - **Extraction: 33/38 (87%)**, one round on the current prompt, tuned against 36 of those cases. Includes 2 T5 coverage-expansion cases (held-out from tuning) captured 2026-09-28: one passed, one failed on format — see [threat-model.md](threat-model.md) T5.
@@ -150,4 +151,4 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet: every model call so far ran against a stub client or was captured by hand through Claude.ai chat, never a billed `AnthropicClient` request, since this project is not using the Anthropic Console. What does exist: every call path is instrumented (D5), the ledger and `jscc costs` are built and tested against synthetic call records, and a call that fails mid-request leaves a marked row instead of vanishing. The honest claim today is "the cost-transparency machinery is built and correct", not "here is what this costs to run"; that waits on a live key.
 
-787 pytest cases. Lint and format enforced via ruff (see Development, above).
+788 pytest cases. Lint and format enforced via ruff (see Development, above).
