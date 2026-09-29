@@ -89,7 +89,7 @@ jscc/           library code
 tests/          pytest suite (788 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition, extraction_to_scoring); evals/README.md
-scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
+scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated -- results: docs/smoke-test-results.md); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
 decisions/      ADRs (see below)
 docs/           design-principles.md; threat-model.md; gate-reviews.md; lessons-learned.md; how-i-built-this.md; technical-reference.md (this file)
 .github/        CI workflow

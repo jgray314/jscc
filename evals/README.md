@@ -1,5 +1,18 @@
 # Evals
 
+## Contents
+
+- [Published results](#published-results)
+- [Threats to validity](#threats-to-validity)
+- [T5 coverage expansion](#t5-coverage-expansion)
+- [jd_extraction](#jd_extraction)
+- [Before a capture round](#before-a-capture-round)
+- [Adding a case](#adding-a-case)
+- [fit_scoring](#fit_scoring)
+- [routing](#routing)
+- [composition](#composition)
+- [extraction_to_scoring](#extraction_to_scoring)
+
 One suite per LLM stage. Four stages exist today — `jd_extraction`, `fit_scoring` (D9 splits extraction from scoring so facts and judgment regress independently), `routing` (D10 step 1 of the routing-first drafter), and `composition` (D10 step 2A, reached only for a `routine` classification). Each suite is a JSON case file plus a grading function in `jscc/evals.py`.
 
 A fifth suite, `extraction_to_scoring`, is not a stage of its own — it chains `jd_extraction`'s and `fit_scoring`'s recordings together to measure a question neither suite alone can answer: how far a real extraction miss actually moves a score. See its own section below.
