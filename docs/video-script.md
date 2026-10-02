@@ -42,9 +42,107 @@ DLQ-resolve beat too long in a take.
 Terminal font large enough to read on a 1080p recording; dashboard browser
 window at a plain 1280×800 or similar so nothing overflows off-frame.
 
+## Recording setup
+
+**Tool: OBS Studio** (free, Windows). Chosen over the alternatives because the
+script alternates between three views and OBS can switch between them with a
+hotkey instead of a live window shuffle.
+
+- **Why OBS:** per-view scenes; window capture (not full-desktop), so
+  notifications, the taskbar, and anything else on the desktop stay off
+  camera, which matters because the script warns about showing real data; and
+  a separate mic audio track, so a flubbed line can be re-recorded in the edit
+  without redoing the screen footage.
+- **Output:** canvas and output 1920×1080, 30 fps. Format and encoder
+  settings are in the next section.
+- **Take structure:** record one take per beat (the timestamp headings below),
+  not the whole script in one go. A bad take then costs 30–60 seconds, not the
+  full run.
+- **Alternatives, if OBS is too much setup:** Windows Snipping Tool
+  (Win+Shift+R) is built in and fine for one clean take per section, but has
+  no scene switching or separate audio track. Loom is easy but uploads to
+  their cloud; keep this footage local.
+- **Editing:** Clipchamp (built into Windows 11) or DaVinci Resolve (free)
+  covers trims and the "cut the stub caveats" note at the bottom.
+
+### OBS settings
+
+Checked against the fresh install's config on 2026-10-02: it was still at
+defaults (one empty scene, no hotkeys). Four things differ from what this
+recording needs; the rest of the defaults are fine (1920×1080 base and output,
+NVENC encoder, 48 kHz stereo, files to `C:\Users\scisp\Videos`).
+
+| Setting (where) | Install default | Set to | Why |
+|---|---|---|---|
+| Video → Common FPS | 60 | **30** | Terminal and docs footage gains nothing from 60; halves file size and editing load |
+| Output → Output Mode | Simple | **Advanced** | Simple mode records a single mixed audio track; separate mic track needs Advanced |
+| Output → Recording → Audio Track | Track 1 only | **Tracks 1 and 2** | Track 1 is the mix, track 2 carries the mic alone so narration can be replaced in the edit |
+| Output → Recording → Rate Control | Quality "Small" (Simple mode) | **CQP, CQ level 18–20** | "Small" softens terminal text; 1080p screen content at CQ 18 stays crisp and the files are still modest |
+
+Other settings, not changed from the install:
+
+- **Format:** the install's default, Hybrid MP4, is crash-safe and plays
+  everywhere, so no MKV-then-remux step is needed.
+- **Desktop Audio:** mute it for the whole recording. The terminal makes no
+  sound, and muting it means notification dings can't land in a take.
+- **Mic/Aux:** it's on the default device. Confirm in Settings → Audio that the
+  default is the mic you mean to use, and in the mixer that the level peaks
+  around −12 to −6 dB when you speak at normal volume.
+- **Advanced → Audio tracks (Mic/Aux):** open Advanced Audio Properties
+  (gear next to the mixer) and tick tracks 1 and 2 for Mic/Aux, track 1 only for
+  Desktop Audio.
+
+### Scenes
+
+Set up four scenes, each with a hotkey. Each beat below is tagged with the
+scene it starts in; a `→` marks a mid-beat switch.
+
+| Scene | Source | Used for |
+|---|---|---|
+| **TERM** | Window capture: terminal only | Every CLI command |
+| **DOCS** | Window capture: editor showing README / `evals/README.md` | README, status table, eval round tables, architecture diagram |
+| **BROWSER** | Window capture: browser at ~1280×800 | `jscc serve` dashboard |
+| **END** | Image source: `docs/demo-fixtures/end-card.png` (1920×1080, repo URL) | Final 2–3 seconds |
+
+**Creating each source** (`+` under Sources, Window Capture):
+
+- Set **Capture Method** to *Windows 10 (1903 and up)*. The default can show a
+  black frame for a browser with hardware acceleration, and can miss a
+  Windows Terminal window.
+- Pick the window by title. Open the terminal, editor, and browser first so
+  they appear in the Window dropdown; a window opened after the source is made
+  has to be re-selected.
+- Untick **Capture Cursor** on DOCS if the pointer wanders while you read; keep
+  it on for TERM and BROWSER, where the viewer follows your clicks.
+- Set each source to **Fit to screen** (Ctrl+F on the selected source) so a
+  1280×800 browser fills the 1920×1080 frame instead of floating small.
+- The **END** scene needs no window: add `docs/demo-fixtures/end-card.png` as an Image
+  source.
+
+### Hotkeys
+
+Settings → Hotkeys. Search each scene name and bind its "Switch to scene"
+entry. Hotkeys are global, so they work while the terminal has focus.
+
+| Action | Hotkey |
+|---|---|
+| Switch to scene TERM | `Ctrl+Alt+1` |
+| Switch to scene DOCS | `Ctrl+Alt+2` |
+| Switch to scene BROWSER | `Ctrl+Alt+3` |
+| Switch to scene END | `Ctrl+Alt+4` |
+| Start Recording | `Ctrl+Alt+R` |
+| Stop Recording | `Ctrl+Alt+S` |
+
+Start and stop on a keypress instead of clicking the OBS window means the
+click and the OBS window never touch the footage. Do a 10-second test take and
+play it back before the first real one: check that scene switches land, the
+text is readable at full screen, and track 2 holds the mic.
+
 ---
 
 ## 0:00–0:20 — Open
+
+**Scene:** DOCS (whole beat).
 
 **Show:** README.md at the top, scrolled to the one-line pitch and the
 "Start here: six things worth reading first" list. Don't scroll further.
@@ -58,6 +156,8 @@ faked."
 ---
 
 ## 0:20–1:10 — Ingest, and the DLQ recovery path
+
+**Scene:** TERM (whole beat). Switch DOCS → TERM on the first command.
 
 **Show:** Terminal. Run:
 
@@ -92,6 +192,8 @@ unresolved list.
 
 ## 1:10–1:50 — Score it
 
+**Scene:** TERM → DOCS (at the status-table cut).
+
 **Show:** Terminal. Run `jscc report --now 2026-08-28T12:00:00+00:00` to get
 a stale application's id (or use the one just created), then:
 
@@ -115,6 +217,8 @@ through the eval harness — that's next."
 
 ## 1:50–2:20 — Draft a follow-up
 
+**Scene:** TERM → DOCS (at "Sample drafter output").
+
 **Show:**
 
 ```bash
@@ -136,6 +240,9 @@ a relationship and deserves a person's judgment, not an autocomplete."
 ---
 
 ## 2:20–3:10 — The eval harness
+
+**Scene:** TERM → DOCS (at the round-by-round table, after holding on the
+final `25/28` line).
 
 **Show:** Terminal.
 
@@ -163,6 +270,8 @@ missed the bar, and why — a grader that got stricter, then fairer."
 
 ## 3:10–3:40 — Cost and instrumentation
 
+**Scene:** TERM (whole beat). Switch DOCS → TERM on the command.
+
 **Show:**
 
 ```bash
@@ -179,6 +288,9 @@ this costs to run."
 ---
 
 ## 3:40–4:10 — The dashboard
+
+**Scene:** TERM (to start `jscc serve`) → BROWSER (as soon as the server is
+up; cut the startup wait in the edit).
 
 **Show:** Run `uv run jscc serve`, open `http://127.0.0.1:8000`. Click
 through: funnel view → pipeline view → an application detail page → the DLQ
@@ -198,6 +310,8 @@ banner is how I always know which one I'm looking at."
 
 ## 4:10–4:30 — Close
 
+**Scene:** DOCS → END (switch at the last spoken sentence, hold 2–3 seconds).
+
 **Show:** README's "Architecture" section (the mermaid diagram) or the ADR
 list, whichever renders more cleanly on screen.
 
@@ -206,7 +320,7 @@ one adversarial, one an outside reviewer's read — at every phase boundary.
 The repo's linked in the description if you want to see how any of this
 actually works."
 
-**Show:** Cut to black / end card with the repo URL.
+**Show:** End card with the repo URL (scene END).
 
 ---
 
