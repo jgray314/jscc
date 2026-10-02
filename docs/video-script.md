@@ -194,8 +194,14 @@ unresolved list.
 
 **Scene:** TERM → DOCS (at the status-table cut).
 
-**Show:** Terminal. Run `jscc report --now 2026-08-28T12:00:00+00:00` to get
-a stale application's id (or use the one just created), then:
+**Show:** Terminal. Use the application id `resolve-dlq` printed in the
+previous beat ("created application …"), then:
+
+(Don't reach for `jscc report` to find an id: it prints no ids. And don't run
+it with `--now 2026-08-28…` after the resolve beat: the new application is
+stamped with today's date, so a pinned past `--now` makes `report` error out
+with a "future reference timestamp".)
+
 
 ```bash
 uv run jscc score <application-id>
@@ -250,8 +256,10 @@ final `25/28` line).
 uv run jscc eval composition --replay
 ```
 
-Let the pass/fail list scroll briefly, then hold on the final line:
-`25/28 passed (89%)`.
+The summary, `25/28 passed (89%)`, is the **first** line of output; the
+pass/fail list (35 lines, three `[FAIL]`s) follows it. Let the list scroll
+past, then scroll back up (or `| head -1` in a second take) and hold on the
+summary line.
 
 **Say:** "This replays 28 real, hand-captured Claude conversations against
 today's grading code — no API key needed, no live spend. 25 out of 28 pass.
@@ -293,8 +301,9 @@ this costs to run."
 up; cut the startup wait in the edit).
 
 **Show:** Run `uv run jscc serve`, open `http://127.0.0.1:8000`. Click
-through: funnel view → pipeline view → an application detail page → the DLQ
-list.
+through: the home page (Funnel, Pipeline, and Stale alerts are sections of
+the one page, so scroll rather than click) → an application detail page → the
+DLQ page.
 
 **Say:** "Same data, same logic, rendered over HTTP instead of the terminal —
 built on the exact same functions the CLI report command uses, so the two
@@ -331,5 +340,12 @@ actually works."
 - If `jscc serve` output looks empty or wrong on the recording machine, rerun
   the seed reset above — the dashboard reads the same `data/synthetic.db`
   the CLI commands populate.
+- The `score` stub line prints a `�` where its em dash should be (the Windows
+  terminal's cp1252 codepage; the data is fine). Run `chcp 65001` in the
+  terminal before recording, or accept it and don't linger on that line.
+- `jscc followup` on the just-created application prints `HANDLE MANUALLY …
+  (untitled)` from the stub router, not a draft. That's the stub's
+  conservative default, and it lines up with the "stub" caveat in that beat;
+  the real routine-vs-briefing contrast comes from the README's sample output.
 - Don't record over a `JSCC_DATA=real` session by habit — check the mode
   banner / `[mode: ...]` prefix before pressing record, not after.
