@@ -76,9 +76,22 @@ def save(data):
     )
 
 
+def _seal_raw(f, ev, version):
+    return f"{f['id']}|{f['verify']}|{ev['commit']}|{ev['at']}|features.py-{version}"
+
+
 def seal(f, ev):
-    raw = f"{f['id']}|{f['verify']}|{ev['commit']}|{ev['at']}|features.py-v1"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    """Letters only. A hex seal can contain a long enough digit run to read as a
+    phone number to a content scanner (it did, once). Mapping 0-9 to g-p keeps
+    the same entropy and removes every digit."""
+    digest = hashlib.sha256(_seal_raw(f, ev, "v2").encode()).hexdigest()[:16]
+    return digest.translate(str.maketrans("0123456789", "ghijklmnop"))
+
+
+def seal_v1(f, ev):
+    """The original hex seal. Still accepted by `check` so existing evidence stays
+    valid until a restamp rewrites it; remove once every repo has restamped."""
+    return hashlib.sha256(_seal_raw(f, ev, "v1").encode()).hexdigest()[:16]
 
 
 def find(data, fid):
@@ -112,7 +125,7 @@ def problems(data):
             out.append(f"{fid}: state '{f.get('state')}' is not one of {STATES}")
         if f.get("state") == "passing":
             ev = f.get("evidence") or {}
-            sealed = bool(ev.get("commit")) and ev.get("seal") == seal(f, ev)
+            sealed = bool(ev.get("commit")) and ev.get("seal") in (seal(f, ev), seal_v1(f, ev))
             if not sealed:
                 out.append(
                     f"{fid}: marked passing without evidence from features.py verify "
