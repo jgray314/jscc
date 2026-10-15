@@ -8,11 +8,11 @@
       "verify": "uv run pytest -q",
       "state": "passing",
       "evidence": {
-        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
-        "dirty": true,
-        "at": "2026-10-15T20:54:58Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:54Z",
         "exit_code": 0,
-        "seal": "51f06f35e46f570e"
+        "seal": "goagjcmhomnndfef"
       }
     },
     {
@@ -21,11 +21,11 @@
       "verify": "uv run ruff check .",
       "state": "passing",
       "evidence": {
-        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
-        "dirty": true,
-        "at": "2026-10-15T20:55:09Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:54Z",
         "exit_code": 0,
-        "seal": "1d9355aad2ea1469"
+        "seal": "oedjgmmmnealpkfj"
       }
     },
     {
@@ -34,11 +34,11 @@
       "verify": "uv run ruff format --check .",
       "state": "passing",
       "evidence": {
-        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
-        "dirty": true,
-        "at": "2026-10-15T20:55:10Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:54Z",
         "exit_code": 0,
-        "seal": "f7df59a2d24de9e0"
+        "seal": "ecdijcfmkmahghje"
       }
     },
     {
@@ -61,11 +61,11 @@
       "state": "passing",
       "source": "harness-history analysis 2026-10-15, item 1: README counts stale four times, 'eighteen threats' vs thirteen, 'Six ADRs'",
       "evidence": {
-        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
-        "dirty": true,
-        "at": "2026-10-15T21:02:38Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:55Z",
         "exit_code": 0,
-        "seal": "26d315208c745186"
+        "seal": "pmgkjikmkilgfjmd"
       }
     },
     {
@@ -75,11 +75,11 @@
       "state": "passing",
       "source": "harness-history analysis item 2: WD-6, WD-8, W1, W15 each came back after a one-time scrub",
       "evidence": {
-        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
-        "dirty": true,
-        "at": "2026-10-15T21:05:59Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:55Z",
         "exit_code": 0,
-        "seal": "7813daeaccdacbd0"
+        "seal": "cnbifnmhkdmfbioa"
       }
     },
     {
@@ -89,11 +89,11 @@
       "state": "passing",
       "source": "harness-history analysis item 3: extracted_json then paste_text, same shape one field over",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:13:53Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:58Z",
         "exit_code": 0,
-        "seal": "8e5ff60bfd73d40f"
+        "seal": "ealoongfdhoofjll"
       }
     },
     {
@@ -103,11 +103,11 @@
       "state": "passing",
       "source": "harness-history analysis item 4: compaction finding recurred five times after a written standing step",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:14:27Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:38:58Z",
         "exit_code": 0,
-        "seal": "81ef7178b1d0e980"
+        "seal": "hfcgpdgjiijpengk"
       }
     },
     {
@@ -117,11 +117,11 @@
       "state": "passing",
       "source": "harness-history analysis item 5: four false-positive patches, one local pass that CI failed",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:17:55Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:02Z",
         "exit_code": 0,
-        "seal": "e3d5a72de9f1345b"
+        "seal": "ldnbbjcmdmfidgkc"
       }
     },
     {
@@ -131,11 +131,11 @@
       "state": "passing",
       "source": "harness-history analysis item 8: eval-gated gates nothing in CI; counts pinned but not membership",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:18:58Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:02Z",
         "exit_code": 0,
-        "seal": "499891e1559b60b5"
+        "seal": "iagdlapgoelihlmj"
       }
     },
     {
@@ -145,11 +145,11 @@
       "state": "passing",
       "source": "follow-up to scanner-self-test: the carve-out blanked anything after claude-",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:26:26Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:07Z",
         "exit_code": 0,
-        "seal": "a2bbc57b8903a5ee"
+        "seal": "kiggdekdeppifhcb"
       }
     },
     {
@@ -159,11 +159,11 @@
       "state": "passing",
       "source": "trust-boundary-registry gap: stdin and file input had no size ceiling",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:27:44Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:09Z",
         "exit_code": 0,
-        "seal": "e6f743686e9333e9"
+        "seal": "mpncfndpeaempeca"
       }
     },
     {
@@ -173,11 +173,11 @@
       "state": "passing",
       "source": "trust-boundary-registry finding: 160 KB single token took 46s in the sanitizer",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:30:06Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:10Z",
         "exit_code": 0,
-        "seal": "fb68146a62bbd2ac"
+        "seal": "eknckncdkabfofae"
       }
     },
     {
@@ -187,11 +187,11 @@
       "state": "passing",
       "source": "follow-up to scanner-self-test: uv.lock scans clean after the hash carve-out",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:31:06Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:14Z",
         "exit_code": 0,
-        "seal": "10ac7b9e16446aea"
+        "seal": "kfbicjlildgfmfbi"
       }
     },
     {
@@ -201,11 +201,11 @@
       "state": "passing",
       "source": "follow-up to changelog-size-gate: Phase B was still about 110 lines",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:31:39Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:15Z",
         "exit_code": 0,
-        "seal": "39c8115f09148d87"
+        "seal": "cdbmdmoachdfccfc"
       }
     },
     {
@@ -215,11 +215,11 @@
       "state": "passing",
       "source": "harness follow-up: the feature list was only checked in the local pre-push hook",
       "evidence": {
-        "commit": "51ddf5770d2796eb59f839586ae8de5958944cd1",
-        "dirty": true,
-        "at": "2026-10-15T21:31:14Z",
+        "commit": "9dd2fef73c3f2a906da14eacf419e9f2f5091211",
+        "dirty": false,
+        "at": "2026-10-15T21:39:15Z",
         "exit_code": 0,
-        "seal": "e6c85aa610047b73"
+        "seal": "fejijgaphfeppjci"
       }
     }
   ]
