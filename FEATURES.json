@@ -221,6 +221,76 @@
         "exit_code": 0,
         "seal": "fejijgaphfeppjci"
       }
+    },
+    {
+      "id": "doc-links-resolve",
+      "behavior": "Every relative link and in-page anchor in tracked Markdown, and every link to this repo's own GitHub README anchors, resolves to a file and a heading that exist.",
+      "verify": "uv run pytest tests/test_doc_links.py -q",
+      "state": "passing",
+      "source": "jscc harness audit 2026-10-15: dead anchor in docs/README.md and in the portfolio index, missed by the claims registry",
+      "evidence": {
+        "commit": "50323a5d4cd64e9169eb4e4a4d27782641427ee9",
+        "dirty": true,
+        "at": "2026-10-15T22:06:38Z",
+        "exit_code": 0,
+        "seal": "kmnahcphjbgfpeig"
+      }
+    },
+    {
+      "id": "one-hook-mechanism",
+      "behavior": "There is one git-hook mechanism, .githooks. The pre-commit framework config is gone, ADR-004 says it is superseded, and no doc tells a reader to run pre-commit install.",
+      "verify": "uv run pytest tests/test_single_hook_mechanism.py -q",
+      "state": "passing",
+      "source": "jscc harness audit 2026-10-15: .pre-commit-config.yaml and technical-reference describe a framework that is not installed",
+      "evidence": {
+        "commit": "50323a5d4cd64e9169eb4e4a4d27782641427ee9",
+        "dirty": true,
+        "at": "2026-10-15T22:07:12Z",
+        "exit_code": 0,
+        "seal": "oidicbjcpddjbdoa"
+      }
+    },
+    {
+      "id": "runtime-pinned",
+      "behavior": "The Python version is pinned in .python-version and equals the version CI installs.",
+      "verify": "uv run pytest tests/test_runtime_pin.py -q",
+      "state": "passing",
+      "source": "jscc harness audit 2026-10-15: CI 3.12, local 3.14.7, no pin file",
+      "evidence": {
+        "commit": "50323a5d4cd64e9169eb4e4a4d27782641427ee9",
+        "dirty": true,
+        "at": "2026-10-15T22:08:10Z",
+        "exit_code": 0,
+        "seal": "ibkecjidnlkdoaga"
+      }
+    },
+    {
+      "id": "one-setup-command",
+      "behavior": "README, technical-reference and CI quote the same dependency-install command as AGENTS.md.",
+      "verify": "uv run pytest tests/test_setup_command.py -q",
+      "state": "passing",
+      "source": "jscc harness audit 2026-10-15: plain uv sync in two docs vs --all-extras --frozen in AGENTS.md and CI",
+      "evidence": {
+        "commit": "50323a5d4cd64e9169eb4e4a4d27782641427ee9",
+        "dirty": true,
+        "at": "2026-10-15T22:08:24Z",
+        "exit_code": 0,
+        "seal": "nlljdicikciichkb"
+      }
+    },
+    {
+      "id": "hooks-tested",
+      "behavior": "The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite.",
+      "verify": "uv run pytest tests/test_githooks.py -q",
+      "state": "passing",
+      "source": "jscc harness audit 2026-10-15: four controls with no test of their own",
+      "evidence": {
+        "commit": "50323a5d4cd64e9169eb4e4a4d27782641427ee9",
+        "dirty": true,
+        "at": "2026-10-15T22:08:56Z",
+        "exit_code": 0,
+        "seal": "lhioillcplpceiao"
+      }
     }
   ]
 }

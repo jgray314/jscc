@@ -46,7 +46,7 @@ None of these is a held-out rate. Each prompt was revised after seeing its own c
 ## Quick start
 
 ```bash
-uv sync
+uv sync --all-extras --frozen
 uv run python -m jscc validate-config
 uv run python -m jscc db init
 uv run python -m jscc seed --random-seed 42 --now 2026-08-28T12:00:00+00:00
@@ -60,7 +60,7 @@ Default mode is `synthetic`. Switch by env: `JSCC_DATA=real`. Neither DB is trac
 The dashboard (`jscc/web/`, ADR-007) is the same read/write logic as the CLI, rendered over HTTP. Same mode rules as everything else: the `JSCC_DATA` env var picks synthetic vs. real, and the SYNTHETIC MODE banner in the page header tells you which one you're looking at.
 
 ```bash
-uv sync
+uv sync --all-extras --frozen
 uv run jscc db init
 uv run jscc seed --random-seed 42
 uv run jscc serve --port 8000
@@ -158,7 +158,7 @@ The ten design principles behind them are in [docs/design-principles.md](docs/de
 ## Status
 
 - **v1 complete.** All six phases closed after review, the last on 2026-09-27. Still open: the video walkthrough and a blog post. Work since v1 is in [CHANGELOG.md](CHANGELOG.md); the phase table, reviews, and cost envelope are in [docs/technical-reference.md](docs/technical-reference.md#status).
-- **946 pytest cases.** Lint and format enforced via ruff.
+- **968 pytest cases.** Lint and format enforced via ruff.
 - **No real dollar figures yet.** Every model call is metered at the call site, but with no live key there is no real billing to report.
 
 ## License

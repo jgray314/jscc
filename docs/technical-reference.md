@@ -86,7 +86,7 @@ jscc/           library code
   cli/          click entry point, one module per command family: admin (validate-config, db init, seed, report, costs),
                 ingest (ingest, dlq list, resolve-dlq), agents (score, route, followup), eval_cmds (eval <suite>), web (serve)
   web/          FastAPI + Jinja2 dashboard app (ADR-007); templates/ holds the Jinja2 pages
-tests/          pytest suite (946 tests)
+tests/          pytest suite (968 tests)
 config/         stages.yaml, profile.example.yaml, pipeline.yaml (playwright_fallback flag)
 evals/          eval suites (jd_extraction, fit_scoring, routing, composition, extraction_to_scoring); evals/README.md
 scripts/        pre-commit content scanner (imports its rules from jscc/personal_data.py); smoke_fetch.py (real-URL smoke test, not CI-gated -- results: docs/smoke-test-results.md); active_time.py (active-time proxy from commit gaps, prints its own bias); capture_tools.py (manual-capture and proxy tooling for the eval suites)
@@ -103,7 +103,7 @@ Design decisions with rejected alternatives:
 - [ADR-001 — pydantic vs. jsonschema](../decisions/001-pydantic-vs-jsonschema.md)
 - [ADR-002 — stdlib sqlite3](../decisions/002-stdlib-sqlite3.md)
 - [ADR-003 — mode isolation via stamped marker](../decisions/003-mode-isolation.md)
-- [ADR-004 — pre-commit.com framework + local Python hook](../decisions/004-precommit-framework.md)
+- [ADR-004 — pre-commit.com framework + local Python hook (superseded by .githooks)](../decisions/004-precommit-framework.md)
 - [ADR-005 — sanitizer authenticity via HMAC wrapper](../decisions/005-sanitizer-authenticity.md)
 - [ADR-006 — eval bars, manual capture, and deterministic grading](../decisions/006-eval-bars-and-manual-capture.md)
 - [ADR-007 — dashboard web stack: FastAPI + Jinja2](../decisions/007-web-stack-choice.md)
@@ -113,18 +113,18 @@ The ten locked design principles behind them are in [design-principles.md](desig
 ## Development
 
 ```bash
-uv sync
+uv sync --all-extras --frozen
+git config core.hooksPath .githooks  # once per clone: commit-msg and pre-push hooks
 uv run pytest              # ~seconds
 uv run ruff check .        # lint
 uv run ruff format --check .  # formatting
 uv run python -m jscc eval jd_extraction --replay   # eval suite, no API key
-uv run pre-commit install  # enable the safety scanner + ruff hooks
 uv run playwright install chromium  # optional -- only needed to use the Playwright fetch fallback
 ```
 
-The pre-commit scanner refuses commits that match email/phone patterns, an Anthropic API key, or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
+The content scanner (run by the pre-push hook and by CI) refuses pushes that match email/phone patterns, an Anthropic API key, or entries in `.safety/danger-list.txt` and the gitignored `.safety/danger-list.local.txt`. It reads the same two lists, from the same package-anchored location, as the LLM sanitizer — that shared location is part of the guarantee, not an implementation detail.
 
-Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the same pre-commit hooks and CI job as the content scanner. `E501` (line length) is deliberately off — this codebase's design-rationale comments and docstrings are long-form prose by design, and wrapping them at a fixed column would be churn against an established writing style, not a real improvement.
+Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the same pre-push hook and CI job as the content scanner. `E501` (line length) is deliberately off — this codebase's design-rationale comments and docstrings are long-form prose by design, and wrapping them at a fixed column would be churn against an established writing style, not a real improvement.
 
 ## Status
 
@@ -151,4 +151,4 @@ Lint and format are ruff (`pyproject.toml`'s `[tool.ruff]`), enforced by the sam
 
 **Cost envelope.** No real dollar figures exist yet: every model call so far ran against a stub client or was captured by hand through Claude.ai chat, never a billed `AnthropicClient` request, since this project is not using the Anthropic Console. What does exist: every call path is instrumented (D5), the ledger and `jscc costs` are built and tested against synthetic call records, and a call that fails mid-request leaves a marked row instead of vanishing. The honest claim today is "the cost-transparency machinery is built and correct", not "here is what this costs to run"; that waits on a live key.
 
-946 pytest cases. Lint and format enforced via ruff (see Development, above).
+968 pytest cases. Lint and format enforced via ruff (see Development, above).

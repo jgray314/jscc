@@ -21,11 +21,10 @@
 # `sha256:`, and `precommit_scan.py`'s `_SHA256_KEY_RE` strips exactly that
 # shape before matching, so the file needs no exclusion and its values are
 # scanned like everything else.
-# Both CI (.github/workflows/ci.yml) and the pre-commit config
-# (.pre-commit-config.yaml, via `entry: bash scripts/scan_tracked.sh`)
-# invoke this script so the exclude list cannot drift between them.
-# Two copies of the list means one of them excludes a file the other scans,
-# and `pre-commit run --all-files` fails on a tree CI accepts.
+# Both CI (.github/workflows/ci.yml) and the pre-push hook
+# (.githooks/pre-push) invoke this script so the exclude list cannot drift
+# between them. Two copies of the list means one of them excludes a file the
+# other scans, and a push passes locally that CI rejects.
 set -euo pipefail
 
 EXCLUDES=(

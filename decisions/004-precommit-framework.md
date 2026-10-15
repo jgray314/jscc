@@ -1,6 +1,8 @@
 # ADR 004: pre-commit framework choice — `pre-commit.com` + local Python hook
 
-**Status:** Accepted (2026-08-28, Slice A4.5b)
+**Status:** Superseded (2026-10-15) by versioned `.githooks/`, enabled with `git config core.hooksPath .githooks`. Originally accepted 2026-08-28, Slice A4.5b.
+
+**What changed:** the scanner script this ADR is about is unchanged and still the single enforcement point, run by the pre-push hook and by CI. Only the framework wiring was dropped: `pre-commit.com` was never installed in the project's environment, so the config and the `pre-commit install` instruction described a mechanism nothing used, while the versioned hooks did the work. One mechanism is easier to keep true than two. The text below is the original decision, kept as the record.
 
 ## Context
 

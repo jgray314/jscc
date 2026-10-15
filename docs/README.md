@@ -4,7 +4,7 @@ What's in this folder and why, for a reader who landed here directly rather than
 
 ## Core narrative and reference
 
-The docs the main README's [Start here](../README.md#start-here-six-things-worth-reading-first) section points at, in the order it recommends:
+The docs the main README's [What's worth reading](../README.md#whats-worth-reading) section points at, in the order it recommends:
 
 - [how-i-built-this.md](how-i-built-this.md) — the narrative: why JSCC is shaped the way it is, what the eval rounds showed, what building it with an AI agent looked like.
 - [technical-reference.md](technical-reference.md) — architecture diagram, repo layout, development commands, and the full phase-by-phase status table.

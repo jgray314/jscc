@@ -62,6 +62,6 @@ jobs:
 
       - name: Run precommit safety scanner on tracked files
         # scan_tracked.sh is the single source of truth for the exclude list;
-        # .pre-commit-config.yaml calls the same script so CI and local hooks
+        # .githooks/pre-push calls the same script so CI and the local hook
         # cannot drift.
         run: bash scripts/scan_tracked.sh

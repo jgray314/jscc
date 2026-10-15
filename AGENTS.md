@@ -11,7 +11,7 @@ Job-search pipeline tracker built around eval-backed LLM stages (extraction, fit
 
 ## Where things are
 
-- `FEATURES.json` is the scope surface. `PROGRESS.md` is generated from it. Read both first.
+- `FEATURES.json` is the verification ledger: each entry is a check gate with a command that proves it. `PROGRESS.md` is generated from it and lists those gates only. Product progress and open work are in the README "Status" and `docs/technical-reference.md` "Status".
 - `decisions/` holds ADRs, `docs/design-principles.md` the locked decisions, `CHANGELOG.md` the build arc, `docs/gate-reviews.md` the review record.
 
 ## Rules
