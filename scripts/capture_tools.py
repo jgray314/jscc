@@ -381,8 +381,8 @@ def grade_proxy(suite: str, tag: str, work_dir: Path) -> str:
     out_dir = work_dir / "proxy" / suite / tag / "out"
     by_sample: dict[int, dict[str, str]] = defaultdict(dict)
     for f in sorted(out_dir.glob("*.json")):
-        case_id, k = f.stem.rsplit("__", 1)
-        by_sample[int(k)][case_id] = f.read_text(encoding="utf-8").strip()
+        case_id, k_str = f.stem.rsplit("__", 1)
+        by_sample[int(k_str)][case_id] = f.read_text(encoding="utf-8").strip()
     if not by_sample:
         raise SystemExit(f"no answers in {out_dir}")
 

@@ -117,7 +117,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
     if record and replay:
         raise click.UsageError("--record and --replay are mutually exclusive")
 
-    client = None
+    client: ReplayClient | RecordingClient | None = None
     if replay:
         recorded = load_recording()
         if not recorded:
@@ -145,7 +145,7 @@ def eval_jd_extraction(data_dir: Path, record: bool, replay: bool, min_pass_rate
     finally:
         conn.close()
 
-    if record and client is not None:
+    if record and isinstance(client, RecordingClient):
         # Every entry was already merged to disk by on_captured as the run
         # went; this is a final, redundant (and harmless -- save_recording
         # merges) flush plus the count for the message below.
@@ -220,7 +220,7 @@ def eval_fit_scoring(
         raise click.UsageError("--replay is mutually exclusive with --record/--manual")
     record = record or manual
 
-    client = None
+    client: ReplayClient | RecordingClient | None = None
     if replay:
         recorded = load_recording(FIT_SCORING_RECORDING_PATH)
         if not recorded:
@@ -250,7 +250,7 @@ def eval_fit_scoring(
     finally:
         conn.close()
 
-    if record and client is not None:
+    if record and isinstance(client, RecordingClient):
         save_recording(client.captured, FIT_SCORING_RECORDING_PATH)
         echo(f"recorded {len(client.captured)} responses")
 
@@ -327,7 +327,7 @@ def eval_routing(
         raise click.UsageError("--replay is mutually exclusive with --record/--manual")
     record = record or manual
 
-    client = None
+    client: ReplayClient | RecordingClient | None = None
     if replay:
         recorded = load_recording(ROUTING_RECORDING_PATH)
         if not recorded:
@@ -352,7 +352,7 @@ def eval_routing(
     finally:
         conn.close()
 
-    if record and client is not None:
+    if record and isinstance(client, RecordingClient):
         save_recording(client.captured, ROUTING_RECORDING_PATH)
         echo(f"recorded {len(client.captured)} responses")
 
@@ -422,7 +422,7 @@ def eval_composition(
         raise click.UsageError("--replay is mutually exclusive with --record/--manual")
     record = record or manual
 
-    client = None
+    client: ReplayClient | RecordingClient | None = None
     if replay:
         recorded = load_recording(COMPOSITION_RECORDING_PATH)
         if not recorded:
@@ -453,7 +453,7 @@ def eval_composition(
     finally:
         conn.close()
 
-    if record and client is not None:
+    if record and isinstance(client, RecordingClient):
         save_recording(client.captured, COMPOSITION_RECORDING_PATH)
         echo(f"recorded {len(client.captured)} responses")
 
@@ -521,7 +521,7 @@ def eval_extraction_to_scoring(data_dir: Path, record: bool, replay: bool, manua
         raise click.UsageError("--replay is mutually exclusive with --record/--manual")
     record = record or manual
 
-    client = None
+    client: ReplayClient | RecordingClient | None = None
     if replay:
         recorded = load_recording(EXTRACTION_TO_SCORING_RECORDING_PATH)
         if not recorded:
@@ -567,7 +567,7 @@ def eval_extraction_to_scoring(data_dir: Path, record: bool, replay: bool, manua
     finally:
         conn.close()
 
-    if record and client is not None:
+    if record and isinstance(client, RecordingClient):
         save_recording(client.captured, EXTRACTION_TO_SCORING_RECORDING_PATH)
         echo(f"recorded {len(client.captured)} responses")
 

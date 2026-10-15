@@ -277,6 +277,7 @@ def _resolve_locked(
         # a caller re-runs with `title`/`company` and either `extracted_override`
         # (trusted, same-process) or `use_pending_extraction=True` (untrusted,
         # looks up what's stored here) once a human has confirmed or corrected it.
+        assert extract_result.extracted is not None  # set whenever outcome is needs_confirmation
         _store_pending_extraction(entry_id, extract_result.extracted, paste_text)
         return DLQResolveResult(
             outcome=DLQResolveOutcome.needs_confirmation,
@@ -285,6 +286,7 @@ def _resolve_locked(
             unverified_fields=extract_result.unverified_fields,
         )
     app_id = extract_result.application_id
+    assert app_id is not None  # set whenever outcome is created
 
     if not _store_resolution(
         conn, entry_id, Resolution.manual_paste, application_id=app_id, only_if_unresolved=True

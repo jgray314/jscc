@@ -154,6 +154,7 @@ def ingest(
             pipeline_cfg = load_pipeline(config_dir / "pipeline.yaml")
             result = fetch_jd(url, use_playwright_fallback=pipeline_cfg.playwright_fallback)
             if not result.ok:
+                assert result.failure_mode is not None  # a failed fetch always names its mode
                 entry = DLQEntry(
                     source_url=url,
                     failure_mode=result.failure_mode,
@@ -275,6 +276,7 @@ def ingest(
             echo(f"configuration error: {e}", err=True)
             sys.exit(EXIT_USAGE)
         verb = "updated" if existing is not None else "created"
+        assert extract_result.application is not None  # set whenever outcome is created
         echo(
             f"{verb} application {extract_result.application_id}: {extract_result.application.title}"
         )
@@ -460,6 +462,7 @@ def resolve_dlq(
         # `entry.resolution` also means a `wont_fix` entry can no longer be
         # converted to `manual_paste` from here; there is no "reopen" path,
         # which is a real, undecided gap rather than an oversight in this fix.
+        assert result.prior_resolution is not None  # set whenever outcome is already_resolved
         echo(
             f"DLQ entry {entry_id} is already resolved "
             f"({result.prior_resolution.value}); not creating another application"

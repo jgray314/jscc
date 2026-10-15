@@ -36,3 +36,5 @@ Thumbs.db
 # Manual-capture and proxy work files (scripts/capture_tools.py) -- regenerable, and proxy
 # output must never sit next to real recordings.
 .capture/
+
+.coverage

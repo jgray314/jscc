@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 from urllib.parse import urlparse
 
 from .extraction import extract_jd
@@ -220,7 +221,7 @@ def extract_and_create_application(
                 unverified_fields=unverified,
             )
 
-    fields = dict(
+    fields: dict[str, Any] = dict(
         source_url=source_url,
         source_raw=raw_text,
         fetch_status=fetch_status,

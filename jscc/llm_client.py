@@ -187,9 +187,7 @@ class AnthropicClient:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        text = "".join(
-            block.text for block in response.content if getattr(block, "type", None) == "text"
-        )
+        text = "".join(block.text for block in response.content if block.type == "text")
         cost_usd = (
             response.usage.input_tokens / 1_000_000 * input_rate
             + response.usage.output_tokens / 1_000_000 * output_rate

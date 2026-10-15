@@ -40,8 +40,13 @@ jobs:
       - name: Run ruff format check
         run: uv run ruff format --check .
 
+      - name: Run mypy
+        # Default settings over jscc/ and scripts/; config is in pyproject.toml.
+        run: uv run mypy
+
       - name: Run pytest
-        run: uv run pytest -q
+        # Coverage is reported, not gated: scripts/features.py is untested.
+        run: uv run pytest -q --cov --cov-report=term
 
       - name: Check the feature list
         # Stdlib only; fails on a hand-edited state, a second active feature, or

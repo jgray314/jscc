@@ -26,7 +26,7 @@ domain); the Origin check refuses a cross-site form post.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -140,7 +140,7 @@ def create_app(
         except InvalidModeError as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    def get_conn(mode: Mode = Depends(get_mode)) -> sqlite3.Connection:
+    def get_conn(mode: Mode = Depends(get_mode)) -> Generator[sqlite3.Connection]:
         try:
             # The framework may run this dependency's setup, the handler and the
             # teardown on different worker threads. The connection belongs to one

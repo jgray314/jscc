@@ -363,6 +363,13 @@ def _parse_dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value)
 
 
+def _require_dt(value: str | None) -> datetime:
+    """A NOT NULL timestamp column; None here means a corrupt row, not an unset field."""
+    if value is None:
+        raise ValueError("required timestamp column was NULL")
+    return datetime.fromisoformat(value)
+
+
 def _parse_date(value: str | None) -> date | None:
     if value is None:
         return None
@@ -393,8 +400,8 @@ def _application_row_to_model(row: sqlite3.Row) -> Application:
         fit_score=row["fit_score"],
         fit_rationale=row["fit_rationale"],
         applied_at=_parse_date(row["applied_at"]),
-        created_at=_parse_dt(row["created_at"]),
-        updated_at=_parse_dt(row["updated_at"]),
+        created_at=_require_dt(row["created_at"]),
+        updated_at=_require_dt(row["updated_at"]),
         last_interaction_at=_parse_dt(row["last_interaction_at"]),
     )
 
@@ -591,7 +598,7 @@ def list_interactions(conn: sqlite3.Connection, application_id: str) -> list[Int
             application_id=r["application_id"],
             contact_id=r["contact_id"],
             type=r["type"],
-            occurred_at=_parse_dt(r["occurred_at"]),
+            occurred_at=_require_dt(r["occurred_at"]),
             notes=r["notes"],
             next_action=r["next_action"],
             next_action_due=_parse_date(r["next_action_due"]),
@@ -632,7 +639,7 @@ def _dlq_row_to_model(row: sqlite3.Row) -> DLQEntry:
         application_id=row["application_id"],
         source_url=row["source_url"],
         failure_mode=row["failure_mode"],
-        attempted_at=_parse_dt(row["attempted_at"]),
+        attempted_at=_require_dt(row["attempted_at"]),
         error_detail=row["error_detail"],
         resolution=row["resolution"],
         resolved_at=_parse_dt(row["resolved_at"]),
@@ -730,7 +737,7 @@ def list_llm_calls(conn: sqlite3.Connection) -> list[LLMCallRecord]:
             output_tokens=r["output_tokens"],
             cost_usd=r["cost_usd"],
             latency_ms=r["latency_ms"],
-            ts=_parse_dt(r["ts"]),
+            ts=_require_dt(r["ts"]),
             error=r["error"],
         )
         for r in rows

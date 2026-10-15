@@ -69,7 +69,7 @@ def _resolve_host(host: str) -> list[str]:
     """Every address `host` resolves to. Separate function so tests can
     replace it -- the suite stays offline, and the guard stays testable
     against addresses no CI runner would actually route to."""
-    return [info[4][0] for info in socket.getaddrinfo(host, None)]
+    return [str(info[4][0]) for info in socket.getaddrinfo(host, None)]
 
 
 def _normalize_host(name: str | bytes) -> str:

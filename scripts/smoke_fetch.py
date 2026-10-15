@@ -65,7 +65,11 @@ def main() -> None:
 
     for label, url in URLS:
         result = fetch_jd(url, use_playwright_fallback=args.playwright)
-        outcome = "ok" if result.ok else f"DLQ: {result.failure_mode.value}"
+        outcome = (
+            "ok"
+            if result.ok
+            else f"DLQ: {result.failure_mode.value if result.failure_mode else 'unknown'}"
+        )
         detail = (result.error_detail or (result.title if result.ok else ""))[:80]
         lines.append(f"| {label} | {url} | {outcome} | {result.used_playwright} | {detail} |")
         print(f"{label}: {outcome}" + (" (playwright)" if result.used_playwright else ""))

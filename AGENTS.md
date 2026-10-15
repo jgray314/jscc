@@ -5,7 +5,7 @@ Job-search pipeline tracker built around eval-backed LLM stages (extraction, fit
 ## Run and verify
 
 - Setup on a fresh clone: `uv sync --all-extras --frozen`, then `git config core.hooksPath .githooks` (once; enables the commit-msg and pre-push hooks).
-- Full check, same order as CI: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q` (about 25 seconds).
+- Full check, same order as CI: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run mypy && uv run pytest -q` (about 25 seconds).
 - On Windows with Git Bash, `uv` is in `~/.local/bin`: `export PATH="$HOME/.local/bin:$PATH"` first.
 - Evals replay recorded responses: see `evals/README.md`. Never write proxy output into a recorded fixture.
 
