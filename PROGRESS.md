@@ -6,32 +6,32 @@ This is the verification ledger: check gates and controls, each with a command t
 It is not the product roadmap. What the product does and what is open lives in the README
 Status and the project plan.
 
-Commit: `50323a5`  
+Commit: `875a9fe`  
 Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q`
 
 ## Done
 
-- **tests-pass**: The full pytest suite passes. (verified at `9dd2fef`)
-- **lint-clean**: Ruff lint reports nothing on the whole tree. (verified at `9dd2fef`)
-- **format-clean**: Ruff format check passes on the whole tree. (verified at `9dd2fef`)
-- **scanner-clean**: The content scanner finds no personal-data or credential shapes in tracked files. (verified at `c76cfee`)
-- **docs-claims-registry**: Every numeric or status claim in README, CHANGELOG and docs (test count, ADR count, threat count, eval figures, phase status) is listed in one registry with its source of truth and asserted by a test. (verified at `9dd2fef`)
-- **public-docs-review-ids**: Public docs and source comments contain no gate-finding ids, private workspace paths or third-person owner references; the denylist is shared with the existing public-docs test. (verified at `9dd2fef`)
-- **trust-boundary-registry**: Every client-writable field on a CLI or web entry point has a row in one table-driven test asserting it is tied to server-side state or revalidated; a new field fails until it has a row. (verified at `9dd2fef`)
-- **changelog-size-gate**: CHANGELOG.md stays under a stated line budget and its header phase matches the project's current phase. (verified at `9dd2fef`)
-- **scanner-self-test**: The scanner is tested against its own known false-positive shapes (hash runs, model ids, IP literals) and fails loudly when shell exit codes do not propagate. (verified at `9dd2fef`)
-- **eval-replay-ci**: CI replays recorded eval responses and the published pass counts pin which case ids pass, not only how many. (verified at `9dd2fef`)
-- **scanner-model-id-shape**: The scanner's model-id carve-out matches only a real model-id shape (claude-, a family, then version or date tokens); a phone-shaped digit run right after claude- is still flagged. (verified at `9dd2fef`)
-- **paste-size-ceiling**: ingest --paste and --file refuse input over the fetcher's 5 MB ceiling with a usage error, writing nothing and making no model call. (verified at `9dd2fef`)
-- **email-regex-linear**: Email detection is linear on long runs with no whitespace or @, and redaction output is byte-identical on existing inputs. (verified at `9dd2fef`)
-- **lockfile-scanned**: scripts/scan_tracked.sh no longer excludes uv.lock, and the scanner passes it. (verified at `9dd2fef`)
-- **changelog-fold-phase-b**: CHANGELOG.md Phase B is a shape-and-lessons summary and the line budget is tightened to the new size. (verified at `9dd2fef`)
-- **ci-features-check**: CI runs scripts/features.py check in the same job, and a test asserts the step is present. (verified at `9dd2fef`)
-- **doc-links-resolve**: Every relative link and in-page anchor in tracked Markdown, and every link to this repo's own GitHub README anchors, resolves to a file and a heading that exist. (verified at `50323a5`)
-- **one-hook-mechanism**: There is one git-hook mechanism, .githooks. The pre-commit framework config is gone, ADR-004 says it is superseded, and no doc tells a reader to run pre-commit install. (verified at `50323a5`)
-- **runtime-pinned**: The Python version is pinned in .python-version and equals the version CI installs. (verified at `50323a5`)
-- **one-setup-command**: README, technical-reference and CI quote the same dependency-install command as AGENTS.md. (verified at `50323a5`)
-- **hooks-tested**: The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite. (verified at `50323a5`)
+- **tests-pass**: The full pytest suite passes. (verified at `875a9fe`)
+- **lint-clean**: Ruff lint reports nothing on the whole tree. (verified at `875a9fe`)
+- **format-clean**: Ruff format check passes on the whole tree. (verified at `875a9fe`)
+- **scanner-clean**: The content scanner finds no personal-data or credential shapes in tracked files. (verified at `875a9fe`)
+- **docs-claims-registry**: Every numeric or status claim in README, CHANGELOG and docs (test count, ADR count, threat count, eval figures, phase status) is listed in one registry with its source of truth and asserted by a test. (verified at `875a9fe`)
+- **public-docs-review-ids**: Public docs and source comments contain no gate-finding ids, private workspace paths or third-person owner references; the denylist is shared with the existing public-docs test. (verified at `875a9fe`)
+- **trust-boundary-registry**: Every client-writable field on a CLI or web entry point has a row in one table-driven test asserting it is tied to server-side state or revalidated; a new field fails until it has a row. (verified at `875a9fe`)
+- **changelog-size-gate**: CHANGELOG.md stays under a stated line budget and its header phase matches the project's current phase. (verified at `875a9fe`)
+- **scanner-self-test**: The scanner is tested against its own known false-positive shapes (hash runs, model ids, IP literals) and fails loudly when shell exit codes do not propagate. (verified at `875a9fe`)
+- **eval-replay-ci**: CI replays recorded eval responses and the published pass counts pin which case ids pass, not only how many. (verified at `875a9fe`)
+- **scanner-model-id-shape**: The scanner's model-id carve-out matches only a real model-id shape (claude-, a family, then version or date tokens); a phone-shaped digit run right after claude- is still flagged. (verified at `875a9fe`)
+- **paste-size-ceiling**: ingest --paste and --file refuse input over the fetcher's 5 MB ceiling with a usage error, writing nothing and making no model call. (verified at `875a9fe`)
+- **email-regex-linear**: Email detection is linear on long runs with no whitespace or @, and redaction output is byte-identical on existing inputs. (verified at `875a9fe`)
+- **lockfile-scanned**: scripts/scan_tracked.sh no longer excludes uv.lock, and the scanner passes it. (verified at `875a9fe`)
+- **changelog-fold-phase-b**: CHANGELOG.md Phase B is a shape-and-lessons summary and the line budget is tightened to the new size. (verified at `875a9fe`)
+- **ci-features-check**: CI runs scripts/features.py check in the same job, and a test asserts the step is present. (verified at `875a9fe`)
+- **doc-links-resolve**: Every relative link and in-page anchor in tracked Markdown, and every link to this repo's own GitHub README anchors, resolves to a file and a heading that exist. (verified at `875a9fe`)
+- **one-hook-mechanism**: There is one git-hook mechanism, .githooks. The pre-commit framework config is gone, ADR-004 says it is superseded, and no doc tells a reader to run pre-commit install. (verified at `875a9fe`)
+- **runtime-pinned**: The Python version is pinned in .python-version and equals the version CI installs. (verified at `875a9fe`)
+- **one-setup-command**: README, technical-reference and CI quote the same dependency-install command as AGENTS.md. (verified at `875a9fe`)
+- **hooks-tested**: The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite. (verified at `875a9fe`)
 
 ## In progress
 
