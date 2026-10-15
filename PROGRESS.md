@@ -6,7 +6,7 @@ This is the verification ledger: check gates and controls, each with a command t
 It is not the product roadmap. What the product does and what is open lives in the README
 Status and the project plan.
 
-Commit: `9e20a05`  
+Commit: `1b48341`  
 Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q`
 
 ## Done
