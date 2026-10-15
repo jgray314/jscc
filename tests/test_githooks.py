@@ -120,3 +120,22 @@ def test_the_pre_push_hook_and_ci_both_run_the_feature_check() -> None:
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "scripts/features.py check" in pre_push
     assert "scripts/features.py check" in ci
+
+
+def test_the_pre_push_hook_runs_every_ci_gate() -> None:
+    """A gate CI runs and the hook skips is a red CI run found after the push.
+
+    mypy was missing from the hook, so a Windows-only attribute passed locally
+    and failed on CI's Linux runner.
+    """
+    pre_push = (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    for gate in ("ruff check", "ruff format --check", "mypy", "pytest"):
+        assert f"uv run {gate}" in ci, f"CI no longer runs {gate}"
+        assert f"uv run {gate}" in pre_push, f"pre-push skips {gate}, which CI runs"
+
+
+def test_mypy_checks_one_platform_wherever_it_runs() -> None:
+    """Platform-gated code (ctypes.windll) is checked as it is on CI, not per OS."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'platform = "linux"' in pyproject

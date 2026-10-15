@@ -69,6 +69,9 @@ ignore = ["E501"]
 # still to come; scripts/features.py is the largest untyped module.
 files = ["jscc", "scripts"]
 python_version = "3.12"
+# CI runs on Linux. Pinned so a Windows or macOS run checks the same branches
+# of platform-gated code (ctypes.windll) that CI does.
+platform = "linux"
 
 [[tool.mypy.overrides]]
 # No stubs or py.typed marker. yaml is here, not types-pyyaml: the stub package's

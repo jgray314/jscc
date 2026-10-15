@@ -13,5 +13,7 @@ echo "pre-push: ruff format --check"
 uv run ruff format --check .
 echo "pre-push: content scanner"
 bash scripts/scan_tracked.sh
+echo "pre-push: mypy"
+uv run mypy
 echo "pre-push: pytest"
 uv run pytest -q

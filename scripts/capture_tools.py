@@ -226,6 +226,8 @@ def record_text(
 
 
 def _win_clipboard() -> tuple[Any, Any, Any]:
+    if sys.platform != "win32":
+        raise RuntimeError("the Win32 clipboard is only available on Windows")
     import ctypes
     from ctypes import wintypes
 
