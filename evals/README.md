@@ -110,6 +110,8 @@ starting one:
    It is optional for `jd_extraction` and `fit_scoring` (fictional inputs): a jd_extraction incognito
    control matched the normal chats. Incognito chats are not saved, so copy each reply as you go.
 
+Before spending any chat, `python scripts/eval_sizing.py <suite> [--cases PATH]` checks a fixture set for sizing problems.
+
 `scripts/capture_tools.py` does the mechanics for all four suites: `prompts` builds each case's exact
 prompt from the current code, `show` prints one for the chat, `record` saves a completion under the key
 replay looks up, `next` runs a whole round from the clipboard (call it, paste the case into a fresh
