@@ -20,5 +20,5 @@ Eval figures and round history live in [../evals/README.md](../evals/README.md),
 Working documents behind a specific claim or slice, not narrative reading:
 
 - [video-script.md](video-script.md) — the script for the F2 walkthrough video the README promises but hasn't shipped yet.
-- [smoke-test-results.md](smoke-test-results.md) — the B3b real-URL smoke test log (`scripts/smoke_fetch.py`, not CI-gated) referenced from [technical-reference.md](technical-reference.md#repo-layout).
+- `smoke-test-results.md` (generated, gitignored, so absent from a fresh clone) — the B3b real-URL smoke test log. Run `scripts/smoke_fetch.py` to write it; it is not CI-gated. See [technical-reference.md](technical-reference.md#repo-layout).
 - [demo-fixtures/](demo-fixtures) — the redacted profile and hybridized posting used for the demo video and README samples.

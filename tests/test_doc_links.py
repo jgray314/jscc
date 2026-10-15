@@ -18,6 +18,15 @@ OWN_REPO = re.compile(
 )
 
 
+def tracked_files() -> set[Path]:
+    """What a fresh clone contains. A link satisfied only by an untracked or
+    gitignored file passes locally and is dead everywhere else."""
+    out = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, text=True, capture_output=True, check=True
+    ).stdout
+    return {(ROOT / p).resolve() for p in out.splitlines()}
+
+
 def tracked_markdown() -> list[Path]:
     out = subprocess.run(
         ["git", "ls-files", "*.md"], cwd=ROOT, text=True, capture_output=True, check=True
@@ -77,13 +86,17 @@ def resolve(source: Path, target: str) -> tuple[Path | None, str | None, bool]:
 def test_every_relative_link_and_anchor_resolves() -> None:
     problems = []
     cache: dict[Path, set[str]] = {}
+    tracked = tracked_files()
     for md in tracked_markdown():
         for lineno, target in links_in(md):
             file, anchor, checkable = resolve(md, target)
             where = f"{md.relative_to(ROOT).as_posix()}:{lineno}"
             if not checkable:
                 continue
-            if file is None or not file.exists():
+            in_clone = file is not None and (
+                file in tracked or any(t.is_relative_to(file) for t in tracked if file.is_dir())
+            )
+            if file is None or not in_clone:
                 problems.append(f"{where}: {target} -> missing file")
                 continue
             if anchor and file.suffix == ".md":
