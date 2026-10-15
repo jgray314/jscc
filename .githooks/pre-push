@@ -1,0 +1,17 @@
+#!/bin/sh
+# Runs the checks CI runs, in CI's order, so a red CI run is a local failure
+# first, plus the feature-list integrity check. About 25s; bypass is
+# `git push --no-verify` and should be said out loud when used.
+set -e
+export PATH="$HOME/.local/bin:$PATH"
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: feature list"
+python scripts/features.py check
+echo "pre-push: ruff check"
+uv run ruff check .
+echo "pre-push: ruff format --check"
+uv run ruff format --check .
+echo "pre-push: content scanner"
+bash scripts/scan_tracked.sh
+echo "pre-push: pytest"
+uv run pytest -q

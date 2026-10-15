@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q",
+  "features": [
+    {
+      "id": "tests-pass",
+      "behavior": "The full pytest suite passes.",
+      "verify": "uv run pytest -q",
+      "state": "passing",
+      "evidence": {
+        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
+        "dirty": true,
+        "at": "2026-10-15T20:54:58Z",
+        "exit_code": 0,
+        "seal": "51f06f35e46f570e"
+      }
+    },
+    {
+      "id": "lint-clean",
+      "behavior": "Ruff lint reports nothing on the whole tree.",
+      "verify": "uv run ruff check .",
+      "state": "passing",
+      "evidence": {
+        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
+        "dirty": true,
+        "at": "2026-10-15T20:55:09Z",
+        "exit_code": 0,
+        "seal": "1d9355aad2ea1469"
+      }
+    },
+    {
+      "id": "format-clean",
+      "behavior": "Ruff format check passes on the whole tree.",
+      "verify": "uv run ruff format --check .",
+      "state": "passing",
+      "evidence": {
+        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
+        "dirty": true,
+        "at": "2026-10-15T20:55:10Z",
+        "exit_code": 0,
+        "seal": "f7df59a2d24de9e0"
+      }
+    },
+    {
+      "id": "scanner-clean",
+      "behavior": "The content scanner finds no personal-data or credential shapes in tracked files.",
+      "verify": "bash scripts/scan_tracked.sh",
+      "state": "passing",
+      "evidence": {
+        "commit": "c76cfee5bccfa5068b396b9409439cac011712f3",
+        "dirty": true,
+        "at": "2026-10-15T20:55:10Z",
+        "exit_code": 0,
+        "seal": "a41857ec51098470"
+      }
+    },
+    {
+      "id": "docs-claims-registry",
+      "behavior": "Every numeric or status claim in README, CHANGELOG and docs (test count, ADR count, threat count, eval figures, phase status) is listed in one registry with its source of truth and asserted by a test.",
+      "verify": "uv run pytest tests/test_docs_claims.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis 2026-10-15, item 1: README counts stale four times, 'eighteen threats' vs thirteen, 'Six ADRs'"
+    },
+    {
+      "id": "public-docs-review-ids",
+      "behavior": "Public docs and source comments contain no gate-finding ids, private workspace paths or third-person owner references; the denylist is shared with the existing public-docs test.",
+      "verify": "uv run pytest tests/test_public_docs_review_ids.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis item 2: WD-6, WD-8, W1, W15 each came back after a one-time scrub"
+    },
+    {
+      "id": "trust-boundary-registry",
+      "behavior": "Every client-writable field on a CLI or web entry point has a row in one table-driven test asserting it is tied to server-side state or revalidated; a new field fails until it has a row.",
+      "verify": "uv run pytest tests/test_trust_boundary_registry.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis item 3: extracted_json then paste_text, same shape one field over"
+    },
+    {
+      "id": "changelog-size-gate",
+      "behavior": "CHANGELOG.md stays under a stated line budget and its header phase matches the project's current phase.",
+      "verify": "uv run pytest tests/test_changelog_size.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis item 4: compaction finding recurred five times after a written standing step"
+    },
+    {
+      "id": "scanner-self-test",
+      "behavior": "The scanner is tested against its own known false-positive shapes (hash runs, model ids, IP literals) and fails loudly when shell exit codes do not propagate.",
+      "verify": "uv run pytest tests/test_scanner_selftest.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis item 5: four false-positive patches, one local pass that CI failed"
+    },
+    {
+      "id": "eval-replay-ci",
+      "behavior": "CI replays recorded eval responses and the published pass counts pin which case ids pass, not only how many.",
+      "verify": "uv run pytest tests/test_published_case_ids.py -q",
+      "state": "not_started",
+      "source": "harness-history analysis item 8: eval-gated gates nothing in CI; counts pinned but not membership"
+    }
+  ]
+}
