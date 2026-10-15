@@ -162,8 +162,8 @@ def discover_in_source(rel: str, source: str) -> set[Site]:
             else:
                 walk(child, scope)
 
-    # Aliases must be known before the uses that precede a lazy import in
-    # source order, so imports are collected in a first pass.
+    # Aliases must be known before a use that precedes a lazy import in
+    # source order, so imports are collected up front.
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:

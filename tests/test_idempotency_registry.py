@@ -1,9 +1,8 @@
 """Every operation that writes state or re-runs on retry, and what makes a retry safe.
 
 The idempotency guard was built one operation at a time. `ingest` and
-`resolve-dlq` got duplicate detection (M-1, M-9); the next review found the DLQ
-resolve still duplicated under a race (L1-2), which needed a compare-and-set and
-a per-entry lock. The shape is general: a write that is safe once is not
+`resolve-dlq` got duplicate detection; a later review found the DLQ resolve still
+duplicated under a race, which needed a compare-and-set and a per-entry lock. The shape is general: a write that is safe once is not
 automatically safe when the same command is run again after a timeout, a crash
 between two writes, or a second tab.
 

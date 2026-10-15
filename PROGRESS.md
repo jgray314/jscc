@@ -6,7 +6,7 @@ This is the verification ledger: check gates and controls, each with a command t
 It is not the product roadmap. What the product does and what is open lives in the README
 Status and the project plan.
 
-Commit: `c23aaf7`  
+Commit: `3671806`  
 Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q`
 
 ## Done
@@ -32,7 +32,8 @@ Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts
 - **runtime-pinned**: The Python version is pinned in .python-version and equals the version CI installs. (verified at `875a9fe`)
 - **one-setup-command**: README, technical-reference and CI quote the same dependency-install command as AGENTS.md. (verified at `875a9fe`)
 - **hooks-tested**: The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite. (verified at `875a9fe`)
-- **eval-sizing-gate**: A proposed eval round is checked before capture for undersized case count, class imbalance, duplicate and near-duplicate inputs, cases that cannot discriminate, and inputs over the chat paste ceiling; each named check is tested and mutation-checked, and the tracked suites pass it. (verified at `c23aaf7`)
+- **ssrf-registry**: Every code path that fetches a URL or resolves a host has a row in one table naming its guard and a check that exercises it; a new fetch site, or a guard removed from the fetcher, fails the suite. (verified at `3671806`)
+- **idempotency-registry**: Every operation that writes state or re-runs on retry has a row naming its idempotency property and a check that runs it twice; a new writer, or a dropped guard, fails the suite. (verified at `3671806`)
 
 ## In progress
 
