@@ -305,6 +305,22 @@
         "exit_code": 0,
         "seal": "hacdmcmjjehcgpih"
       }
+    },
+    {
+      "id": "ssrf-registry",
+      "behavior": "Every code path that fetches a URL or resolves a host has a row in one table naming its guard and a check that exercises it; a new fetch site, or a guard removed from the fetcher, fails the suite.",
+      "verify": "uv run pytest tests/test_ssrf_registry.py -q",
+      "state": "not_started",
+      "source": "harness history analysis 2026-10-15: SSRF fixed one shape at a time (pin, IDN host, browser fallback)",
+      "evidence": null
+    },
+    {
+      "id": "idempotency-registry",
+      "behavior": "Every operation that writes state or re-runs on retry has a row naming its idempotency property and a check that runs it twice; a new writer, or a dropped guard, fails the suite.",
+      "verify": "uv run pytest tests/test_idempotency_registry.py -q",
+      "state": "not_started",
+      "source": "harness history analysis 2026-10-15: duplicate guard fixed per operation, then the DLQ resolve race",
+      "evidence": null
     }
   ]
 }
