@@ -6,34 +6,34 @@ This is the verification ledger: check gates and controls, each with a command t
 It is not the product roadmap. What the product does and what is open lives in the README
 Status and the project plan.
 
-Commit: `3671806`  
+Commit: `7d4fb60`  
 Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q`
 
 ## Done
 
-- **tests-pass**: The full pytest suite passes. (verified at `875a9fe`)
-- **lint-clean**: Ruff lint reports nothing on the whole tree. (verified at `875a9fe`)
-- **format-clean**: Ruff format check passes on the whole tree. (verified at `875a9fe`)
-- **scanner-clean**: The content scanner finds no personal-data or credential shapes in tracked files. (verified at `875a9fe`)
-- **docs-claims-registry**: Every numeric or status claim in README, CHANGELOG and docs (test count, ADR count, threat count, eval figures, phase status) is listed in one registry with its source of truth and asserted by a test. (verified at `875a9fe`)
-- **public-docs-review-ids**: Public docs and source comments contain no gate-finding ids, private workspace paths or third-person owner references; the denylist is shared with the existing public-docs test. (verified at `875a9fe`)
-- **trust-boundary-registry**: Every client-writable field on a CLI or web entry point has a row in one table-driven test asserting it is tied to server-side state or revalidated; a new field fails until it has a row. (verified at `875a9fe`)
-- **changelog-size-gate**: CHANGELOG.md stays under a stated line budget and its header phase matches the project's current phase. (verified at `875a9fe`)
-- **scanner-self-test**: The scanner is tested against its own known false-positive shapes (hash runs, model ids, IP literals) and fails loudly when shell exit codes do not propagate. (verified at `875a9fe`)
-- **eval-replay-ci**: CI replays recorded eval responses and the published pass counts pin which case ids pass, not only how many. (verified at `875a9fe`)
-- **scanner-model-id-shape**: The scanner's model-id carve-out matches only a real model-id shape (claude-, a family, then version or date tokens); a phone-shaped digit run right after claude- is still flagged. (verified at `875a9fe`)
-- **paste-size-ceiling**: ingest --paste and --file refuse input over the fetcher's 5 MB ceiling with a usage error, writing nothing and making no model call. (verified at `875a9fe`)
-- **email-regex-linear**: Email detection is linear on long runs with no whitespace or @, and redaction output is byte-identical on existing inputs. (verified at `875a9fe`)
-- **lockfile-scanned**: scripts/scan_tracked.sh no longer excludes uv.lock, and the scanner passes it. (verified at `875a9fe`)
-- **changelog-fold-phase-b**: CHANGELOG.md Phase B is a shape-and-lessons summary and the line budget is tightened to the new size. (verified at `875a9fe`)
-- **ci-features-check**: CI runs scripts/features.py check in the same job, and a test asserts the step is present. (verified at `875a9fe`)
-- **doc-links-resolve**: Every relative link and in-page anchor in tracked Markdown, and every link to this repo's own GitHub README anchors, resolves to a file and a heading that exist. (verified at `875a9fe`)
-- **one-hook-mechanism**: There is one git-hook mechanism, .githooks. The pre-commit framework config is gone, ADR-004 says it is superseded, and no doc tells a reader to run pre-commit install. (verified at `875a9fe`)
-- **runtime-pinned**: The Python version is pinned in .python-version and equals the version CI installs. (verified at `875a9fe`)
-- **one-setup-command**: README, technical-reference and CI quote the same dependency-install command as AGENTS.md. (verified at `875a9fe`)
-- **hooks-tested**: The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite. (verified at `875a9fe`)
-- **ssrf-registry**: Every code path that fetches a URL or resolves a host has a row in one table naming its guard and a check that exercises it; a new fetch site, or a guard removed from the fetcher, fails the suite. (verified at `3671806`)
-- **idempotency-registry**: Every operation that writes state or re-runs on retry has a row naming its idempotency property and a check that runs it twice; a new writer, or a dropped guard, fails the suite. (verified at `3671806`)
+- **tests-pass**: The full pytest suite passes. (verified at `7d4fb60`)
+- **lint-clean**: Ruff lint reports nothing on the whole tree. (verified at `7d4fb60`)
+- **format-clean**: Ruff format check passes on the whole tree. (verified at `7d4fb60`)
+- **scanner-clean**: The content scanner finds no personal-data or credential shapes in tracked files. (verified at `7d4fb60`)
+- **docs-claims-registry**: Every numeric or status claim in README, CHANGELOG and docs (test count, ADR count, threat count, eval figures, phase status) is listed in one registry with its source of truth and asserted by a test. (verified at `7d4fb60`)
+- **public-docs-review-ids**: Public docs and source comments contain no gate-finding ids, private workspace paths or third-person owner references; the denylist is shared with the existing public-docs test. (verified at `7d4fb60`)
+- **trust-boundary-registry**: Every client-writable field on a CLI or web entry point has a row in one table-driven test asserting it is tied to server-side state or revalidated; a new field fails until it has a row. (verified at `7d4fb60`)
+- **changelog-size-gate**: CHANGELOG.md stays under a stated line budget and its header phase matches the project's current phase. (verified at `7d4fb60`)
+- **scanner-self-test**: The scanner is tested against its own known false-positive shapes (hash runs, model ids, IP literals) and fails loudly when shell exit codes do not propagate. (verified at `7d4fb60`)
+- **eval-replay-ci**: CI replays recorded eval responses and the published pass counts pin which case ids pass, not only how many. (verified at `7d4fb60`)
+- **scanner-model-id-shape**: The scanner's model-id carve-out matches only a real model-id shape (claude-, a family, then version or date tokens); a phone-shaped digit run right after claude- is still flagged. (verified at `7d4fb60`)
+- **paste-size-ceiling**: ingest --paste and --file refuse input over the fetcher's 5 MB ceiling with a usage error, writing nothing and making no model call. (verified at `7d4fb60`)
+- **email-regex-linear**: Email detection is linear on long runs with no whitespace or @, and redaction output is byte-identical on existing inputs. (verified at `7d4fb60`)
+- **lockfile-scanned**: scripts/scan_tracked.sh no longer excludes uv.lock, and the scanner passes it. (verified at `7d4fb60`)
+- **changelog-fold-phase-b**: CHANGELOG.md Phase B is a shape-and-lessons summary and the line budget is tightened to the new size. (verified at `7d4fb60`)
+- **ci-features-check**: CI runs scripts/features.py check in the same job, and a test asserts the step is present. (verified at `7d4fb60`)
+- **doc-links-resolve**: Every relative link and in-page anchor in tracked Markdown, and every link to this repo's own GitHub README anchors, resolves to a file and a heading that exist. (verified at `7d4fb60`)
+- **one-hook-mechanism**: There is one git-hook mechanism, .githooks. The pre-commit framework config is gone, ADR-004 says it is superseded, and no doc tells a reader to run pre-commit install. (verified at `7d4fb60`)
+- **runtime-pinned**: The Python version is pinned in .python-version and equals the version CI installs. (verified at `7d4fb60`)
+- **one-setup-command**: README, technical-reference and CI quote the same dependency-install command as AGENTS.md. (verified at `7d4fb60`)
+- **hooks-tested**: The commit-msg hook (trailer, Proof line) and the feature-list tamper check are exercised by tests, so a hook that stops working fails the suite. (verified at `7d4fb60`)
+- **ssrf-registry**: Every code path that fetches a URL or resolves a host has a row in one table naming its guard and a check that exercises it; a new fetch site, or a guard removed from the fetcher, fails the suite. (verified at `7d4fb60`)
+- **idempotency-registry**: Every operation that writes state or re-runs on retry has a row naming its idempotency property and a check that runs it twice; a new writer, or a dropped guard, fails the suite. (verified at `7d4fb60`)
 
 ## In progress
 
