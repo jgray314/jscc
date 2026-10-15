@@ -7,7 +7,7 @@ Two rules that make the mode-safety story structural rather than disciplinary:
    marker matches the caller's intent, and only then runs the DDL. The
    primitives underneath — `_connect` and `_init_db` — are underscored on
    purpose. If you need one from outside this module, you are about to
-   accidentally recreate the C4/C5 bug class the A6 hardening slice closed.
+   accidentally recreate the bug class the A6 hardening slice closed.
 2. **`__all__` names the safe surface only.** `import *` will not reach the
    primitives; the safe entry points are `open_for_mode` plus the CRUD helpers
    (which all take a `sqlite3.Connection` an `open_for_mode` caller already

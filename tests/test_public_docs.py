@@ -24,6 +24,8 @@ SKIP_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
 }
+# These two files define the denylist, so they necessarily contain its shapes.
+SELF = {Path("tests/test_public_docs.py"), Path("tests/test_public_docs_review_ids.py")}
 SUFFIXES = {".md", ".py", ".html", ".yml", ".yaml", ".toml", ".sh", ".txt"}
 
 # Built from parts so this file does not itself contain the strings it forbids.
@@ -37,19 +39,19 @@ FORBIDDEN = {
 }
 
 
-def _public_files():
+def public_files():
     for path in sorted(ROOT.rglob("*")):
         if not path.is_file() or path.suffix not in SUFFIXES:
             continue
         rel = path.relative_to(ROOT)
-        if set(rel.parts) & SKIP_DIRS or rel == Path(__file__).relative_to(ROOT):
+        if set(rel.parts) & SKIP_DIRS or rel in SELF:
             continue
         yield rel, path
 
 
 def test_public_files_do_not_reference_private_material() -> None:
     offenders = []
-    for rel, path in _public_files():
+    for rel, path in public_files():
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for what, pattern in FORBIDDEN.items():
                 if pattern.search(line):
@@ -58,5 +60,5 @@ def test_public_files_do_not_reference_private_material() -> None:
 
 
 def test_the_scan_sees_the_files_it_is_meant_to_guard() -> None:
-    names = {rel.as_posix() for rel, _ in _public_files()}
+    names = {rel.as_posix() for rel, _ in public_files()}
     assert {"README.md", "CHANGELOG.md", "evals/README.md", "docs/threat-model.md"} <= names

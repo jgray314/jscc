@@ -1,7 +1,7 @@
 # Changelog
 
-Slice-by-slice arc, newest first. Phase F, the phase now closing, keeps its
-reasoning in full. Phases A to E are summarized: the shape of the build and the
+Slice-by-slice arc, newest first. Phase F, the last phase, is closed; its
+entries and the post-v1 follow-ups keep their reasoning in full. Phases A to E are summarized: the shape of the build and the
 lessons worth keeping, with per-slice detail in git history. Review findings are
 recorded here rather than in code comments.
 
@@ -218,112 +218,60 @@ the cost report that finally reads the ledger back. Per-slice detail is in git h
 - **A call that failed mid-request left no ledger row**, although the provider may already have billed it. It now writes a marked row. The schema bump that added the column turned out, at the Phase D gate, to stamp older databases without migrating them. Fixed there.
 - **Kept, deliberately:** trimming unused profile fields from the scoring payload would invalidate every recording, so it waits for the next scoring-prompt change. The walkthrough flagged CHANGELOG length for the third time; Phase B was compacted the same day.
 
-## Phase B — ingestion + extraction (A5, B1–B14, closed 2026-09-04; Phase B → C gate closed 2026-09-12)
+## Phase B: ingestion + extraction (A5, B1-B14, closed 2026-09-04; Phase B to C gate closed 2026-09-12)
 
-Fourteen slices (plus A5, LLM instrumentation deferred from Phase A) building
-the first two AI-native stages: the extraction eval suite, the extraction
-prompt, the URL fetcher with DLQ, the paste-only escape hatch, and three full
-rounds of adversarial review plus outside-reviewer walkthrough — the second of
-which ran cold (each reviewer barred from the prior gate doc until it had
-formed its own findings) and immediately produced a CONTRADICTS against a fix
-from the slice under review. 348 tests at close, plus a lint/format gate added
-just before Phase C started. Per-slice detail is in git history; what follows
-is the shape and the decisions worth keeping.
+Fourteen slices, plus A5 (LLM instrumentation deferred from Phase A), built the
+first two AI-native stages: the extraction eval suite and prompt, the URL fetcher
+with a DLQ, and the paste-only escape hatch. Three rounds of adversarial review
+plus outside-reviewer walkthrough followed; the second ran cold (each reviewer
+barred from the prior gate doc until it had formed its own findings) and at once
+produced a CONTRADICTS against a fix from the slice under review. 348 tests at
+close, plus a lint and format gate added just before Phase C. Per-slice detail is
+in git history; what follows is the shape and the lessons worth keeping.
 
-**The build**
+**Shape.** A5 instrumentation (`@instrumented`, the `llm_calls` table, `jscc
+costs`); B1 the extraction suite and `ExtractedJD` contract; B2 the prompt behind
+`StubExtractionClient`, scoped as wired, not validated, since no API key exists;
+B3a/B3b the fetcher, DLQ and opt-in Playwright fallback with a smoke test against
+live postings; B4 the paste path, through the same helper as the URL path so
+"same Application shape" is structural; B5-B9 gate hardening; B10 a prose pass
+over claims that described the system better than it was; B11 untracking the
+synthetic fixture; B12 a 20% Haiku pricing correction before any real spend; B13
+API-key detection as its own category in scanner and sanitizer; B14 the README
+test count made structurally unable to drift. A backlog sweep closed the whole
+A2/A9/A10-era list, and ruff, added ahead of Phase C, found 4 real bugs on its
+first run.
 
-| | |
-|---|---|
-| A5 | LLM call instrumentation, deferred from Phase A. Slipped past all three Phase A gate rounds because every round reviewed shipped code, not missing slices — no round had reason to look for what wasn't there. `@instrumented(feature)` decorator, `llm_calls` table (schema v3), `jscc costs`. |
-| B1 | JD extraction eval suite. `ExtractedJD` contract, 15 hand-authored JDs, hand-rolled harness (structural fields exact, skills by set equality, prose non-empty only). DoD met: runs, reports 0/15 — no prompt yet. |
-| B2 | Extraction prompt v1 + client plumbing, landed behind `StubExtractionClient` since no `ANTHROPIC_API_KEY` exists for this project — scoped honestly as wired, not validated. `EXTRACTION_MODEL`'s digit run trips the phone-pattern scanner; this false-positive class recurred five times across the project (danger-list example, model id, a comment quoting the model id, `uv.lock` hashes, IP literals in tests) before the convention — split the literal or describe the shape, never loosen the regex — stuck. |
-| B3a | Baseline fetcher + DLQ core, per D6. `requests` + `readability-lxml`, every non-2xx/exception classified into a `FailureMode`, never raises. `ingest --url`, `dlq list`, `resolve-dlq --paste-text`. |
-| B3b | Playwright fallback (opt-in, ~200MB dep, confirmed explicitly) + a real-URL smoke test against 5 live postings chosen via browser, not guessed — an SPA site and an authwalled search both recovered with the flag on; a straight bot-block stayed blocked either way, correctly. |
-| B4 | JD paste-only path — the D6 escape hatch for a site the fetcher can't crack at all. Routes through the same helper as the URL path, so "same Application shape" is structural, not conventional. |
-| B5–B9 | **Phase B → C gate hardening**, including a cold rerun that produced the project's first CONTRADICTS. Full detail below. |
-| B10 | The prose pass — five README/docstring claims that described a system slightly better than the one that existed (see below). |
-| B11 | The tracked synthetic fixture stopped being tracked (see below). |
-| B12 | Corrected a 20%-under Haiku pricing error before any real spend. |
-| B13 | The scanner and sanitizer both learned to catch an Anthropic API key shape, as its own category, not filed under "personal data." |
-| B14 | The README's stated test count, fixed and then made structurally unable to drift again — the fourth time that figure had gone stale. |
-| Backlog + lint gate | Closed the entire A2/A9/A10-era backlog (walkthrough #5–#7, three low-severity items, one field-whitelist gap) and added ruff (lint + format) ahead of Phase C, which itself surfaced 4 real bugs on first run. Full detail below. |
+**Lessons the gates produced**
 
-**What the gates actually changed** — the durable ones, several of which recur
-as lessons the Phase C → D gate cited directly:
+- **The sanitizer authenticated payloads it never redacted (C1, B5).** The
+  transform had been an identity snapshot since Phase A. One string was blocked
+  from git by the scanner and forwarded verbatim to the model by the sanitizer.
+  Fixed as one definition (`jscc/personal_data.py`) with two enforcement points;
+  redaction is unconditional and runs before the authenticator.
+- **The same drift came back through path resolution (H-1/M-3, B6).** The danger
+  list and data directory resolved against the working directory, so a wrong `cd`
+  silently disabled two mitigations. Fixed with one `PACKAGE_ROOT`.
+- **A test that survives deleting what it covers does not cover it (H-4, M-4,
+  B8).** Guard tests patched `requests.get` and `extract_jd` wholesale. Fixed by
+  observing at a lower level and confirming by deletion.
+- **Nothing that can fail after the money is spent belongs inside an
+  instrumented function (M2, B5/B9).** Work that could fail ran inside the
+  ledger-writing wrapper, so the exception beat the write. The rule carried
+  forward to the Phase C to D gate's network-fault finding.
+- **A transient failure must produce a DLQ entry, not a crash (H-2, H-6).** Parse
+  failures and transient API errors propagated out of `ingest` and `resolve-dlq`
+  with nothing to retry from, against D6's own contract.
+- **A cold second-opinion review beats an anchored one (B6).** Both lenses found
+  the same top hole independently, which the anchored first pass had not.
+- **The repo can describe a system better than the one that exists (B10, B14).**
+  The sample output did not reproduce under "bit-reproducible", and the README
+  test count went stale four times. Each durable fix was structural: one shared
+  `--now` parser, and a test comparing the stated count to the collected one.
 
-- **The sanitizer authenticated payloads it never redacted (C1, B5).** `_transform`
-  had been an identity snapshot since Phase A, deferring real redaction to "when
-  the first prompt is written." Phase B shipped a prompt and two production call
-  sites without it — demonstrated concretely by one string that was *blocked from
-  git* by the pre-commit scanner and *forwarded verbatim to the LLM* by the
-  sanitizer, two mitigations named in the same design principle disagreeing
-  completely about what counts as personal data. Fixed as one definition
-  (`jscc/personal_data.py`), two enforcement points; redaction is unconditional
-  and runs before the HMAC authenticator, so no caller can opt out and no
-  verified payload can carry the original text. Scope stated honestly: structured
-  identifiers and danger-list literals, not free-text NER.
-- **The same drift recurred through path resolution, not duplicated regexes
-  (H-1/M-3, B6).** The danger list and the data directory both resolved against
-  the process's working directory rather than the package root, so running from
-  anywhere but the repo root silently emptied the name list and put `real.db`
-  outside its own `.gitignore` — one wrong `cd` disabled two mitigations at once,
-  invisibly, since email/phone redaction kept working. Fixed with one
-  `PACKAGE_ROOT` every module anchors to, per the same "one definition, two
-  enforcement points" argument C1 had just made about the rules themselves — the
-  lesson generalizes past the specific regex it was first learned on.
-- **A test that cannot fail when the thing it covers is deleted is not covering
-  it (H-4, M-4, B8).** The M5 fetch guards and the sanitizer redaction path both
-  survived their own removal without a single test failing, because every guard
-  test patched `requests.get`/`extract_jd` wholesale rather than observing the
-  guard's actual behavior. Both fixed by verifying at a lower level (a spy on
-  `HTTPAdapter.send`; a spy client checking the redacted text actually crosses)
-  and confirmed by deletion, not by passing.
-- **"Nothing that can fail after the money is spent belongs inside an
-  instrumented function" (M2, B5/B9).** A billed call that failed to parse, or
-  decoded incorrectly, or got its usage discarded (H-3) all shared one root
-  cause: work capable of failing was running *inside* the ledger-writing wrapper,
-  so the exception beat the write. The rule, not just the individual fixes, is
-  what carried forward — B9's response-decoding fix and the eventual Phase C → D
-  gate's G3 (a network fault losing the ledger row entirely) are both instances
-  of the same principle applied to a new point of failure.
-- **A transient failure has to produce a DLQ entry, not a crash (H-2, H-6,
-  B6/B9).** Both an extraction parse failure and a transient Anthropic API error
-  used to propagate straight out of the SDK call, crashing `ingest`/`resolve-dlq`
-  with no DLQ row to retry from — violating D6's own contract ("produces an
-  Application or a DLQEntry, never crashes") for exactly the failure modes a live
-  key would actually hit.
-- **A cold second-opinion review beats an anchored one (B6).** Rerunning both
-  lenses with neither reviewer shown the prior gate's findings produced a
-  CONTRADICTS against a fix from the very slice under review, and both lenses
-  independently found the same top hole (the danger-list path bug above) —
-  neither would likely have surfaced under the anchored method the first pass
-  used. This is the method the Phase C → D gate also ran cold, and it produced
-  its own CONTRADICTS there too.
-- **The repo can describe a system slightly better than the one that exists,
-  and a cold walkthrough reader notices immediately (B10, B14, lint-gate
-  README fix).** The published sample output didn't reproduce under the words
-  "Bit-reproducible"; the README's stated test count went stale four separate
-  times; a self-contradicting Status paragraph got fixed at one location and
-  stayed wrong at another. The durable fix each time was structural, not a
-  promise to remember: `report --now` sharing one parser with `seed` so the
-  sample can't drift, a test comparing the README's stated count against what
-  the suite actually collected, and — eventually — the compaction this section
-  is itself part of.
-
-**Still open from Phase B: nothing.** Every finding across the three gate
-passes (2026-09-01, the cold rerun at 2026-09-04, and a third pass the same
-morning B2b closed) is closed, fixed, or documented as an accepted residual as
-of 2026-09-12; the full review notes are private working files, and
-[docs/gate-reviews.md](docs/gate-reviews.md) has the method and worked examples. The entire
-carried-forward A2/A9/A10-era backlog (walkthrough #5 ADR-001 framing fixed,
-#6 coverage badge killed, #7 CHANGELOG split killed the first time, then
-replaced by compacting one phase behind — plus the `update_application`
-field-whitelist gap and three low-severity sanitizer/report findings) closed
-the same day, caught by the first backlog sweep (a standing step that opens every gate) rather than riding
-through indefinitely. Ruff (lint + format) landed the same week, ahead of
-Phase C, and surfaced 4 real bugs — a stale `__all__` export, three swallowed
-exception chains, an unverified blind `pytest.raises(Exception)`, and a Python
-version the codebase could already assume but hadn't used — on its first run.
+**Still open from Phase B: nothing.** Every finding across the three passes is
+fixed or documented as an accepted residual as of 2026-09-12;
+[docs/gate-reviews.md](docs/gate-reviews.md) has the method and worked examples.
 
 ---
 

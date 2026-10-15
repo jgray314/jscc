@@ -13,7 +13,7 @@ arguments rather than reading globals at import time -- the CLI's `serve`
 command and the test suite both need to point the same app at different
 directories.
 
-Request guards (Phase E gate L1-1): every request's `Host` must be on an
+Request guards: every request's `Host` must be on an
 allowlist (loopback names, plus the address `jscc serve` was told to bind), and
 a state-changing request must not come from another origin. Binding to
 127.0.0.1 keeps other machines out, but it does not stop a web page in the

@@ -49,7 +49,7 @@ def test_instrumented_records_call_end_to_end(conn: sqlite3.Connection) -> None:
 
 
 def test_instrumented_hashes_prompt_not_stores_it(conn: sqlite3.Connection) -> None:
-    """Gate finding L-1: asserting a plaintext substring is absent from a
+    """Asserting a plaintext substring is absent from a
     64-char hex digest is vacuously true regardless of whether hashing
     happened -- assert the exact expected hash instead, which is what
     actually fails if the prompt were ever stored unhashed."""
@@ -82,7 +82,7 @@ def test_instrumented_records_multiple_calls_separately(conn: sqlite3.Connection
 def test_instrumented_records_a_failure_row_when_the_call_raises(
     conn: sqlite3.Connection,
 ) -> None:
-    """Gate finding G3 (Phase C->D pass): a network fault mid-call used to
+    """A network fault mid-call used to
     leave no ledger row at all -- not even a marker -- because the row was
     only ever written after `fn` returned normally. Tokens may already be
     billed on the provider's side by the time a connection reset or

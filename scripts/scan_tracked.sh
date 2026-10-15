@@ -13,12 +13,11 @@
 #   - tests/test_personal_data.py       — deliberate email/phone fixtures
 #   - tests/test_precommit_scan.py      — deliberate email/phone fixtures
 #   - CHANGELOG.md                      — prose describing the scanner
-#   - uv.lock                           — sha256 hashes contain 10-15-digit runs
 #
 # evals/jd_extraction/recorded.json used to be excluded here too (same
 # hash-looks-like-a-phone-number class as uv.lock), but that also exempted
 # its values -- real model output -- from scanning, which the exclusion was
-# never meant to cover (gate finding L-14). Its keys are now prefixed
+# never meant to cover. Its keys are now prefixed
 # `sha256:`, and `precommit_scan.py`'s `_SHA256_KEY_RE` strips exactly that
 # shape before matching, so the file needs no exclusion and its values are
 # scanned like everything else.
@@ -35,7 +34,6 @@ EXCLUDES=(
   --exclude 'scripts/precommit_scan.py'
   --exclude 'jscc/personal_data.py'
   --exclude 'CHANGELOG.md'
-  --exclude 'uv.lock'
 )
 
 # Collect files into a bash array so we can invoke the scanner exactly once

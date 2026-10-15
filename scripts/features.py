@@ -17,7 +17,7 @@ The seal is tamper-evidence against casual edits, not security: an agent that
 reads this file could recompute it. The control is that hand edits are visible
 in review and fail the hook, which turns "I marked it done" into a deliberate act.
 
-Usage: features.py {list,status,activate,verify,verify-all,block,check,progress,clean} [id] [reason]
+Usage: features.py {list,status,activate,verify,verify-all,block,check,progress,clean,full-check,restamp} [id] [reason]
 """
 
 import hashlib
@@ -118,7 +118,11 @@ def problems(data):
                     f"{fid}: marked passing without evidence from features.py verify "
                     f"(run `python scripts/features.py verify {fid}` instead of editing state)"
                 )
-            elif not git("cat-file", "-t", ev["commit"]):
+            elif git("rev-parse", "--is-shallow-repository") != "true" and not git(
+                "cat-file", "-t", ev["commit"]
+            ):
+                # Skipped on a shallow clone (CI's default checkout): the commit
+                # may exist upstream but not in the truncated history.
                 out.append(f"{fid}: evidence commit {ev['commit'][:7]} not in this repo")
     return out
 
@@ -194,6 +198,40 @@ def cmd_verify_all(data):
         print(f"{status:<11} {f['id']}")
         if code != 0:
             print("\n".join("    " + ln for ln in out.strip().splitlines()[-8:]))
+    sys.exit(1 if bad else 0)
+
+
+def cmd_restamp(data):
+    """Re-run every passing feature at a clean HEAD and rewrite its evidence.
+
+    Evidence recorded from a dirty tree names a commit that did not contain
+    the code that passed. Restamp fixes that without changing any state: a
+    feature that no longer passes is reported as a REGRESSION and left alone.
+    Refuses on a dirty tree, since the point is evidence tied to a commit.
+    """
+    if git("status", "--porcelain"):
+        sys.exit("restamp needs a clean working tree: commit first, then restamp")
+    bad = 0
+    for f in data["features"]:
+        if f["state"] != "passing":
+            continue
+        code, out = run_verify(f)
+        if code != 0:
+            bad += 1
+            print(f"REGRESSION  {f['id']}")
+            print("\n".join("    " + ln for ln in out.strip().splitlines()[-8:]))
+            continue
+        ev = {
+            "commit": git("rev-parse", "HEAD"),
+            "dirty": False,
+            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "exit_code": 0,
+        }
+        ev["seal"] = seal(f, ev)
+        f["evidence"] = ev
+        print(f"restamped   {f['id']} at {ev['commit'][:7]}")
+    save(data)
+    print("\nCommit FEATURES.json and PROGRESS.md; this is a bookkeeping commit, not a feature.")
     sys.exit(1 if bad else 0)
 
 
@@ -302,6 +340,15 @@ def cmd_clean(data):
     sys.exit(1 if failed else 0)
 
 
+def cmd_full_check(data):
+    """Run the project's full check command (the one CI runs). Used by pre-push."""
+    cc = data.get("check_command")
+    if not cc:
+        sys.exit("no check_command in FEATURES.json")
+    r = sh(cc, capture=False)
+    sys.exit(r.returncode)
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -317,6 +364,8 @@ def main(argv):
         "check": lambda: cmd_check(data),
         "progress": lambda: cmd_progress(data),
         "clean": lambda: cmd_clean(data),
+        "full-check": lambda: cmd_full_check(data),
+        "restamp": lambda: cmd_restamp(data),
     }
     if cmd not in table:
         sys.exit(__doc__)

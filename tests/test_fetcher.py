@@ -104,7 +104,7 @@ def test_fetch_jd_401_is_blocked():
 
 
 def test_fetch_jd_unresolved_redirect_is_blocked_not_extracted():
-    """Gate finding L-8/L-4: a 3xx that `_get_guarded` doesn't follow (no
+    """A 3xx that `_get_guarded` doesn't follow (no
     Location header, or a code requests doesn't treat as `is_redirect`, like
     304) used to fall through every status check below 400 and get extracted
     as if it were a normal page."""
@@ -223,7 +223,7 @@ def test_playwright_render_error_is_blocked():
     assert "browser not installed" in result.error_detail
 
 
-# ---- unparseable bodies must not raise (gate finding H1) --------------------
+# ---- unparseable bodies must not raise --------------------
 #
 # `lxml.html.fromstring("")` raises ParserError, and an empty-body 200 is a
 # routine bot-block response. Before B5 that escaped fetch_jd and crashed the
@@ -281,7 +281,7 @@ def test_empty_rendered_html_is_extraction_failed_not_a_crash():
     assert result.used_playwright is True
 
 
-# ---- fetch guards (gate finding M5) ----------------------------------------
+# ---- fetch guards ----------------------------------------
 #
 # `fetch_jd` forwards whatever it retrieves to an LLM, so the URL it accepts
 # is a security boundary, not just an input. These cover the three shapes the
@@ -469,7 +469,7 @@ def test_a_redirect_is_never_followed_below_the_guard(monkeypatch: pytest.Monkey
     assert _METADATA_IP in result.error_detail
 
 
-# ---- DNS-rebinding pin (gate finding G1, Phase C->D pass) -------------------
+# ---- DNS-rebinding pin -------------------
 #
 # `_check_url` and the real connection used to resolve the host independently.
 # A record with a short enough TTL can answer the check with a public address
@@ -648,7 +648,7 @@ def test_decoding_never_raises_for_any_of_these():
             assert isinstance(_decode_body(body, ct), str)
 
 
-# ---- IDN hosts and the pin (Phase E gate L1-3) --------------------------------
+# ---- IDN hosts and the pin --------------------------------
 #
 # `requests`/`urllib3` convert a non-ASCII host to punycode before they resolve
 # it. A pin keyed on the URL's own spelling never matched that lookup, so an

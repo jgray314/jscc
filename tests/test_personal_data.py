@@ -84,7 +84,7 @@ def test_does_not_redact_ordinary_prose() -> None:
 
 
 def test_redacts_email_without_consuming_trailing_punctuation() -> None:
-    """Gate finding L-10: the TLD class used to allow `,;:!?'"` and closing
+    """The TLD class used to allow `,;:!?'"` and closing
     brackets, so sentence punctuation right after the address got swallowed
     into the match and redacted along with it."""
     out = redact(f"Reach {RECRUITER_EMAIL}, thanks!")
@@ -113,7 +113,7 @@ def test_name_roles_match_case_insensitively() -> None:
 
 
 def test_name_role_survives_a_danger_term_inside_the_name() -> None:
-    """Gate finding L-13: `name_roles` used to run *after* the danger-term
+    """`name_roles` used to run *after* the danger-term
     pass. A surname that happens to match a danger-list entry got rewritten
     to a danger token first, so it no longer matched the full-name key by
     the time `name_roles` ran -- the name was still gone (safety was never
@@ -129,7 +129,7 @@ def test_name_role_survives_a_danger_term_inside_the_name() -> None:
 
 
 def test_name_role_survives_a_prefix_collision_with_another_contact() -> None:
-    """Full-project gate finding, 2026-09-27: two contacts on the same
+    """Two contacts on the same
     application can have a prefix relationship ("Dana" and "Dana Reyes").
     Callers build name_roles alphabetically (storage.list_contacts's
     ORDER BY name), so the shorter name used to substitute first and
@@ -148,7 +148,7 @@ def test_name_role_survives_a_prefix_collision_with_another_contact() -> None:
 
 
 def test_name_roles_value_is_sanitized_before_substitution() -> None:
-    """Independent-review finding (ChatGPT gate round, 2026-09-28): the role
+    """Independent-review finding: the role
     token spliced into `[contact:{role}]` was never itself passed through the
     email/phone/credential rules. `Contact.role` is a closed enum today (see
     jscc/models.py's ContactRole), so no live caller can reach this, but
@@ -201,7 +201,7 @@ def test_find_personal_flags_danger_term() -> None:
 
 
 def test_scanner_and_sanitizer_agree_on_what_is_personal() -> None:
-    """Gate finding C1: the pre-commit scanner (M3) blocked this content from
+    """The pre-commit scanner (M3) blocked this content from
     git while the sanitizer (M5) forwarded it verbatim to an LLM. Both now
     read the same rules, so anything the scanner flags, redact() removes."""
     text = f"Dana Reyes, {RECRUITER_EMAIL}, {RECRUITER_PHONE}"
@@ -224,7 +224,7 @@ def test_load_danger_list_missing_file_is_empty(tmp_path: Path) -> None:
     assert load_danger_list(tmp_path / "nope.txt") == []
 
 
-# ---- paths are anchored, not cwd-relative (rerun-gate H-1) ------------------
+# ---- paths are anchored, not cwd-relative ------------------
 #
 # These chdir for real rather than mocking the path, because the bug was
 # precisely that the real resolution depended on the real working directory.
@@ -235,9 +235,9 @@ def test_load_danger_list_missing_file_is_empty(tmp_path: Path) -> None:
 def test_danger_terms_load_from_outside_the_repo_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """H-1: `default_danger_terms()` returned [] from any other directory,
+    """`default_danger_terms()` returned [] from any other directory,
     silently, while email/phone redaction kept working so nothing looked wrong.
-    That is the load-bearing half of the C1 guarantee: the scanner runs from the
+    That is the load-bearing half of the scanner/sanitizer guarantee: the scanner runs from the
     repo root, the sanitizer runs wherever the user is."""
     monkeypatch.delenv(SAFETY_DIR_ENV_VAR, raising=False)
     from_root = default_danger_terms()

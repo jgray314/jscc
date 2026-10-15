@@ -16,6 +16,7 @@ from enum import StrEnum
 from urllib.parse import urlparse
 
 from .extraction import extract_jd
+from .fetcher import _MAX_RESPONSE_BYTES
 from .llm_client import StubExtractionClient, default_client
 from .mode import Mode
 from .models import Application, ExtractedJD, FetchStatus
@@ -31,6 +32,10 @@ from .storage import (
 # silently unrecoverable; `resolve-dlq` recognises it and skips URL-derived
 # company inference. Same "(pasted)" spelling the company default already uses.
 PASTED_SOURCE = "(pasted)"
+
+# Pasted or file text is held to the ceiling the fetcher puts on a fetched page, so
+# no route into extraction accepts more than another. Imported, not restated.
+MAX_PASTE_BYTES = _MAX_RESPONSE_BYTES
 
 # Every newly-ingested Application starts here, regardless of path (URL,
 # paste, or DLQ resolution). Single source of truth -- `stages.yaml` can

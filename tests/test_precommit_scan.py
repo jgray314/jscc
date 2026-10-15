@@ -398,7 +398,7 @@ def test_the_fixture_scan_can_actually_fail(tmp_path: Path) -> None:
 
 
 def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
-    """Follow-on to rerun-gate H-1, found while fixing it.
+    """Follow-on to the package-anchored danger-list path, found while fixing it.
 
     The scanner defaulted to the *tracked* scaffold only, so a term added to
     `.safety/danger-list.local.txt` -- the file a user actually edits -- was
@@ -417,7 +417,7 @@ def test_scanner_reads_the_local_danger_list_too(tmp_path, monkeypatch) -> None:
 
 
 def test_sha256_prefixed_key_does_not_false_positive_as_a_phone_number(tmp_path: Path) -> None:
-    """Gate finding L-14: a bare 64-char hex digest can contain a digit run
+    """A bare 64-char hex digest can contain a digit run
     long enough to trip the phone heuristic, which is why recorded.json used
     to be excluded wholesale. The `sha256:` prefix is stripped by
     `_SHA256_KEY_RE` before matching, so a key alone should never hit."""
@@ -428,7 +428,7 @@ def test_sha256_prefixed_key_does_not_false_positive_as_a_phone_number(tmp_path:
 
 
 def test_recorded_json_shaped_file_still_catches_a_leaked_value(tmp_path: Path) -> None:
-    """The other half of L-14's fix: stripping the key must not also exempt
+    """The other half of the hash-key fix: stripping the key must not also exempt
     the rest of the line. A real leak sitting in the *value* next to a
     sha256 key still has to be caught now that the file is no longer
     excluded wholesale."""

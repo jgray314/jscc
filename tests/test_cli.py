@@ -1,6 +1,6 @@
 """CLI-level tests via click.testing.CliRunner.
 
-Adversarial finding M3: Phase A shipped `validate-config`, `db init`,
+Phase A shipped `validate-config`, `db init`,
 `seed --synthetic`, and `report` without any CliRunner coverage. Regressions
 in mode routing or the `seed --synthetic` refusal on JSCC_DATA=real would
 land silently. This module closes that gap.
@@ -289,7 +289,7 @@ def test_report_rejects_a_now_without_a_timezone(
 def test_report_bad_config_dir_is_a_usage_error(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding L-6: `report` used to call load_stages bare and let a
+    """`report` used to call load_stages bare and let a
     missing/invalid stages.yaml crash with a raw traceback, unlike
     validate-config's try/except around the same call."""
     monkeypatch.delenv(ENV_VAR, raising=False)
@@ -305,7 +305,7 @@ def test_report_bad_config_dir_is_a_usage_error(
 def test_report_now_in_the_past_is_a_usage_error_not_a_crash(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding M-11: `detect_stale` raises the same ValueError whether
+    """`detect_stale` raises the same ValueError whether
     the cause is corrupt data or a `--now` the caller pointed at the wrong
     instant. `--now` exists so a reader can reproduce a pasted sample, and
     landing it before an app's last interaction is the first mistake anyone
@@ -546,11 +546,11 @@ def test_ingest_url_failure_creates_dlq_entry_not_application(
     assert entries[0].failure_mode.value == "blocked"
 
 
-# ---- duplicate detection on re-ingest (gate finding M-8) --------------------
+# ---- duplicate detection on re-ingest --------------------
 #
 # `ingest` used to have no duplicate detection at all: the same URL, or the
 # same pasted text, ingested twice created two Applications, feeding straight
-# into `funnel_counts`/`detect_stale` -- M-1's shape one command over. Decided:
+# into `funnel_counts`/`detect_stale`, the same shape as a re-resolved DLQ entry. Decided:
 # refuse silently duplicating. Notify and confirm before reprocessing into the
 # existing row, or skip the prompt with --update. Reading pasted text from
 # stdin already consumes stdin for the JD itself, so that path requires
@@ -692,7 +692,7 @@ def test_ingest_paste_file_duplicate_with_update_flag_updates_in_place(
 def test_ingest_empty_response_body_dlqs_instead_of_crashing(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding H1, at the boundary where the DoD is actually stated.
+    """Checked at the boundary where the DoD is actually stated.
 
     The test below this one mocks `fetch_jd` itself, so it proves the CLI
     handles a FetchResult -- not that the real fetcher always produces one.
@@ -796,7 +796,7 @@ def test_ingest_paste_stdin_creates_application_same_shape_as_url(
     assert apps[0].company == "(pasted)"
     assert apps[0].source_raw.startswith("Senior Engineer at Rift Cloud.")
     # "Same shape" has to include the extracted fields, or the assertion is
-    # about the wrapper and not the thing the LLM stage produced (H-3).
+    # about the wrapper and not the thing the LLM stage produced.
     assert apps[0].extracted_jd is not None
 
 
@@ -952,7 +952,7 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
     conn.close()
     assert len(apps) == 1
     assert apps[0].source_url == "https://example.com/jobs/5"
-    # Gate finding M-6: fetch_status used to default to `ok` regardless of how
+    # fetch_status used to default to `ok` regardless of how
     # the record was actually produced. A DLQ resolution carries the
     # original failure mode forward as the matching `dlq_*` status.
     assert apps[0].fetch_status == FetchStatus.dlq_blocked
@@ -965,7 +965,7 @@ def test_resolve_dlq_paste_text_creates_application_and_resolves_entry(
 def test_resolve_dlq_company_override(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding L-12: `resolve-dlq` had no `--company` override even
+    """`resolve-dlq` had no `--company` override even
     though it funnels through the same helper `ingest --paste`'s does, which
     documents the override as its highest-precedence source."""
     monkeypatch.delenv(ENV_VAR, raising=False)
@@ -1010,7 +1010,7 @@ def test_resolve_dlq_company_override(
 def test_resolve_dlq_unpriced_model_is_a_usage_error_not_a_crash(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding L-11: `ingest` already turns `UnknownModelPricingError`
+    """`ingest` already turns `UnknownModelPricingError`
     into a clean exit-2 configuration message; `resolve-dlq` funnels through
     the same helper but only caught `ExtractionParseError`, so the same
     misconfiguration reached the caller as a raw traceback."""
@@ -1061,9 +1061,9 @@ def test_resolve_dlq_unpriced_model_is_a_usage_error_not_a_crash(
 def test_resolve_dlq_is_idempotent(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding M-1: re-running `resolve-dlq` against an already-resolved
+    """Re-running `resolve-dlq` against an already-resolved
     entry used to create a second Application every time, quietly
-    duplicating the funnel. Both runs exit 0 (gate finding M-9): the exit
+    duplicating the funnel. Both runs exit 0: the exit
     code says the entry ends up resolved, which is true of both invocations
     -- which run actually did the resolving is in the output text, not the
     exit code."""
@@ -1108,7 +1108,7 @@ def test_resolve_dlq_is_idempotent(
 def test_ingest_paste_sets_manual_fetch_status(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding M-6: a pasted JD was never fetched, but the stored record
+    """A pasted JD was never fetched, but the stored record
     said `fetch_status: ok` -- indistinguishable from a real fetch."""
     monkeypatch.delenv(ENV_VAR, raising=False)
     runner.invoke(cli, ["db", "init", "--data-dir", str(tmp_path)])
@@ -1150,7 +1150,7 @@ def test_resolve_dlq_unknown_id_exits_nonzero(
     assert result.exit_code != 0
 
 
-# ---- eval runs are metered (gate finding M1) --------------------------------
+# ---- eval runs are metered --------------------------------
 
 
 def test_eval_command_records_calls_under_its_own_feature_label(
@@ -1221,14 +1221,14 @@ def test_extract_jd_rejects_an_unknown_feature_label(tmp_path: Path) -> None:
         conn.close()
 
 
-# ---- extraction failures reach the DLQ, not a traceback (rerun-gate H-2) ----
+# ---- extraction failures reach the DLQ, not a traceback ----
 #
 # B3a's DoD is "produces Application OR DLQEntry, never crashes". H1 restored
 # that for the fetch stage; the extraction stage had no route to
 # `extraction_failed` at all, so an unparseable model response exited 1 with a
 # raw traceback, no Application and nothing to retry from. These tests drive
 # the real `extract_jd` through a stubbed client rather than mocking the
-# helper, for the reason H-4 exists: mocking the thing under test is how the
+# helper, for the reason a wrapper test is not enough: mocking the thing under test is how the
 # original gap survived a suite that claimed to cover it.
 
 
@@ -1318,9 +1318,9 @@ def test_valid_json_of_the_wrong_shape_also_dlqs(
     assert len(entries) == 1
 
 
-# ---- transient API errors reach the DLQ, not a traceback (gate finding H-6) --
+# ---- transient API errors reach the DLQ, not a traceback --
 #
-# H-2 fixed the *parse*-failure route to the DLQ; a transient transport
+# The *parse*-failure route was fixed to the DLQ; a transient transport
 # failure (rate limit, overload, connection reset, timeout) had no route at
 # all and propagated straight out of the SDK call, crashing `ingest` with a
 # raw traceback and, on `--paste`, losing the pasted text for good.
@@ -1478,7 +1478,7 @@ def test_unpriced_model_is_a_config_error_not_a_dlq_entry(
     assert entries == []
 
 
-# ---- the extraction result is stored, not discarded (rerun-gate H-3) --------
+# ---- the extraction result is stored, not discarded --------
 
 
 def test_ingest_stores_every_extracted_field_not_just_the_title(
@@ -1532,8 +1532,8 @@ def test_every_extracted_jd_field_survives_storage(
 ) -> None:
     """Closes the class rather than the instance: a field added to ExtractedJD
     later must not be silently dropped on the way to the DB, which is the shape
-    of bug H-3 was. Mirrors the _GRADED_FIELDS coverage test the eval suite got
-    for the same reason (finding H2)."""
+    of the original bug was. Mirrors the _GRADED_FIELDS coverage test the eval suite got
+    for the same reason."""
     import json
 
     from jscc.models import ExtractedJD
@@ -1938,7 +1938,7 @@ def test_record_then_replay_round_trips(
 def test_record_preserves_an_unrelated_stale_recording_instead_of_clobbering_it(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding M-12, at the CLI: `--record` used to overwrite the whole
+    """At the CLI: `--record` used to overwrite the whole
     file, so a key from a prior run (or a run against a different case set)
     that this run didn't touch was silently dropped."""
     import json

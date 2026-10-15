@@ -31,7 +31,7 @@ def test_verify_true_for_real_output() -> None:
 
 
 def test_unsupported_type_raises_instead_of_silently_stringifying() -> None:
-    """Gate finding L-json-default-sanitizer-1: the HMAC input used to fall
+    """The HMAC input used to fall
     back to `default=str`, silently stringifying any type it didn't
     recognize. A caller passing something the schema never decided about
     (a raw object, a stray non-serializable value) is a real bug and should
@@ -227,7 +227,7 @@ def test_send_to_llm_refuses_forged_payload() -> None:
         send_to_llm(forged)
 
 
-# ---- D7 M5 redaction at the boundary (gate finding C1) ----------------------
+# ---- D7 M5 redaction at the boundary ----------------------
 #
 # Personal-data fixtures are built by concatenation so the literals never form
 # a contiguous match for the pre-commit scanner's own rules. This file is not
@@ -298,7 +298,7 @@ def test_name_roles_substitution_reaches_the_payload() -> None:
 
 
 def test_nested_model_key_is_still_redacted() -> None:
-    """Independent-review finding (ChatGPT gate round, 2026-09-28), confirming
+    """Independent-review finding, confirming
     the documented TODO in sanitizer.py: `_CONTROL_KEYS` used to exempt any
     string under a key literally named "model", at ANY nesting depth, not just
     the top-level control field. A payload shaped like

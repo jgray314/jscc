@@ -54,7 +54,7 @@ def test_creates_application_and_carries_forward_the_dlq_fetch_status(conn) -> N
     assert len(apps) == 1
     assert apps[0].id == result.application_id
     assert apps[0].source_url == "https://example.com/jobs/5"
-    # Gate finding M-6: the entry's original failure mode carries forward as
+    # the entry's original failure mode carries forward as
     # the matching dlq_* status, not a bare "ok" as if it had fetched cleanly.
     assert apps[0].fetch_status == FetchStatus.dlq_blocked
     resolved = next(e for e in list_dlq_entries(conn, unresolved_only=False) if e.id == entry_id)

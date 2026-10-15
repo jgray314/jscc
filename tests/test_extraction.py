@@ -128,7 +128,7 @@ def test_extract_jd_without_conn_does_not_require_a_database() -> None:
 
 
 def test_extract_jd_prompt_hash_does_not_leak_raw_jd(conn: sqlite3.Connection) -> None:
-    """Gate finding L-1: asserting a plaintext substring is absent from a
+    """Asserting a plaintext substring is absent from a
     64-char hex digest is vacuously true regardless of whether hashing
     happened at all -- this text contains no PII, so the sanitizer passes it
     through unchanged, and asserting the exact expected hash is what makes
@@ -142,7 +142,7 @@ def test_extract_jd_prompt_hash_does_not_leak_raw_jd(conn: sqlite3.Connection) -
     assert row["prompt_hash"] == hashlib.sha256(raw_jd.encode("utf-8")).hexdigest()
 
 
-# ---- the ledger records billed calls that fail to parse (gate finding M2) ---
+# ---- the ledger records billed calls that fail to parse ---
 #
 # `_parse_response` used to run inside the instrumented function, so an
 # unparseable response propagated before the ledger row was written: tokens

@@ -48,7 +48,7 @@ def test_anthropic_client_accepts_explicit_key() -> None:
     assert client is not None
 
 
-# ---- cost rates (gate finding M4) ------------------------------------------
+# ---- cost rates ------------------------------------------
 #
 # An unknown model used to be priced at the default (Haiku) rate, so a swap to
 # Sonnet or Opus would under-report spend by roughly 10x with no signal -- in
@@ -92,7 +92,7 @@ def test_unknown_model_is_rejected_before_the_request_is_sent() -> None:
 
 def test_complete_returns_text_blocks_and_the_priced_cost() -> None:
     """First coverage of the real `complete()` body: block filtering and the
-    cost arithmetic had never executed (gate finding L1, partially)."""
+    cost arithmetic had never executed."""
     client = AnthropicClient(api_key="sk-fake-for-construction-only")
     client._client = _fake_sdk(1_000_000, 1_000_000)
     response = client.complete(model=EXTRACTION_MODEL, system="sys", user="user")

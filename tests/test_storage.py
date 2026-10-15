@@ -227,7 +227,7 @@ def test_dlq_lifecycle(conn: sqlite3.Connection) -> None:
 def test_resolve_dlq_entry_omitting_application_id_does_not_clear_it(
     conn: sqlite3.Connection,
 ) -> None:
-    """Gate finding M-7: `application_id` defaulted to `None`, and the UPDATE
+    """`application_id` defaulted to `None`, and the UPDATE
     used to write it unconditionally -- so a second call that omits the
     argument nulled out a link a previous call had set. COALESCE makes
     "argument omitted" mean "leave it alone"."""

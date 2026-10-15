@@ -4,7 +4,7 @@ What building JSCC with AI assistance taught me about keeping AI-assisted work t
 
 **Read this with the scale in mind.** This is one builder, one repo, no team, and no production traffic. Everything below is what happened here. Each lesson ends with a line on how it might carry to a team, and that line is an extrapolation, not a result. This is a starting point toward thinking about team practice, not a team playbook. The repo is supporting evidence for how I work; I'd expect to be asked about any of it and to defend it in conversation.
 
-Related, and not repeated here: [how the phase gates work and six worked findings](gate-reviews.md), the [threat model](threat-model.md), and [ADR-005](../decisions/005-sanitizer-authenticity.md).
+Related, and not repeated here: [how the phase gates work and eight worked findings](gate-reviews.md), the [threat model](threat-model.md), and [ADR-005](../decisions/005-sanitizer-authenticity.md).
 
 ## 1. A control that depends on remembering is not a control
 

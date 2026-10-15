@@ -79,7 +79,7 @@ Three coupled mechanisms:
 - Cost: `SanitizedPayload` is serializable but the HMAC is process-local, so
   a payload persisted and reloaded in a different process cannot re-verify.
   That's the intended semantics; documented in `send_to_llm`'s docstring.
-  **Gate finding L-sanitizer-1:** flagging explicitly for whoever builds
+  **Flagged by review:** flagging explicitly for whoever builds
   Phase C/D worker-pool plumbing — a `SanitizedPayload` handed to a worker
   process (via `multiprocessing`, a task queue, anything that pickles
   across a process boundary) will fail `verify()` there even though nothing
@@ -95,13 +95,13 @@ Three coupled mechanisms:
 
 - ADR-003 (mode isolation) — same architectural pattern: structural
   refusal, not disciplined-check-that-the-caller-remembers.
-- A6 also fixes storage-side mode-marker holes (C4/C5/C6) — see the A6
+- A6 also fixes storage-side mode-marker holes, see the A6
   CHANGELOG entry.
 - Follow-on for Phase B: the actual `send_to_llm()` function will accept
   only `SanitizedPayload` and call `verify()` as its first line, refusing
   any object that fails.
 
-## Addendum (2026-09-12) — gate finding M-5, decided not extended
+## Addendum (2026-09-12) — decided not extended
 
 The Phase B → C rerun gate (9/4) found that the type-level choke point this
 ADR describes stops at `send_to_llm`: its caller unpacks the verified dict

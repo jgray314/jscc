@@ -249,11 +249,11 @@ def test_storage_public_surface_hides_bypass_primitives() -> None:
     assert "open_for_mode" in storage.__all__
 
 
-# ---- defaults are anchored, not cwd-relative (rerun-gate M-3) ---------------
+# ---- defaults are anchored, not cwd-relative ---------------
 
 
 def test_default_data_dir_is_absolute() -> None:
-    """M-3: `Path("data")` meant `JSCC_DATA=real` from any other directory
+    """`Path("data")` meant `JSCC_DATA=real` from any other directory
     created a correctly-stamped real.db outside the .gitignore that is D7 M2 --
     exit 0, success message, no warning. The mode marker worked fine; the file
     just wasn't where the protections live."""

@@ -47,7 +47,7 @@ FIXED_NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
 
 def _client(app, **kwargs) -> TestClient:
     """A client that names the loopback host the way a browser at
-    `http://localhost:8000` does; the app refuses any other Host (gate L1-1)."""
+    `http://localhost:8000` does; the app refuses any other Host."""
     return TestClient(app, base_url="http://localhost", **kwargs)
 
 
@@ -605,7 +605,7 @@ def test_a_crafted_confirming_flag_with_no_prior_round_cannot_fabricate_the_extr
 def test_confirm_resubmit_with_different_paste_text_does_not_reuse_the_stale_pending_extraction(
     dlq_data_dir: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Gate finding H-1's regression test (2026-09-29). Before the fix,
+    """Regression test for the pending-extraction pairing. Before the fix,
     `use_pending_extraction` popped whatever extraction was pending for
     `entry_id` and paired it with WHATEVER `paste_text` this request
     happened to carry -- two independent HTTP requests, nothing forcing
@@ -719,7 +719,7 @@ def test_dlq_resolve_post_with_a_verified_title_still_creates_in_one_step(
     assert "Created application" in response.text
 
 
-# ---- Request guards (Phase E gate L1-1, L1-2, L1-6, L1-7, L1-9) ---------------
+# ---- Request guards ---------------
 #
 # The server binds to loopback, which keeps other machines out but not a web
 # page in the user's own browser: DNS rebinding makes the browser treat the

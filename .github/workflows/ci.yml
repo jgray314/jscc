@@ -43,6 +43,23 @@ jobs:
       - name: Run pytest
         run: uv run pytest -q
 
+      - name: Check the feature list
+        # Stdlib only; fails on a hand-edited state, a second active feature, or
+        # a passing feature whose evidence seal does not match.
+        run: python3 scripts/features.py check
+
+      - name: Replay recorded evals through the CLI
+        # No API key is set on this job, so a replay cannot make a billed call.
+        # Each suite exits non-zero below its pass-rate bar (or, for routing
+        # and composition, on a zero-tolerance miss). The unit tests pin which
+        # case ids pass; this step proves the shipped command does the replay.
+        run: |
+          uv run python -m jscc eval jd_extraction --replay
+          uv run python -m jscc eval fit_scoring --replay
+          uv run python -m jscc eval routing --replay
+          uv run python -m jscc eval composition --replay
+          uv run python -m jscc eval extraction_to_scoring --replay
+
       - name: Run precommit safety scanner on tracked files
         # scan_tracked.sh is the single source of truth for the exclude list;
         # .pre-commit-config.yaml calls the same script so CI and local hooks

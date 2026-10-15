@@ -65,7 +65,56 @@ from .paths import PACKAGE_ROOT
 # "reach me at dana@x.example," redacts the comma along with the address --
 # cosmetic, not a safety gap (the address itself never survives either way),
 # but worth closing since the fix is one character class.
-EMAIL_RE = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().,;:!?'\"\]\)}]{2,}")
+_EMAIL_PATTERN = re.compile(r"[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>().,;:!?'\"\]\)}]{2,}")
+_EMAIL_LOCAL_EXCLUDED = frozenset("@<>()")
+
+
+class _EmailMatcher:
+    """`_EMAIL_PATTERN`, found in one pass instead of one scan per start position.
+
+    The bare pattern is quadratic on a long run of non-whitespace text: each start
+    inside the run rescans to the end of it, so a 160 KB token with no `@` took
+    46 seconds. Every match must contain an `@`, and the characters before it
+    form one run that no other `@` can interrupt, so the leftmost match for an
+    `@` starts at the beginning of that run (or where the previous match ended).
+    This walks the `@` signs, extends each one left to that start, and lets the
+    pattern decide. Matches, spans and `sub` results are identical to the bare
+    pattern's; tests/test_redaction_performance.py checks that against it.
+    """
+
+    pattern = _EMAIL_PATTERN.pattern
+
+    def finditer(self, text: str):
+        pos = 0
+        while True:
+            at = text.find("@", pos)
+            if at == -1:
+                return
+            start = at
+            while start > pos:
+                ch = text[start - 1]
+                if ch.isspace() or ch in _EMAIL_LOCAL_EXCLUDED:
+                    break
+                start -= 1
+            match = _EMAIL_PATTERN.match(text, start) if start < at else None
+            if match is None:
+                pos = at + 1
+                continue
+            yield match
+            pos = match.end()
+
+    def sub(self, repl: str, text: str) -> str:
+        out: list[str] = []
+        last = 0
+        for m in self.finditer(text):
+            out.append(text[last : m.start()])
+            out.append(m.expand(repl))
+            last = m.end()
+        out.append(text[last:])
+        return "".join(out)
+
+
+EMAIL_RE = _EmailMatcher()
 
 # Phone char class allows separator variants seen in the wild: dashes,
 # whitespace, parens (US area-code grouping), dots (international dotted
@@ -254,7 +303,7 @@ def redact(
     produce was silently lost instead. Running name substitution first means
     a term inside an already-tagged name has nothing left to match.
 
-    Fixed 2026-09-28 (independent-review gate round, ChatGPT finding): the
+    Fixed 2026-09-28: the
     `role` half of `name_roles` is spliced straight into the replacement token
     and was never itself run through the credential/email/phone rules. Every
     live caller builds `role` from `Contact.role`, a closed enum
@@ -270,7 +319,7 @@ def redact(
     out = CREDENTIAL_RE.sub(CREDENTIAL_TOKEN, text)
     out = EMAIL_RE.sub(EMAIL_TOKEN, out)
     out = _redact_phones(out)
-    # Longest name first (gate finding, full-project gate 2026-09-27): two
+    # Longest name first: two
     # contacts on the same application can have a prefix relationship, e.g.
     # "Dana" and "Dana Reyes". Substituting in map-iteration order (which
     # callers build alphabetically from storage) let the shorter name consume

@@ -183,7 +183,7 @@ def test_format_report_none_when_no_alerts(stages_cfg: StagesConfig) -> None:
 def test_format_report_strips_control_chars_from_company_and_title(
     stages_cfg: StagesConfig,
 ) -> None:
-    """Gate finding L-report-format-injection-1: company/title can come from
+    """Company/title can come from
     a fetched job posting's own text, so a raw ESC byte (or other control
     char) in either must not reach the terminal -- it needs a leading ESC to
     do anything as an ANSI/terminal-control sequence."""

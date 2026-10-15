@@ -200,7 +200,7 @@ def test_format_eval_summary_reports_group_breakdown() -> None:
     assert "short: 0/25 passed (0%)" in text
 
 
-# ---- title + location grading (gate finding H2) ------------------------------
+# ---- title + location grading ------------------------------
 #
 # Both fields are specified by every case in cases.json but were absent from
 # every graded-field tuple, so the harness read the expectations and dropped
@@ -337,7 +337,7 @@ def test_every_extracted_jd_field_is_graded_or_explicitly_prose() -> None:
     assert set(ExtractedJD.model_fields) == covered
 
 
-# ---- safety exceptions must not be graded away (gate finding M3) -------------
+# ---- safety exceptions must not be graded away -------------
 
 
 def test_sanitizer_refusal_propagates_instead_of_counting_as_a_failed_case() -> None:
@@ -364,7 +364,7 @@ def test_llm_send_error_propagates() -> None:
         run_jd_extraction_evals(failing)
 
 
-# ---- replay recordings pin the system prompt too (gate finding H-5) ---------
+# ---- replay recordings pin the system prompt too ---------
 
 
 class _FixedClient:
@@ -376,7 +376,7 @@ class _FixedClient:
 
 
 def test_recording_client_calls_on_captured_immediately_per_response() -> None:
-    """Gate finding M-12: captures used to live only in `.captured`, written
+    """Captures used to live only in `.captured`, written
     to disk after the whole run returned. `on_captured` lets a caller
     persist each response the moment it arrives instead."""
     seen: list[tuple[str, str]] = []
@@ -413,7 +413,7 @@ def test_recording_client_persists_prior_captures_even_if_a_later_call_raises() 
 
 
 def test_save_recording_merges_rather_than_overwrites(tmp_path) -> None:
-    """Gate finding M-12: this used to overwrite the file unconditionally,
+    """This used to overwrite the file unconditionally,
     so a --record over a subset of cases silently dropped every recording
     not in that run's responses."""
     from jscc.evals import load_recording, save_recording
@@ -434,7 +434,7 @@ def test_save_recording_lets_a_new_value_replace_an_old_one_for_the_same_key(tmp
 
 
 def test_prompt_key_is_prefixed_for_the_scanner(tmp_path) -> None:
-    """Gate finding L-14: a bare sha256 hex digest is indistinguishable from
+    """A bare sha256 hex digest is indistinguishable from
     a phone number to the pre-commit scanner's digit-run heuristic, which is
     why `recorded.json` used to be excluded from scanning wholesale --
     exempting its values along with its keys. The `sha256:` prefix lets the

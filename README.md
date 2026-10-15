@@ -25,7 +25,7 @@ If you have ten minutes, start here.
 1. **Eval results, with every round on the record.** Each model step ships behind an eval suite whose pass bar lives in code. The failed rounds are published next to the passing ones. → [evals/README.md](evals/README.md), [`jscc/evals.py`](jscc/evals.py)
 2. **Safety by construction, not discipline.** One definition of personal data, enforced at both exits: git and every model call. There is a single call path to the model, so no caller can skip redaction. → [`jscc/personal_data.py`](jscc/personal_data.py), [`jscc/sanitizer.py`](jscc/sanitizer.py), [`jscc/stage_call.py`](jscc/stage_call.py), [ADR-005](decisions/005-sanitizer-authenticity.md), and the one-page [threat model](docs/threat-model.md): thirteen threats, each with its control and an honest status.
 3. **Knowing when not to automate.** The drafter first decides whether a case is routine. Anything that isn't, or that needs a fact nobody recorded, goes to a person. Drafting something that needed a human is a zero-tolerance failure in the eval. → [D10](docs/design-principles.md#d10--drafter-routing-first-routine-only-composition)
-4. **Reviews that overturned earlier calls.** A later review found a DNS-rebinding hole in the URL fetcher that an earlier review had rated low-risk. It was fixed in code, not with a note. → [`jscc/fetcher.py`](jscc/fetcher.py) (`_pinned_resolution`), and [docs/gate-reviews.md](docs/gate-reviews.md) for six worked findings and where the review process falls short.
+4. **Reviews that overturned earlier calls.** A later review found a DNS-rebinding hole in the URL fetcher that an earlier review had rated low-risk. It was fixed in code, not with a note. → [`jscc/fetcher.py`](jscc/fetcher.py) (`_pinned_resolution`), and [docs/gate-reviews.md](docs/gate-reviews.md) for eight worked findings and where the review process falls short.
 5. **Decisions with the rejected options written down.** Seven ADRs and ten design principles, including what was dropped: RAG in the drafter, a hosted demo, a multi-agent orchestrator. → [decisions/](decisions/), [docs/design-principles.md](docs/design-principles.md)
 
 One number I got wrong, corrected in the open: I believed review and hardening work was "the other 80%" of the effort. Commit timestamps put it at about half (48/52). → [docs/lessons-learned.md](docs/lessons-learned.md), [`scripts/active_time.py`](scripts/active_time.py)
@@ -158,7 +158,7 @@ The ten design principles behind them are in [docs/design-principles.md](docs/de
 ## Status
 
 - **v1 complete.** All six phases closed after review, the last on 2026-09-27. Still open: the video walkthrough and a blog post. Work since v1 is in [CHANGELOG.md](CHANGELOG.md); the phase table, reviews, and cost envelope are in [docs/technical-reference.md](docs/technical-reference.md#status).
-- **788 pytest cases.** Lint and format enforced via ruff.
+- **946 pytest cases.** Lint and format enforced via ruff.
 - **No real dollar figures yet.** Every model call is metered at the call site, but with no live key there is no real billing to report.
 
 ## License

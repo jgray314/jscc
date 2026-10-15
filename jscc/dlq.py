@@ -2,8 +2,8 @@
 command and the dashboard's resolve form (Slice E2b).
 
 One path, not two: a second reimplementation of this logic in the web layer
-would risk drifting from the CLI's idempotency guard (gate finding M-1/M-9)
-or its `dlq_*` fetch-status mapping (gate finding M-6). `resolve_dlq_entry_via_paste`
+would risk drifting from the CLI's idempotency guard
+or its `dlq_*` fetch-status mapping. `resolve_dlq_entry_via_paste`
 returns a typed result rather than echoing or exiting, so each caller renders
 it in its own idiom (click exit codes for the CLI, an HTML result page here).
 Both still call `extract_and_create_application`, which reaches the model
@@ -103,7 +103,7 @@ def _entry_lock(entry_id: str) -> threading.Lock:
 # entry_id alone let a resubmit pair THIS entry's pending extraction with
 # ANY paste_text the second request happened to carry, silently storing an
 # Application whose source_raw and extracted_jd described two different
-# postings (gate finding H-1, 2026-09-29). Comparing the resubmitted text
+# postings. Comparing the resubmitted text
 # against what's stored closes that: a mismatch is treated exactly like "no
 # pending extraction" -- fall through to a real, re-verified extraction on
 # whatever text actually arrived, the same safe default `use_pending_extraction`
@@ -148,7 +148,7 @@ def resolve_dlq_entry_via_paste(
     Application the original fetch couldn't, then marks the entry resolved.
     Idempotent: an already-resolved entry is reported, not re-processed --
     re-running this against the same entry must never create a second
-    Application (gate finding M-1). With `refuse_stub`, a run that would use the
+    Application. With `refuse_stub`, a run that would use the
     placeholder extractor is refused before anything is written (real mode). Concurrent callers are serialized per
     entry, and the final write is a compare-and-set, so the guarantee holds
     while the model call is in flight, not only between sequential runs.
@@ -193,9 +193,9 @@ def _resolve_locked(
     if use_pending_extraction and extracted_override is None:
         extracted_override = _pop_pending_extraction(entry_id, paste_text)
         # No pending extraction (spoofed request, expired process, the
-        # entry moved on, or -- gate finding H-1 -- the resubmitted
-        # paste_text doesn't match what the pending extraction was actually
-        # run against) is not an error: falling through to a real
+        # entry moved on, or the resubmitted paste_text doesn't match what
+        # the pending extraction was actually run against) is not an error:
+        # falling through to a real
         # extraction attempt re-runs `unverified_fields` on it like any
         # other call, which is the safe behavior -- never skip verification
         # on the strength of an untrusted "trust me, I confirmed" flag

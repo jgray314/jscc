@@ -96,7 +96,7 @@ def test_score_fit_sends_extracted_raw_and_profile_in_user_prompt() -> None:
     assert sent["raw_jd_text"] == "this is the raw JD"
     assert sent["extracted_jd"]["title"] == "Senior Engineering Manager"
     assert sent["profile"]["role_focus"]
-    # Unused by every scoring factor, so never sent (gate finding G4).
+    # Unused by every scoring factor, so never sent.
     assert "display_name" not in sent["profile"]
     assert "style_samples" not in sent["profile"]
     assert fake.calls[0]["model"] == SCORING_MODEL
@@ -135,7 +135,7 @@ def test_score_fit_raises_on_json_missing_required_field() -> None:
     ],
 )
 def test_score_fit_raises_on_out_of_contract_score(bad_score_json: str) -> None:
-    """Gate finding G2 (Phase C->D pass): the prompt contracts `score` to
+    """The prompt contracts `score` to
     0-100, but nothing checked that against a live response -- a model
     returning NaN, Infinity, or a value outside the range used to parse
     cleanly into `FitResult` and persist silently. `json.loads` accepts all

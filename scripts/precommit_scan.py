@@ -126,6 +126,24 @@ class Hit:
 _SHA256_KEY_RE = re.compile(r"\bsha256:[0-9a-f]{64}\b")
 
 
+# Shapes that are never a phone number but carry a run of digits long enough to look
+# like one: a dotted-quad address, a model id with version numbers and a date, a
+# UUID, a bare content hash. Each used to be patched where it appeared, by
+# splitting the literal in two pieces; this is the one place that knows them. Only
+# the phone rule is told about them: a danger-list term, an email or a key inside
+# one of these spans is still reported, because those rules run on the whole line.
+_NOT_A_PHONE_RE = re.compile(
+    r"\b\d{1,3}(?:\.\d{1,3}){3}\b"  # dotted-quad address
+    # model id: claude- then hyphen-joined tokens, each a word, a 1-2 digit version
+    # or an 8-digit date, with at least one word. A phone-shaped run after the
+    # prefix has 3-digit groups or a long digit token, so it never matches.
+    r"|\bclaude(?=(?:-\d{1,2}|-\d{8})*-[a-z]{3,})(?:-(?:[a-z]{3,}|\d{1,2}|\d{8}))+\b"
+    r"|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"  # UUID
+    r"|\b[0-9a-f]{32,}\b",  # md5 / sha1 / sha256 hex digest
+    re.IGNORECASE,
+)
+
+
 def scan_line(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str]]:
     """Return (reason, matched-substring) tuples for every rule that fires.
 
@@ -133,8 +151,18 @@ def scan_line(line: str, danger_terms: Iterable[str]) -> list[tuple[str, str]]:
     delegating to the shared rules in `jscc/personal_data.py` -- see
     `_SHA256_KEY_RE`. Everything else about the line, including any value
     text sitting next to a stripped key, is scanned unchanged.
+
+    Phone hits are then re-derived with `_NOT_A_PHONE_RE` spans blanked out, so a
+    digit run inside an address, model id, UUID or digest is not a phone number.
+    Every other rule keeps the unblanked line.
     """
-    return find_personal(_SHA256_KEY_RE.sub("sha256:<key>", line), danger_terms)
+    scanned = _SHA256_KEY_RE.sub("sha256:<key>", line)
+    hits = find_personal(scanned, danger_terms)
+    if not any(reason == "phone-pattern" for reason, _ in hits):
+        return hits
+    blanked = _NOT_A_PHONE_RE.sub(" <id> ", scanned)
+    phones = [h for h in find_personal(blanked, []) if h[0] == "phone-pattern"]
+    return [h for h in hits if h[0] != "phone-pattern"] + phones
 
 
 def read_scannable_text(path: Path) -> str | None:

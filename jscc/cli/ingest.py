@@ -19,6 +19,7 @@ from ..dlq import DLQResolveOutcome, resolve_dlq_entry_via_paste
 from ..extraction import ExtractionParseError
 from ..fetcher import fetch_jd
 from ..ingest_logic import (
+    MAX_PASTE_BYTES,
     PASTED_SOURCE,
     STUB_IN_REAL_MODE_MESSAGE,
     ExtractOutcome,
@@ -167,7 +168,7 @@ def ingest(
             fallback_title = result.title
             fetch_status_val = FetchStatus.ok
         else:
-            raw_text = paste_file.read_text(encoding="utf-8") if paste_file else sys.stdin.read()
+            raw_text = _read_pasted_text(paste_file)
             if not raw_text.strip():
                 echo("no JD text provided (empty stdin/file)", err=True)
                 sys.exit(EXIT_USAGE)
@@ -279,6 +280,26 @@ def ingest(
         )
     finally:
         conn.close()
+
+
+def _read_pasted_text(paste_file: Path | None) -> str:
+    """The pasted JD from `--file` or stdin, refused above `MAX_PASTE_BYTES`.
+
+    Read bounded, so an oversize input is rejected without holding all of it.
+    Exits (EXIT_USAGE) before extraction, storage or any model call.
+    """
+    limit_mb = MAX_PASTE_BYTES // (1024 * 1024)
+    too_big = f"JD text is over the {limit_mb} MB limit; nothing was read further or saved"
+    if paste_file is not None:
+        if paste_file.stat().st_size > MAX_PASTE_BYTES:
+            echo(too_big, err=True)
+            sys.exit(EXIT_USAGE)
+        return paste_file.read_text(encoding="utf-8")
+    text = sys.stdin.read(MAX_PASTE_BYTES + 1)
+    if len(text.encode("utf-8")) > MAX_PASTE_BYTES:
+        echo(too_big, err=True)
+        sys.exit(EXIT_USAGE)
+    return text
 
 
 def _confirm_extraction(

@@ -1,12 +1,9 @@
-"""The README's test count, kept honest by the suite it counts.
+"""The README's eval figures, tied to the published results.
 
-This number has gone stale four times: a slice adds tests, the README keeps the
-old figure, and nobody notices because nothing reads it. It is a small lie in
-the one document a cold reader trusts most, sitting two lines from the claim
-that the sample output reproduces exactly -- and a repo whose pitch is honest
-engineering cannot afford a number that is casually wrong.
-
-Hand-maintained facts drift; this makes the drift fail the build instead.
+Counts the docs state (tests, ADRs, threats, phases, headline figures) live in the
+one registry in tests/test_docs_claims.py. What stays here is README-specific: the
+eval figures must be the published ones and must carry their caveat, and a figure
+that was once the headline may appear only beside what replaced it.
 """
 
 from __future__ import annotations
@@ -14,53 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 README = Path(__file__).resolve().parents[1] / "README.md"
-TECHNICAL_REFERENCE = Path(__file__).resolve().parents[1] / "docs" / "technical-reference.md"
-_COUNT_RE = re.compile(r"(\d+) pytest cases\.")
-
-
-def test_readme_reports_the_real_test_count(request: pytest.FixtureRequest) -> None:
-    """Skipped on a filtered run, where the collected count is a subset by design.
-
-    The guard is the fiddly half: `-k`, `-m`, and naming specific files all
-    collect fewer tests than exist, and asserting against that would fail for a
-    reason that has nothing to do with the README. A skip there is honest; the
-    full run -- which is what CI does -- is where the claim has to hold.
-    """
-    config = request.config
-    if config.option.keyword or config.option.markexpr:
-        pytest.skip("filtered run; collected count is a subset")
-    if getattr(config.option, "lf", False) or getattr(config.option, "failedfirst", False):
-        pytest.skip("partial-rerun mode; collected count is a subset")
-    args = [a for a in config.args if not a.startswith("-")]
-    if any(Path(a.split("::")[0]).is_file() for a in args):
-        pytest.skip("specific files named; collected count is a subset")
-
-    collected = request.session.testscollected
-
-    match = _COUNT_RE.search(README.read_text(encoding="utf-8"))
-    assert match, "README no longer states a test count in the expected form"
-    claimed = int(match.group(1))
-    assert claimed == collected, (
-        f"README claims {claimed} pytest cases; the suite collected {collected}. "
-        "Update both places (the README's Status line and the repo-layout line "
-        "in docs/technical-reference.md) rather than only the one that failed."
-    )
-
-
-def test_the_two_readme_counts_agree() -> None:
-    """The count appears twice, split across the two docs since the restructure.
-
-    Fixing one and not the other is the near miss.
-    """
-    layout = re.search(
-        r"pytest suite \((\d+) tests\)", TECHNICAL_REFERENCE.read_text(encoding="utf-8")
-    )
-    status = _COUNT_RE.search(README.read_text(encoding="utf-8"))
-    assert layout and status, "one of the two test-count lines is missing"
-    assert layout.group(1) == status.group(1)
 
 
 def test_readme_eval_figures_match_the_published_results() -> None:

@@ -71,7 +71,7 @@ def test_summarize_costs_groups_by_feature_and_computes_percentiles() -> None:
 
 
 def test_summarize_costs_excludes_failure_marker_rows() -> None:
-    """Gate finding G3: a row with `error` set carries zeroed usage by
+    """A row with `error` set carries zeroed usage by
     construction (the call raised before real figures came back) -- folding
     it into an average would understate cost/latency for calls that actually
     completed, the same reason an unpriced model is skipped in
