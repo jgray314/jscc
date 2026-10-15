@@ -155,12 +155,15 @@ def tracked_repo(tmp_path: Path) -> Path:
         shutil.copy(ROOT / "scripts" / name, tmp_path / "scripts" / name)
     shutil.copytree(ROOT / "jscc", tmp_path / "jscc", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(ROOT / ".safety", tmp_path / ".safety")
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, env=clean_env)
     return tmp_path
 
 
 def _run_wrapper(bash: str, repo: Path, *files: str) -> subprocess.CompletedProcess[str]:
-    env = dict(os.environ)
+    # A git hook exports GIT_DIR and friends; inherited, they point the throwaway
+    # repo's git calls at the outer checkout (and break inside a linked worktree).
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
     return subprocess.run(
         [bash, "scripts/scan_tracked.sh", *files],
@@ -174,7 +177,8 @@ def _run_wrapper(bash: str, repo: Path, *files: str) -> subprocess.CompletedProc
 
 def _track(repo: Path, name: str, text: str) -> None:
     (repo / name).write_text(text, encoding="utf-8")
-    subprocess.run(["git", "add", name], cwd=repo, check=True)
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "add", name], cwd=repo, check=True, env=clean_env)
 
 
 @pytest.mark.parametrize("bash", _bashes() or [pytest.param("", marks=pytest.mark.skip("no bash"))])
