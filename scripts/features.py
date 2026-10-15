@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import re
+import string
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -82,10 +83,10 @@ def _seal_raw(f, ev, version):
 
 def seal(f, ev):
     """Letters only. A hex seal can contain a long enough digit run to read as a
-    phone number to a content scanner (it did, once). Mapping 0-9 to g-p keeps
+    phone number to a content scanner (it did, once). Mapping the ten digits to g-p keeps
     the same entropy and removes every digit."""
     digest = hashlib.sha256(_seal_raw(f, ev, "v2").encode()).hexdigest()[:16]
-    return digest.translate(str.maketrans("0123456789", "ghijklmnop"))
+    return digest.translate(str.maketrans(string.digits, "ghijklmnop"))
 
 
 def seal_v1(f, ev):
