@@ -296,8 +296,15 @@
       "id": "eval-sizing-gate",
       "behavior": "A proposed eval round is checked before capture for undersized case count, class imbalance, duplicate and near-duplicate inputs, cases that cannot discriminate, and inputs over the chat paste ceiling; each named check is tested and mutation-checked, and the tracked suites pass it.",
       "verify": "uv run pytest tests/test_eval_sizing.py -q",
-      "state": "active",
-      "source": "harness-history analysis 2026-10-15, P5: eval suites found undersized three times (n=15, 10, 12) after capture money was spent"
+      "state": "passing",
+      "source": "harness-history analysis 2026-10-15, P5: eval suites found undersized three times (n=15, 10, 12) after capture money was spent",
+      "evidence": {
+        "commit": "c23aaf7a85d3486aa6ec7f1bd9a6d90d12a7422d",
+        "dirty": false,
+        "at": "2026-10-15T22:57:24Z",
+        "exit_code": 0,
+        "seal": "hacdmcmjjehcgpih"
+      }
     }
   ]
 }
