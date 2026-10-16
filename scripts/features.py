@@ -107,8 +107,10 @@ def seal_v1(f, ev):
 def init_seal(rec):
     """Letters only, same reasoning as `seal`."""
     raw = f"init|{rec['commit']}|{rec['at']}|features.py-init-v1"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16].translate(
-        str.maketrans(string.digits, "ghijklmnop")
+    return (
+        hashlib.sha256(raw.encode())
+        .hexdigest()[:16]
+        .translate(str.maketrans(string.digits, "ghijklmnop"))
     )
 
 
@@ -359,7 +361,11 @@ def init_checks(data):
     )
     pin = _first_existing(".python-version", ".nvmrc", ".node-version", ".tool-versions")
     engines = '"engines"' in (_read("package.json") or "")
-    add(pin or engines, "runtime version pinned", "add .python-version, .nvmrc or package.json engines")
+    add(
+        pin or engines,
+        "runtime version pinned",
+        "add .python-version, .nvmrc or package.json engines",
+    )
     locks = (
         "uv.lock", "poetry.lock", "Pipfile.lock", "package-lock.json",
         "pnpm-lock.yaml", "yarn.lock", "Cargo.lock", "go.sum",
@@ -434,7 +440,9 @@ def cmd_init_check(data, flags):
     rec["seal"] = init_seal(rec)
     data["init"] = rec
     save(data)
-    print(f"\ninit COMPLETE at {rec['commit'][:7]}. Commit FEATURES.json; features can be activated.")
+    print(
+        f"\ninit COMPLETE at {rec['commit'][:7]}. Commit FEATURES.json; features can be activated."
+    )
 
 
 def cmd_check(data):
