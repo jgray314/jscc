@@ -7,7 +7,7 @@
     "fresh_session_tested": true,
     "seal": "kampaokkjnophiec"
   },
-  "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q",
+  "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run mypy && uv run pytest -q",
   "features": [
     {
       "id": "tests-pass",

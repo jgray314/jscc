@@ -466,7 +466,7 @@ def cmd_progress(data):
         "",
         "This is the verification ledger: check gates and controls, each with a command that proves it.",
         "It is not the product roadmap. What the product does and what is open lives in the README",
-        "Status and the project plan.",
+        "and plan docs that AGENTS.md lists under 'Where things are'.",
         "",
         f"Commit: `{head}`  ",
         f"Full check: `{data.get('check_command', 'not defined')}`",

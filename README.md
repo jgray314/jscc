@@ -148,7 +148,7 @@ Design decisions, each with its rejected alternatives:
 - [ADR-001 — pydantic vs. jsonschema](decisions/001-pydantic-vs-jsonschema.md)
 - [ADR-002 — stdlib sqlite3](decisions/002-stdlib-sqlite3.md)
 - [ADR-003 — mode isolation via stamped marker](decisions/003-mode-isolation.md)
-- [ADR-004 — pre-commit.com framework + local Python hook](decisions/004-precommit-framework.md)
+- [ADR-004 — pre-commit.com framework + local Python hook (superseded by `.githooks/`)](decisions/004-precommit-framework.md)
 - [ADR-005 — sanitizer authenticity via HMAC wrapper](decisions/005-sanitizer-authenticity.md)
 - [ADR-006 — eval bars, manual capture, and deterministic grading](decisions/006-eval-bars-and-manual-capture.md)
 - [ADR-007 — dashboard web stack: FastAPI + Jinja2](decisions/007-web-stack-choice.md)
