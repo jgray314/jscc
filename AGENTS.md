@@ -26,6 +26,7 @@ Job-search pipeline tracker built around eval-backed LLM stages (extraction, fit
 8. A fix to a Critical or High finding needs proof: a test that fails without the fix, a mutation check, or a deletion proof.
 9. A new dependency needs `uv lock` and a committed `uv.lock`. CI actions stay SHA-pinned.
 10. No Co-Authored-By trailers. The commit-msg hook rejects them.
+11. Stay inside the active feature: no refactors, renames or fixes to unrelated code in the same change. Note them for later instead.
 
 ## End of a session
 
