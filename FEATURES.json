@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "init": { "state": "pending" },
   "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q",
   "features": [
     {

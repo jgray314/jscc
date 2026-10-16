@@ -17,7 +17,16 @@ The seal is tamper-evidence against casual edits, not security: an agent that
 reads this file could recompute it. The control is that hand edits are visible
 in review and fail the hook, which turns "I marked it done" into a deliberate act.
 
-Usage: features.py {list,status,activate,verify,verify-all,block,check,progress,clean,full-check,restamp} [id] [reason]
+Initialization is its own phase. A scaffolded FEATURES.json carries
+`"init": {"state": "pending"}`; while pending, `activate` refuses and `check`
+fails if any feature is active, blocked or passing. `init-check` verifies the
+setup (placeholders filled, hooks wired, runtime pinned and matched in CI,
+lockfile, CI workflow, enough features, full check green); `init-check --complete
+--fresh-session-tested` records a sealed checkpoint at a clean HEAD and lifts the
+gate. A FEATURES.json with no `init` key is a legacy project and is not gated.
+
+Usage: features.py {list,status,activate,verify,verify-all,block,check,progress,clean,full-check,restamp,init-check} [id] [reason]
+       features.py init-check [--complete] [--fresh-session-tested] [--skip-run]
 """
 
 import hashlib
@@ -95,6 +104,20 @@ def seal_v1(f, ev):
     return hashlib.sha256(_seal_raw(f, ev, "v1").encode()).hexdigest()[:16]
 
 
+def init_seal(rec):
+    """Letters only, same reasoning as `seal`."""
+    raw = f"init|{rec['commit']}|{rec['at']}|features.py-init-v1"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16].translate(
+        str.maketrans(string.digits, "ghijklmnop")
+    )
+
+
+def init_state(data):
+    """None for a legacy project (no `init` key), else the recorded state."""
+    init = data.get("init")
+    return None if init is None else (init.get("state") if isinstance(init, dict) else "invalid")
+
+
 def find(data, fid):
     for f in data["features"]:
         if f["id"] == fid:
@@ -117,6 +140,25 @@ def problems(data):
     active = [f["id"] for f in data["features"] if f.get("state") == "active"]
     if len(active) > 1:
         out.append(f"WIP limit is 1, active: {', '.join(active)}")
+    istate = init_state(data)
+    if istate == "pending":
+        started = [f["id"] for f in data["features"] if f.get("state") != "not_started"]
+        if started:
+            out.append(
+                f"init is pending but {', '.join(started)} moved past not_started "
+                "(finish `init-check --complete` before any feature work)"
+            )
+    elif istate == "complete":
+        rec = data["init"]
+        sealed = bool(rec.get("commit") and rec.get("at")) and rec.get("seal") == init_seal(rec)
+        if not sealed:
+            out.append("init: marked complete without a sealed record from `init-check --complete`")
+        elif git("rev-parse", "--is-shallow-repository") != "true" and not git(
+            "cat-file", "-t", rec["commit"]
+        ):
+            out.append(f"init: checkpoint commit {rec['commit'][:7]} not in this repo")
+    elif istate is not None:
+        out.append(f"init: state '{istate}' is not 'pending' or 'complete'")
     for f in data["features"]:
         fid = f.get("id", "?")
         for key in ("id", "behavior", "verify", "state"):
@@ -154,6 +196,12 @@ def cmd_status(data):
 
 
 def cmd_activate(data, fid):
+    if init_state(data) == "pending":
+        sys.exit(
+            f"cannot activate {fid}: initialization is not complete. Work through "
+            "INIT-CHECKLIST.md, then `python scripts/features.py init-check --complete "
+            "--fresh-session-tested`."
+        )
     f = find(data, fid)
     busy = [
         x["id"] for x in data["features"] if x["state"] in ("active", "blocked") and x["id"] != fid
@@ -256,10 +304,145 @@ def cmd_block(data, fid, reason):
     print(f"{fid} blocked: {f['blocked_reason']}")
 
 
+def _read(rel):
+    p = ROOT / rel
+    return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None
+
+
+def _first_existing(*names):
+    return next((n for n in names if (ROOT / n).is_file()), None)
+
+
+def _version_in_ci(pin_file, key, parts, workflows):
+    """None when there is nothing to compare, else (ok, detail)."""
+    pin = _read(pin_file)
+    mentioned = [w for w in workflows if key in w]
+    if pin is None or not mentioned:
+        return None
+    version = pin.split()[0].lstrip("v") if pin.split() else ""
+    short = ".".join(version.split(".")[:parts])
+    ok = bool(short) and all(short in w for w in mentioned)
+    return ok, f"{pin_file} says {short or '?'}; CI '{key}' must name the same"
+
+
+def init_checks(data):
+    """Static setup checks: a list of (ok, label, hint). The full check runs separately."""
+    res = []
+
+    def add(ok, label, hint):
+        res.append((bool(ok), label, hint))
+
+    holders = [n for n in ("AGENTS.md", "FEATURES.json") if "{{" in (_read(n) or "")]
+    add(not holders, "no {{PLACEHOLDERS}} left", f"fill them in: {', '.join(holders)}")
+    agents = _read("AGENTS.md")
+    add(
+        agents is not None and len(agents.splitlines()) <= 100,
+        "AGENTS.md exists and is 100 lines or fewer",
+        "keep it short; link topic docs instead of inlining them",
+    )
+    hooks_path = git("config", "--get", "core.hooksPath")
+    hooks = all((ROOT / ".githooks" / h).is_file() for h in ("commit-msg", "pre-push"))
+    add(
+        hooks and hooks_path == ".githooks",
+        "commit-msg and pre-push hooks present, core.hooksPath=.githooks",
+        "run: git config core.hooksPath .githooks",
+    )
+    add(
+        "features.py check" in (_read(".githooks/pre-push") or ""),
+        "pre-push runs the feature check",
+        "add `python scripts/features.py check` to .githooks/pre-push",
+    )
+    add(
+        "eol=lf" in (_read(".gitattributes") or ""),
+        ".gitattributes pins eol=lf",
+        "add `* text=auto eol=lf`",
+    )
+    pin = _first_existing(".python-version", ".nvmrc", ".node-version", ".tool-versions")
+    engines = '"engines"' in (_read("package.json") or "")
+    add(pin or engines, "runtime version pinned", "add .python-version, .nvmrc or package.json engines")
+    locks = (
+        "uv.lock", "poetry.lock", "Pipfile.lock", "package-lock.json",
+        "pnpm-lock.yaml", "yarn.lock", "Cargo.lock", "go.sum",
+    )  # fmt: skip
+    has_lock = _first_existing(*locks) or any(ROOT.glob("requirements*.txt"))
+    add(has_lock, "dependencies locked", "commit a lockfile (or pinned requirements)")
+    wf = sorted((ROOT / ".github" / "workflows").glob("*.y*ml"))
+    texts = [t.read_text(encoding="utf-8", errors="replace") for t in wf]
+    add(texts, "CI workflow present", "add .github/workflows/*.yml")
+    add(
+        any("features.py check" in t for t in texts),
+        "CI runs the feature check",
+        "add `python scripts/features.py check` to the CI workflow",
+    )
+    for pin_file, key, parts in (
+        (".python-version", "python-version", 2),
+        (".nvmrc", "node-version", 1),
+    ):
+        got = _version_in_ci(pin_file, key, parts, texts)
+        if got:
+            add(got[0], f"CI runtime matches {pin_file}", got[1])
+    feats = data["features"]
+    add(len(feats) >= 3, "at least three features", "add gates: tests, lint, format")
+    add(bool(data.get("check_command")), "check_command set", "set check_command in FEATURES.json")
+    return res
+
+
+def cmd_init_check(data, flags):
+    unknown = set(flags) - {"--complete", "--fresh-session-tested", "--skip-run"}
+    if unknown:
+        sys.exit(f"unknown flags: {', '.join(sorted(unknown))}\n{__doc__}")
+    complete = "--complete" in flags
+    if complete and "--skip-run" in flags:
+        sys.exit("--complete needs the real full check; drop --skip-run")
+    state = init_state(data)
+    if state is None:
+        sys.exit("legacy project: FEATURES.json has no `init` key, nothing to gate")
+    if state == "complete" and not complete:
+        print("init: already complete (re-running checks)")
+    results = init_checks(data)
+    for ok, label, hint in results:
+        print(f"{'ok  ' if ok else 'FAIL'} {label}" + ("" if ok else f"  -> {hint}"))
+    failed = [label for ok, label, _ in results if not ok]
+    if "--skip-run" not in flags and data.get("check_command"):
+        r = sh(data["check_command"])
+        ok = r.returncode == 0
+        print(f"{'ok  ' if ok else 'FAIL'} full check passes ({data['check_command']})")
+        if not ok:
+            failed.append("full check")
+            tail = (r.stdout + r.stderr).strip().splitlines()[-10:]
+            print("\n".join("     " + ln for ln in tail))
+    if not complete:
+        print(
+            "\nStill manual: open a fresh session with only the repo and have it answer what "
+            "this is, how to run it, how to verify it, and where progress stands."
+        )
+        sys.exit(1 if failed else 0)
+    if failed:
+        sys.exit(f"\ninit NOT complete: {len(failed)} check(s) failing")
+    if "--fresh-session-tested" not in flags:
+        sys.exit("\nrun the fresh-session test, then pass --fresh-session-tested")
+    if not git("rev-parse", "--verify", "HEAD"):
+        sys.exit("\ncommit the setup first: the checkpoint is a commit")
+    if git("status", "--porcelain"):
+        sys.exit("\nworking tree is dirty: commit the setup, then run --complete on a clean tree")
+    rec = {
+        "state": "complete",
+        "commit": git("rev-parse", "HEAD"),
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fresh_session_tested": True,
+    }
+    rec["seal"] = init_seal(rec)
+    data["init"] = rec
+    save(data)
+    print(f"\ninit COMPLETE at {rec['commit'][:7]}. Commit FEATURES.json; features can be activated.")
+
+
 def cmd_check(data):
     probs = problems(data)
     for p in probs:
         print("features:", p)
+    if init_state(data) == "pending":
+        print("features: init phase pending (no feature work until `init-check --complete`)")
     if not probs:
         p, a = vcr(data)
         print(f"features: ok ({len(data['features'])} features, {p} passing, {a - p} in flight)")
@@ -384,6 +567,7 @@ def main(argv):
         "clean": lambda: cmd_clean(data),
         "full-check": lambda: cmd_full_check(data),
         "restamp": lambda: cmd_restamp(data),
+        "init-check": lambda: cmd_init_check(data, rest),
     }
     if cmd not in table:
         sys.exit(__doc__)
