@@ -1,6 +1,12 @@
 {
   "version": 1,
-  "init": { "state": "pending" },
+  "init": {
+    "state": "complete",
+    "commit": "806a3085d62b060ceb2dab18b6aa444813f1d3b2",
+    "at": "2026-10-16T17:41:39Z",
+    "fresh_session_tested": true,
+    "seal": "kampaokkjnophiec"
+  },
   "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run pytest -q",
   "features": [
     {
