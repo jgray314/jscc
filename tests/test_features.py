@@ -206,6 +206,14 @@ def test_block_records_reason_with_default(ledger):
     assert f["state"] == "blocked" and f["blocked_reason"] == "no reason given"
 
 
+def test_block_refuses_a_passing_feature(ledger):
+    data = ledger([_feature("a", "passing")])
+    with pytest.raises(SystemExit) as e:
+        features.cmd_block(data, "a", "broke")
+    assert "verify-all" in str(e.value.code)
+    assert features.load()["features"][0]["state"] == "passing"
+
+
 def test_check_exit_code_follows_problems(ledger, capsys):
     with pytest.raises(SystemExit) as e:
         features.cmd_check(ledger([_feature("a", "passing")]))

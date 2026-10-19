@@ -301,6 +301,14 @@ def cmd_restamp(data):
 
 def cmd_block(data, fid, reason):
     f = find(data, fid)
+    if f["state"] == "passing":
+        # Passing only changes through evidence. A passing feature that broke is a
+        # regression, and blocking it would hide that instead of surfacing it.
+        sys.exit(
+            f"{fid} is passing; block only parks active or not-started work. "
+            "If it broke, run `python scripts/features.py verify-all` to see the "
+            "regression, then fix the code until it passes again."
+        )
     f["state"], f["blocked_reason"] = "blocked", reason or "no reason given"
     save(data)
     print(f"{fid} blocked: {f['blocked_reason']}")

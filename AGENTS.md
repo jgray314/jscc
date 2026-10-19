@@ -18,7 +18,7 @@ Job-search pipeline tracker built around eval-backed LLM stages (extraction, fit
 
 1. One active feature at a time: `python scripts/features.py activate <id>`, build, then `python scripts/features.py verify <id>`.
 2. Never edit a feature's `state` or `evidence` by hand. Only `verify` can make it `passing`; `check` rejects a hand edit.
-3. A feature with no runnable verify command is not specified yet. Write the test first and watch it fail.
+3. A feature with no runnable verify command is not specified yet. Write the test first and watch it fail. When the feature changes more than one module, its verify must run the real CLI path end to end (as `tests/test_cli.py` does), not only unit tests.
 4. Do not claim a test passes without running it in this turn. Paste real output.
 5. Every model call goes through `sanitize_for_llm` then `send_to_llm`. Do not call a client directly.
 6. Database opens go through `open_for_mode` only. Real data is gitignored; `data/synthetic.db` is the only tracked database.
