@@ -218,7 +218,7 @@ def cmd_status(data):
     p, a = vcr(data)
     rate = f"{p}/{a} = {p / a:.2f}" if a else "n/a (nothing activated)"
     print(f"\nVerified completion rate: {rate}")
-    stale = sweep_note()
+    stale = sweep_note(data)
     if stale:
         print("Periodic sweeps due: " + "; ".join(stale) + " (offer to run them)")
 
@@ -559,9 +559,10 @@ SWEEPS = ("backlog-prune", "test-prune", "docs-consolidate", "harness-audit")
 SWEEP_MAX_DAYS = 30
 
 
-def sweep_note():
+def sweep_note(data):
     """Periodic sweeps with no recorded run in the last SWEEP_MAX_DAYS, as advisory
-    lines. A sweep records itself with `features.py event sweep <name>`."""
+    lines. A sweep records itself with `features.py event sweep <name>`. The
+    FEATURES.json key "sweeps" overrides the list; [] turns the prompt off."""
     last = {}
     try:
         for line in EVENTS.read_text(encoding="utf-8").splitlines():
@@ -575,7 +576,7 @@ def sweep_note():
         pass
     now = datetime.now(UTC)
     out = []
-    for name in SWEEPS:
+    for name in data.get("sweeps", SWEEPS):
         if name not in last:
             out.append(f"{name}: no run recorded")
         elif (now - last[name]).days >= SWEEP_MAX_DAYS:
@@ -647,7 +648,7 @@ def cmd_clean(data):
     wts = [ln for ln in git("worktree", "list").splitlines()][1:]
     print("   WARN " + "; ".join(wts) if wts else "   ok")
     print("8. periodic sweeps")
-    stale = sweep_note()
+    stale = sweep_note(data)
     print("   WARN " + "; ".join(stale) + " (offer to run them)" if stale else "   ok")
     print("\nCLEAN" if not failed else "\nNOT CLEAN: " + ", ".join(failed))
     log_event(
