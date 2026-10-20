@@ -377,6 +377,23 @@ def check_vendor_client_has_no_caller_chosen_endpoint() -> None:
         assert {k.arg for k in call.keywords} <= {"api_key"}, "an endpoint or transport was passed"
 
 
+def check_ci_status_url_has_a_fixed_host() -> None:
+    tree = ast.parse((REPO_ROOT / "scripts" / "features.py").read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "ci_note")
+    urls = [
+        n
+        for n in ast.walk(fn)
+        if isinstance(n, ast.JoinedStr)
+        and isinstance(n.values[0], ast.Constant)
+        and "api.github.com" in str(n.values[0].value)
+    ]
+    assert urls, "the CI status URL moved; update this row"
+    for url in urls:
+        assert str(url.values[0].value).startswith("https://api.github.com/repos/"), (
+            "the host must be fixed; only the repo path may vary"
+        )
+
+
 def check_module_uses_only_the_exception_class() -> None:
     for rel in ("jscc/cli/agents.py", "jscc/cli/ingest.py", "jscc/dlq.py"):
         tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
@@ -516,6 +533,13 @@ REGISTRY: list[Row] = [
         "call:fetch_jd",
         "guarded_entry",
         check_destination_refused_before_any_request,
+    ),
+    Row(
+        "scripts/features.py",
+        "ci_note",
+        "const:curl",
+        "fixed_endpoint",
+        check_ci_status_url_has_a_fixed_host,
     ),
     Row(
         "scripts/smoke_fetch.py",
