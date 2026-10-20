@@ -8,6 +8,8 @@
     "seal": "kampaokkjnophiec"
   },
   "check_command": "uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run mypy && uv run pytest -q",
+  "startup_command": "uv run jscc --help",
+  "ci_repo": "jgray314/jscc",
   "features": [
     {
       "id": "tests-pass",

@@ -41,6 +41,7 @@ import re
 import string
 import subprocess
 import sys
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -529,6 +530,27 @@ def cmd_progress(data):
     print(f"wrote {PROGRESS.name}")
 
 
+def ci_note(repo):
+    """One line on the latest GitHub Actions run for the upstream commit. Advisory:
+    never fails the session, and any error (offline, private repo) reads as skipped."""
+    if not repo:
+        return "skipped: no ci_repo in FEATURES.json"
+    try:
+        sha = git("rev-parse", "@" + "{u}")
+        if not sha:
+            return "skipped: no upstream branch"
+        url = f"https://api.github.com/repos/{repo}/actions/runs?head_sha={sha}&per_page=1"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            runs = json.load(resp)["workflow_runs"]
+        if not runs:
+            return f"WARN no CI run found for pushed commit {sha[:7]}"
+        run = runs[0]
+        state = run["conclusion"] or run["status"]
+        return ("ok" if state == "success" else f"WARN {state}") + f" ({sha[:7]})"
+    except Exception as e:
+        return f"skipped: {type(e).__name__}"
+
+
 def cmd_clean(data):
     """End-of-session exit criteria: transaction-style commit or roll back."""
     failed = []
@@ -553,7 +575,23 @@ def cmd_clean(data):
             )
         else:
             print("   ok")
-    print("3. debug leftovers in uncommitted and unpushed changes")
+    print("3. standard startup path")
+    sc = data.get("startup_command")
+    if not sc:
+        print("   skipped: no startup_command in FEATURES.json")
+    else:
+        r = sh(sc)
+        if r.returncode:
+            failed.append("startup path failed")
+            print(
+                "   FAIL\n"
+                + "\n".join("   " + ln for ln in (r.stdout + r.stderr).strip().splitlines()[-15:])
+            )
+        else:
+            print("   ok")
+    print("4. CI on the pushed commit")
+    print("   " + ci_note(data.get("ci_repo")))
+    print("5. debug leftovers in uncommitted and unpushed changes")
     diff = git("diff", "HEAD", "-U0") + "\n" + git("diff", "@" + "{u}..HEAD", "-U0")
     hits = [
         ln
@@ -566,14 +604,14 @@ def cmd_clean(data):
             print("   FAIL", h[:100])
     else:
         print("   ok")
-    print("4. working tree")
+    print("6. working tree")
     dirty = git("status", "--porcelain")
     print(
         "   WARN uncommitted changes:\n" + "\n".join("   " + ln for ln in dirty.splitlines()[:10])
         if dirty
         else "   ok"
     )
-    print("5. extra worktrees")
+    print("7. extra worktrees")
     wts = [ln for ln in git("worktree", "list").splitlines()][1:]
     print("   WARN " + "; ".join(wts) if wts else "   ok")
     print("\nCLEAN" if not failed else "\nNOT CLEAN: " + ", ".join(failed))

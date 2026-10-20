@@ -6,7 +6,7 @@ This is the verification ledger: check gates and controls, each with a command t
 It is not the product roadmap. What the product does and what is open lives in the README
 and plan docs that AGENTS.md lists under 'Where things are'.
 
-Commit: `f5b9cd6`  
+Commit: `ac5d3c5`  
 Full check: `uv run ruff check . && uv run ruff format --check . && bash scripts/scan_tracked.sh && uv run mypy && uv run pytest -q`
 
 ## Done
