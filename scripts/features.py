@@ -577,6 +577,13 @@ def cmd_clean(data):
     wts = [ln for ln in git("worktree", "list").splitlines()][1:]
     print("   WARN " + "; ".join(wts) if wts else "   ok")
     print("\nCLEAN" if not failed else "\nNOT CLEAN: " + ", ".join(failed))
+    log_event(
+        "features",
+        "clean-result",
+        failed=", ".join(failed) or None,
+        uncommitted=bool(dirty),
+        worktrees=len(wts),
+    )
     sys.exit(1 if failed else 0)
 
 
