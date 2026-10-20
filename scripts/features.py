@@ -25,7 +25,12 @@ lockfile, CI workflow, enough features, full check green); `init-check --complet
 --fresh-session-tested` records a sealed checkpoint at a clean HEAD and lifts the
 gate. A FEATURES.json with no `init` key is a legacy project and is not gated.
 
+Every command appends one line to .harness/events.jsonl (gitignored; command, feature id, ok),
+as do the commit-msg hook (via `event`) and the subagent guard. That file is how
+/harness-audit shows whether a control fired. A write failure is swallowed.
+
 Usage: features.py {list,status,activate,verify,verify-all,block,check,progress,clean,full-check,restamp,init-check} [id] [reason]
+       features.py event <source> <name> [key=value ...]
        features.py init-check [--complete] [--fresh-session-tested] [--skip-run]
 """
 
@@ -42,10 +47,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FEATURES = ROOT / "FEATURES.json"
 PROGRESS = ROOT / "PROGRESS.md"
+EVENTS = ROOT / ".harness" / "events.jsonl"
 STATES = ("not_started", "active", "blocked", "passing")
 DEBUG_PATTERNS = re.compile(
     r"console\.log|debugger\b|breakpoint\(\)|import pdb|pdb\.set_trace|\bTODO\b|\bFIXME\b"
 )
+
+
+def log_event(source, event, **fields):
+    """Append one line to .harness/events.jsonl (gitignored). Never raises: a
+    broken log must not break the control it observes."""
+    try:
+        rec = {
+            "at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "source": source,
+            "event": event,
+        }
+        rec.update({k: v for k, v in fields.items() if v is not None})
+        EVENTS.parent.mkdir(exist_ok=True)
+        with EVENTS.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def env():
@@ -570,6 +593,11 @@ def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
     cmd, rest = argv[1], argv[2:]
+    if cmd == "event":  # for shell hooks: event <source> <name> [key=value ...]
+        if len(rest) < 2:
+            sys.exit(__doc__)
+        log_event(rest[0], rest[1], **dict(kv.split("=", 1) for kv in rest[2:] if "=" in kv))
+        return
     data = load()
     table = {
         "list": lambda: cmd_list(data),
@@ -589,7 +617,19 @@ def main(argv):
         sys.exit(__doc__)
     if cmd in ("activate", "verify", "block") and not rest:
         sys.exit(f"{cmd} needs a feature id")
-    table[cmd]()
+    code = 0
+    try:
+        table[cmd]()
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        raise
+    finally:
+        log_event(
+            "features",
+            cmd,
+            id=rest[0] if cmd in ("activate", "verify", "block") else None,
+            ok=code == 0,
+        )
 
 
 if __name__ == "__main__":
