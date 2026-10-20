@@ -31,3 +31,5 @@ Job-search pipeline tracker built around eval-backed LLM stages (extraction, fit
 ## End of a session
 
 Run `python scripts/features.py clean`, then `python scripts/features.py progress`, then commit.
+
+Periodic sweeps (`/backlog-prune`, `/test-prune`, `/docs-consolidate`, `/harness-audit`): when `clean` or `status` lists any as due (no run in 30 days), or a phase or version has just closed, offer to run them before moving on. Each records its own run.

@@ -218,6 +218,9 @@ def cmd_status(data):
     p, a = vcr(data)
     rate = f"{p}/{a} = {p / a:.2f}" if a else "n/a (nothing activated)"
     print(f"\nVerified completion rate: {rate}")
+    stale = sweep_note()
+    if stale:
+        print("Periodic sweeps due: " + "; ".join(stale) + " (offer to run them)")
 
 
 def cmd_activate(data, fid):
@@ -552,6 +555,34 @@ def ci_note(repo):
         return f"skipped: {type(e).__name__}"
 
 
+SWEEPS = ("backlog-prune", "test-prune", "docs-consolidate", "harness-audit")
+SWEEP_MAX_DAYS = 30
+
+
+def sweep_note():
+    """Periodic sweeps with no recorded run in the last SWEEP_MAX_DAYS, as advisory
+    lines. A sweep records itself with `features.py event sweep <name>`."""
+    last = {}
+    try:
+        for line in EVENTS.read_text(encoding="utf-8").splitlines():
+            try:
+                rec = json.loads(line)
+                if rec["source"] == "sweep":
+                    last[rec["event"]] = datetime.fromisoformat(rec["at"])
+            except Exception:
+                continue
+    except OSError:
+        pass
+    now = datetime.now(UTC)
+    out = []
+    for name in SWEEPS:
+        if name not in last:
+            out.append(f"{name}: no run recorded")
+        elif (now - last[name]).days >= SWEEP_MAX_DAYS:
+            out.append(f"{name}: last run {(now - last[name]).days} days ago")
+    return out
+
+
 def cmd_clean(data):
     """End-of-session exit criteria: transaction-style commit or roll back."""
     failed = []
@@ -615,6 +646,9 @@ def cmd_clean(data):
     print("7. extra worktrees")
     wts = [ln for ln in git("worktree", "list").splitlines()][1:]
     print("   WARN " + "; ".join(wts) if wts else "   ok")
+    print("8. periodic sweeps")
+    stale = sweep_note()
+    print("   WARN " + "; ".join(stale) + " (offer to run them)" if stale else "   ok")
     print("\nCLEAN" if not failed else "\nNOT CLEAN: " + ", ".join(failed))
     log_event(
         "features",
