@@ -158,7 +158,7 @@ The ten design principles behind them are in [docs/design-principles.md](docs/de
 ## Status
 
 - **v1 complete.** All six phases closed after review, the last on 2026-09-27. Still open: the video walkthrough and a blog post. Work since v1 is in [CHANGELOG.md](CHANGELOG.md); the phase table, reviews, and cost envelope are in [docs/technical-reference.md](docs/technical-reference.md#status).
-- **1101 pytest cases.** Lint and format enforced via ruff.
+- **1102 pytest cases.** Lint and format enforced via ruff.
 - **No real dollar figures yet.** Every model call is metered at the call site, but with no live key there is no real billing to report.
 
 ## License
