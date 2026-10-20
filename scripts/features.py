@@ -41,7 +41,6 @@ import re
 import string
 import subprocess
 import sys
-import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -540,8 +539,10 @@ def ci_note(repo):
         if not sha:
             return "skipped: no upstream branch"
         url = f"https://api.github.com/repos/{repo}/actions/runs?head_sha={sha}&per_page=1"
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            runs = json.load(resp)["workflow_runs"]
+        resp = subprocess.run(
+            ["curl", "-sf", "--max-time", "10", url], capture_output=True, text=True, timeout=15
+        )  # curl, not urllib: jscc's SSRF registry rejects in-process fetches
+        runs = json.loads(resp.stdout)["workflow_runs"]
         if not runs:
             return f"WARN no CI run found for pushed commit {sha[:7]}"
         run = runs[0]
