@@ -5,15 +5,15 @@ description = "Job Search Command Center: a job-search pipeline tracker with eva
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic>=2.9",
+    "pydantic>=2.14.1",
     "pyyaml>=6.0",
     "click>=8.1",
-    "anthropic>=1.2.0",
+    "anthropic>=1.15.0",
     "requests>=2.34.2",
     "readability-lxml>=0.9",
-    "playwright>=1.62.0",
-    "fastapi>=0.115",
-    "uvicorn>=0.32",
+    "playwright>=1.64.0",
+    "fastapi>=0.148.0",
+    "uvicorn>=0.54.0",
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
 ]
@@ -27,7 +27,7 @@ dev = [
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-cov>=5.0",
-    "ruff>=0.16.7",
+    "ruff>=0.17.1",
 ]
 
 [build-system]
