@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 # Actions are SHA-pinned with the release tag in a trailing comment.
 # A floating major-tag pin (@v4,
 # @v6) can be silently repointed upstream — either by an accidental release
